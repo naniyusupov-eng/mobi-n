@@ -13,6 +13,8 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { useSyncStore } from '../../store/syncStore';
 import { useLanguageStore } from '../../store/languageStore';
+import { useCartStore } from '../../store/cartStore';
+import { useShopStore } from '../../store/shopStore';
 import { orderRepository } from '../../database/orderRepository';
 import { shopRepository } from '../../database/shopRepository';
 import { colors } from '../../theme/colors';
@@ -25,6 +27,9 @@ import {
   Settings,
   ChevronRight,
   User,
+  Store,
+  ArrowRight,
+  CheckCircle2,
 } from 'lucide-react-native';
 
 export const HomeScreen = ({ navigation }: { navigation: any }) => {
@@ -80,6 +85,13 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
   const nextLang = lang === 'uz' ? 'ru' : lang === 'ru' ? 'uz_cyrl' : 'uz';
   const langLabel = lang === 'uz' ? '🇺🇿 UZ' : lang === 'ru' ? '🇷🇺 RU' : '🇺🇿 ЎЗБ';
 
+  const { shop } = useCartStore();
+  const { currentShop, setCurrentShop } = useShopStore();
+  const activeShop = shop || currentShop;
+
+  const progressPct =
+    routeProgress.total > 0 ? Math.round((routeProgress.visited / routeProgress.total) * 100) : 0;
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
@@ -133,6 +145,45 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
       >
+        {/* Active Selected Shop Banner (If any shop chosen) */}
+        {activeShop && (
+          <TouchableOpacity
+            style={styles.activeShopBanner}
+            onPress={() => navigation.navigate('CatalogTab')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.activeShopLeft}>
+              <View style={styles.activeShopIcon}>
+                <Store size={18} color="#fff" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.activeShopSubLabel}>{t('checkout_client')}:</Text>
+                <Text style={styles.activeShopName} numberOfLines={1}>{activeShop.name}</Text>
+              </View>
+            </View>
+            <View style={styles.activeShopAction}>
+              <Text style={styles.activeShopActionText}>{t('tab_catalog')}</Text>
+              <ArrowRight size={14} color="#fff" />
+            </View>
+          </TouchableOpacity>
+        )}
+
+        {/* Route Progress Visual Card */}
+        <View style={styles.routeProgressCard}>
+          <View style={styles.progressHeader}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <CheckCircle2 size={16} color={colors.primary} />
+              <Text style={styles.progressTitle}>{t('home_route_plan')}</Text>
+            </View>
+            <Text style={styles.progressRatio}>
+              <Text style={{ fontWeight: '800', color: colors.primary }}>{routeProgress.visited}</Text> / {routeProgress.total} ({progressPct}%)
+            </Text>
+          </View>
+          <View style={styles.progressBarTrack}>
+            <View style={[styles.progressBarFill, { width: `${Math.max(4, progressPct)}%` }]} />
+          </View>
+        </View>
+
         {/* KPI Mini-Dashboard Strip */}
         <View style={styles.kpiContainer}>
           <View style={styles.kpiItem}>
@@ -156,114 +207,114 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
           </View>
         </View>
 
-        {/* Mobi-S Legendary 6 Big Action Tiles */}
+        {/* Mobi-S 2-Column Ergonomic Grid (6 Core Actions) */}
         <Text style={styles.sectionHeader}>{t('tab_home').toUpperCase()}</Text>
-        <View style={styles.gridContainer}>
+        <View style={styles.grid2Col}>
           {/* Tile 1: Marshrut / Mijozlar */}
           <TouchableOpacity
-            style={styles.gridTile}
+            style={styles.actionCard}
             onPress={() => navigation.navigate('ShopsTab')}
             activeOpacity={0.75}
           >
-            <View style={[styles.tileIconCircle, { backgroundColor: '#E3F2FD' }]}>
-              <MapPin size={26} color={colors.primary} />
+            <View style={styles.actionCardTop}>
+              <View style={[styles.actionIconBox, { backgroundColor: '#E3F2FD' }]}>
+                <MapPin size={22} color={colors.primary} />
+              </View>
+              <View style={styles.actionBadge}>
+                <Text style={styles.actionBadgeText}>{routeProgress.total}</Text>
+              </View>
             </View>
-            <View style={styles.tileTextContainer}>
-              <Text style={styles.tileTitle}>{t('home_menu_route')}</Text>
-              <Text style={styles.tileDesc}>{t('shop_visited_today')}, {t('shop_debt')}</Text>
-            </View>
-            <View style={styles.tileBadge}>
-              <Text style={styles.tileBadgeText}>{routeProgress.total}</Text>
-            </View>
+            <Text style={styles.actionTitle} numberOfLines={1}>{t('home_menu_route')}</Text>
+            <Text style={styles.actionSub} numberOfLines={1}>{t('shop_visited_today')}</Text>
           </TouchableOpacity>
 
           {/* Tile 2: Hujjatlar / Zakazlar */}
           <TouchableOpacity
-            style={styles.gridTile}
+            style={styles.actionCard}
             onPress={() => navigation.navigate('HistoryTab')}
             activeOpacity={0.75}
           >
-            <View style={[styles.tileIconCircle, { backgroundColor: '#E8F5E9' }]}>
-              <FileText size={26} color={colors.success} />
+            <View style={styles.actionCardTop}>
+              <View style={[styles.actionIconBox, { backgroundColor: '#E8F5E9' }]}>
+                <FileText size={22} color={colors.success} />
+              </View>
+              <View style={[styles.actionBadge, { backgroundColor: '#E8F5E9' }]}>
+                <Text style={[styles.actionBadgeText, { color: colors.success }]}>{stats.orderCount}</Text>
+              </View>
             </View>
-            <View style={styles.tileTextContainer}>
-              <Text style={styles.tileTitle}>{t('home_menu_docs')}</Text>
-              <Text style={styles.tileDesc}>{t('history_title')}</Text>
-            </View>
-            <View style={[styles.tileBadge, { backgroundColor: colors.successLight }]}>
-              <Text style={[styles.tileBadgeText, { color: colors.success }]}>{stats.orderCount}</Text>
-            </View>
+            <Text style={styles.actionTitle} numberOfLines={1}>{t('home_menu_docs')}</Text>
+            <Text style={styles.actionSub} numberOfLines={1}>{t('history_title')}</Text>
           </TouchableOpacity>
 
           {/* Tile 3: Tovarlar / Qoldiqlar */}
           <TouchableOpacity
-            style={styles.gridTile}
+            style={styles.actionCard}
             onPress={() => navigation.navigate('CatalogTab')}
             activeOpacity={0.75}
           >
-            <View style={[styles.tileIconCircle, { backgroundColor: '#FFF3E0' }]}>
-              <Package size={26} color={colors.accent} />
+            <View style={styles.actionCardTop}>
+              <View style={[styles.actionIconBox, { backgroundColor: '#FFF3E0' }]}>
+                <Package size={22} color={colors.accent} />
+              </View>
+              <ChevronRight size={16} color={colors.textMuted} />
             </View>
-            <View style={styles.tileTextContainer}>
-              <Text style={styles.tileTitle}>{t('tab_catalog')}</Text>
-              <Text style={styles.tileDesc}>{t('catalog_in_stock')}, {t('catalog_price_dona')}, {t('catalog_price_blok')}</Text>
-            </View>
-            <ChevronRight size={18} color={colors.textMuted} />
+            <Text style={styles.actionTitle} numberOfLines={1}>{t('tab_catalog')}</Text>
+            <Text style={styles.actionSub} numberOfLines={1}>{t('catalog_in_stock')}</Text>
           </TouchableOpacity>
 
           {/* Tile 4: Maʼlumot almashish */}
           <TouchableOpacity
-            style={styles.gridTile}
+            style={styles.actionCard}
             onPress={handleSyncNow}
             activeOpacity={0.75}
             disabled={isSyncing}
           >
-            <View style={[styles.tileIconCircle, { backgroundColor: '#EDE7F6' }]}>
-              <RefreshCw size={26} color="#673AB7" />
-            </View>
-            <View style={styles.tileTextContainer}>
-              <Text style={styles.tileTitle}>{t('home_menu_sync')}</Text>
-              <Text style={styles.tileDesc}>
-                {lastSyncedAt ? `${t('profile_last_sync')} ${lastSyncedAt}` : t('profile_never_synced')}
-              </Text>
-            </View>
-            {pendingCount > 0 && (
-              <View style={[styles.tileBadge, { backgroundColor: colors.dangerLight }]}>
-                <Text style={[styles.tileBadgeText, { color: colors.danger }]}>+{pendingCount}</Text>
+            <View style={styles.actionCardTop}>
+              <View style={[styles.actionIconBox, { backgroundColor: '#EDE7F6' }]}>
+                <RefreshCw size={22} color="#673AB7" />
               </View>
-            )}
+              {pendingCount > 0 && (
+                <View style={[styles.actionBadge, { backgroundColor: '#FEE2E2' }]}>
+                  <Text style={[styles.actionBadgeText, { color: colors.danger }]}>+{pendingCount}</Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.actionTitle} numberOfLines={1}>{t('home_menu_sync')}</Text>
+            <Text style={styles.actionSub} numberOfLines={1}>
+              {pendingCount > 0 ? `${pendingCount} ${t('home_to_export')}` : t('home_base_actual')}
+            </Text>
           </TouchableOpacity>
 
           {/* Tile 5: Hisobotlar */}
           <TouchableOpacity
-            style={styles.gridTile}
+            style={styles.actionCard}
             onPress={() => navigation.navigate('ReportsTab')}
             activeOpacity={0.75}
           >
-            <View style={[styles.tileIconCircle, { backgroundColor: '#FCE4EC' }]}>
-              <BarChart3 size={26} color="#C2185B" />
+            <View style={styles.actionCardTop}>
+              <View style={[styles.actionIconBox, { backgroundColor: '#FCE4EC' }]}>
+                <BarChart3 size={22} color="#C2185B" />
+              </View>
+              <ChevronRight size={16} color={colors.textMuted} />
             </View>
-            <View style={styles.tileTextContainer}>
-              <Text style={styles.tileTitle}>{t('home_menu_reports')}</Text>
-              <Text style={styles.tileDesc}>{t('reports_total_sales')}, {t('reports_cash')}</Text>
-            </View>
-            <ChevronRight size={18} color={colors.textMuted} />
+            <Text style={styles.actionTitle} numberOfLines={1}>{t('home_menu_reports')}</Text>
+            <Text style={styles.actionSub} numberOfLines={1}>{t('reports_total_sales')}</Text>
           </TouchableOpacity>
 
           {/* Tile 6: Parametrlar & Til */}
           <TouchableOpacity
-            style={styles.gridTile}
+            style={styles.actionCard}
             onPress={() => navigation.navigate('ProfileTab')}
             activeOpacity={0.75}
           >
-            <View style={[styles.tileIconCircle, { backgroundColor: '#ECEFF1' }]}>
-              <Settings size={26} color={colors.secondary} />
+            <View style={styles.actionCardTop}>
+              <View style={[styles.actionIconBox, { backgroundColor: '#ECEFF1' }]}>
+                <Settings size={22} color={colors.secondary} />
+              </View>
+              <ChevronRight size={16} color={colors.textMuted} />
             </View>
-            <View style={styles.tileTextContainer}>
-              <Text style={styles.tileTitle}>{t('home_menu_settings')}</Text>
-              <Text style={styles.tileDesc}>{t('profile_language_title')}</Text>
-            </View>
-            <ChevronRight size={18} color={colors.textMuted} />
+            <Text style={styles.actionTitle} numberOfLines={1}>{t('home_menu_settings')}</Text>
+            <Text style={styles.actionSub} numberOfLines={1}>{t('profile_language_title')}</Text>
           </TouchableOpacity>
         </View>
 
@@ -271,7 +322,7 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
         <View style={styles.systemStatusCard}>
           <View style={styles.statusRow}>
             <Text style={styles.statusLabel}>{t('profile_server_title')}:</Text>
-            <Text style={styles.statusValue}>SQLite Offline</Text>
+            <Text style={styles.statusValue}>SQLite Offline (NestJS Ready)</Text>
           </View>
           <View style={styles.statusRow}>
             <Text style={styles.statusLabel}>{t('reports_cash')}:</Text>
@@ -425,50 +476,139 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     marginLeft: 2,
   },
-  gridContainer: {
-    gap: 8,
-    marginBottom: 14,
-  },
-  gridTile: {
+  activeShopBanner: {
+    backgroundColor: '#0F172A',
+    borderRadius: 8,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 8,
+    justifyContent: 'space-between',
+    marginBottom: 12,
     borderWidth: 1,
-    borderColor: colors.border,
-    gap: 12,
+    borderColor: '#334155',
   },
-  tileIconCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 8,
-    justifyContent: 'center',
+  activeShopLeft: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  tileTextContainer: {
+    gap: 10,
     flex: 1,
   },
-  tileTitle: {
-    fontSize: 14,
+  activeShopIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeShopSubLabel: {
+    fontSize: 10,
+    color: '#94A3B8',
+    fontWeight: '600',
+  },
+  activeShopName: {
+    fontSize: 13,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  activeShopAction: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  activeShopActionText: {
+    fontSize: 11,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  routeProgressCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  progressHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  progressTitle: {
+    fontSize: 12,
     fontWeight: '700',
     color: colors.text,
   },
-  tileDesc: {
+  progressRatio: {
     fontSize: 11,
+    fontWeight: '600',
     color: colors.textSecondary,
-    marginTop: 2,
   },
-  tileBadge: {
+  progressBarTrack: {
+    height: 6,
+    backgroundColor: '#F1F5F9',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 3,
+  },
+  grid2Col: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 14,
+  },
+  actionCard: {
+    width: '48.5%',
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  actionCardTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  actionIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  actionBadge: {
     backgroundColor: '#E3F2FD',
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
     borderRadius: 4,
   },
-  tileBadgeText: {
+  actionBadgeText: {
     fontSize: 11,
     fontWeight: '700',
     color: colors.primary,
+  },
+  actionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 2,
+  },
+  actionSub: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
   systemStatusCard: {
     backgroundColor: '#fff',
@@ -493,3 +633,4 @@ const styles = StyleSheet.create({
     color: colors.text,
   },
 });
+

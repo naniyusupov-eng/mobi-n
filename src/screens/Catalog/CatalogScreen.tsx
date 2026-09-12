@@ -21,6 +21,8 @@ import {
   Minus,
   Store,
   ShoppingCart,
+  X,
+  ArrowRight,
 } from 'lucide-react-native';
 
 export const CatalogScreen = ({ navigation }: { navigation: any }) => {
@@ -103,42 +105,58 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
     const unitPrice = getPriceForUnit(item, currentUnit);
     const cartItem = getProductCartItem(item.id, currentUnit);
     const cartQuantity = cartItem?.quantity || 0;
+    const isLowStock = item.stockDona <= 20;
 
     return (
-      <View style={[styles.productRow, cartQuantity > 0 && styles.productRowInCart]}>
-        {/* Left Info Column */}
-        <View style={styles.productMain}>
-          <View style={styles.codeAndStock}>
-            <Text style={styles.productCode}>{item.code}</Text>
-            <Text style={styles.stockBadge}>{t('catalog_in_stock')} {item.stockDona} {t('pcs')}</Text>
+      <View style={[styles.productCard, cartQuantity > 0 && styles.productCardInCart]}>
+        {/* Top Info Header */}
+        <View style={styles.cardHeader}>
+          <View style={styles.codePill}>
+            <Text style={styles.codeText}>#{item.code}</Text>
           </View>
-          <Text style={styles.productName}>{item.name}</Text>
-
-          {/* Mobi-S Unit selector row */}
-          <View style={styles.unitPillsRow}>
-            {units.map((u) => {
-              const isSelected = currentUnit === u.key;
-              return (
-                <TouchableOpacity
-                  key={u.key}
-                  style={[styles.unitPill, isSelected && styles.unitPillActive]}
-                  onPress={() => handleUnitChange(item.id, u.key)}
-                >
-                  <Text style={[styles.unitPillText, isSelected && styles.unitPillTextActive]}>
-                    {u.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-            <Text style={styles.unitPriceText}>
-              {unitPrice.toLocaleString(numLocale)} {t('currency')}
+          <View style={[styles.stockPill, isLowStock ? styles.stockPillLow : styles.stockPillGood]}>
+            <Text style={[styles.stockText, isLowStock ? styles.stockTextLow : styles.stockTextGood]}>
+              {t('catalog_in_stock')}: {item.stockDona} {t('pcs')}
             </Text>
           </View>
         </View>
 
-        {/* Right Stepper Column */}
-        <View style={styles.stepperColumn}>
-          <View style={styles.stepperBox}>
+        <Text style={styles.productName}>{item.name}</Text>
+
+        {/* Packaging Unit Switcher with Prices */}
+        <View style={styles.unitSelectorRow}>
+          {units.map((u) => {
+            const isSelected = currentUnit === u.key;
+            return (
+              <TouchableOpacity
+                key={u.key}
+                style={[styles.unitChip, isSelected && styles.unitChipActive]}
+                onPress={() => handleUnitChange(item.id, u.key)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.unitChipText, isSelected && styles.unitChipTextActive]}>
+                  {u.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        {/* Action Bottom Row: Unit Price & Stepper */}
+        <View style={styles.cardActionRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.currentPriceText}>
+              {unitPrice.toLocaleString(numLocale)}{' '}
+              <Text style={styles.currencySub}>{t('currency')}/{currentUnit}</Text>
+            </Text>
+            {cartQuantity > 0 && (
+              <Text style={styles.itemSubtotalText}>
+                {t('catalog_cart_total')}: {(cartQuantity * unitPrice).toLocaleString(numLocale)} {t('currency')}
+              </Text>
+            )}
+          </View>
+
+          <View style={styles.stepperContainer}>
             <TouchableOpacity
               style={[styles.stepperBtn, cartQuantity === 0 && styles.stepperBtnDisabled]}
               onPress={() => handleSubtractOne(item.id, currentUnit)}
@@ -149,22 +167,15 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
 
             <View style={styles.qtyBox}>
               <Text style={styles.qtyNumber}>{cartQuantity}</Text>
-              <Text style={styles.qtyUnitLabel}>{currentUnit}</Text>
             </View>
 
             <TouchableOpacity
-              style={styles.stepperBtn}
+              style={[styles.stepperBtn, styles.stepperBtnPlus]}
               onPress={() => handleAddOne(item, currentUnit)}
             >
-              <Plus size={16} color={colors.primary} />
+              <Plus size={16} color="#fff" />
             </TouchableOpacity>
           </View>
-
-          {cartQuantity > 0 && (
-            <Text style={styles.rowSubtotal}>
-              {(cartQuantity * unitPrice).toLocaleString(numLocale)} {t('currency')}
-            </Text>
-          )}
         </View>
       </View>
     );
@@ -202,6 +213,11 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
             value={search}
             onChangeText={setSearch}
           />
+          {search.length > 0 && (
+            <TouchableOpacity onPress={() => setSearch('')} style={styles.clearSearchBtn}>
+              <X size={15} color={colors.textMuted} />
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 
@@ -242,7 +258,7 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
         <View style={styles.bottomCartBar}>
           <View style={styles.cartBarInfo}>
             <Text style={styles.cartBarCount}>
-              {t('catalog_cart_total')} {totalItemsCount} {t('items_count')}
+              {t('catalog_cart_total')}: {totalItemsCount} {t('items_count')}
             </Text>
             <Text style={styles.cartBarAmount}>
               {totalAmount.toLocaleString(numLocale)} {t('currency')}
@@ -251,10 +267,11 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
           <TouchableOpacity
             style={styles.goToCartBtn}
             onPress={() => navigation.navigate('CartScreen')}
-            activeOpacity={0.8}
+            activeOpacity={0.85}
           >
             <ShoppingCart size={16} color="#fff" />
             <Text style={styles.goToCartText}>{t('cart_proceed')}</Text>
+            <ArrowRight size={14} color="#fff" />
           </TouchableOpacity>
         </View>
       )}
@@ -351,153 +368,182 @@ const styles = StyleSheet.create({
   catTabTextActive: {
     color: '#fff',
   },
+  clearSearchBtn: {
+    padding: 4,
+  },
   listContent: {
     padding: 10,
-    gap: 8,
-    paddingBottom: 70,
+    gap: 10,
+    paddingBottom: 85,
   },
-  productRow: {
+  productCard: {
     backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 10,
-    flexDirection: 'row',
+    borderRadius: 8,
+    padding: 12,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 8,
   },
-  productRowInCart: {
-    borderColor: colors.primary,
-    backgroundColor: '#F8FAFF',
+  productCardInCart: {
+    borderLeftWidth: 4,
+    borderLeftColor: colors.primary,
+    borderColor: '#93C5FD',
+    backgroundColor: '#F8FAFC',
   },
-  productMain: {
-    flex: 1,
-  },
-  codeAndStock: {
+  cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: 6,
   },
-  productCode: {
+  codePill: {
+    backgroundColor: '#F1F5F9',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  codeText: {
     fontSize: 10,
     fontWeight: '700',
-    color: colors.textMuted,
+    color: '#64748B',
+    fontFamily: 'monospace',
   },
-  stockBadge: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    backgroundColor: colors.background,
-    paddingHorizontal: 6,
+  stockPill: {
+    paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 4,
+  },
+  stockPillGood: {
+    backgroundColor: '#DCFCE7',
+  },
+  stockPillLow: {
+    backgroundColor: '#FEF3C7',
+  },
+  stockText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  stockTextGood: {
+    color: '#15803D',
+  },
+  stockTextLow: {
+    color: '#B45309',
   },
   productName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.text,
-    marginVertical: 3,
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
+    lineHeight: 18,
   },
-  unitPillsRow: {
+  unitSelectorRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 10,
   },
-  unitPill: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: colors.background,
+  unitChip: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 5,
+    backgroundColor: '#F1F5F9',
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: '#E2E8F0',
   },
-  unitPillActive: {
+  unitChipActive: {
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  unitPillText: {
-    fontSize: 9,
+  unitChipText: {
+    fontSize: 10,
     fontWeight: '700',
-    color: colors.textSecondary,
+    color: '#475569',
   },
-  unitPillTextActive: {
+  unitChipTextActive: {
     color: '#fff',
   },
-  unitPriceText: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.primaryDark,
-    marginLeft: 'auto',
-  },
-  stepperColumn: {
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  stepperBox: {
+  cardActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    paddingTop: 8,
   },
-  stepperBtn: {
-    padding: 6,
-  },
-  stepperBtnDisabled: {
-    opacity: 0.3,
-  },
-  qtyBox: {
-    alignItems: 'center',
-    paddingHorizontal: 6,
-    minWidth: 32,
-  },
-  qtyNumber: {
+  currentPriceText: {
     fontSize: 13,
-    fontWeight: '800',
-    color: colors.text,
+    fontWeight: '900',
+    color: colors.primaryDark,
   },
-  qtyUnitLabel: {
-    fontSize: 8,
-    color: colors.textSecondary,
+  currencySub: {
+    fontSize: 10,
     fontWeight: '600',
+    color: '#64748B',
   },
-  rowSubtotal: {
+  itemSubtotalText: {
     fontSize: 11,
     fontWeight: '800',
-    color: colors.text,
-    marginTop: 4,
+    color: '#047857',
+    marginTop: 2,
+  },
+  stepperContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    overflow: 'hidden',
+  },
+  stepperBtn: {
+    width: 34,
+    height: 34,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
+  },
+  stepperBtnDisabled: {
+    opacity: 0.35,
+  },
+  stepperBtnPlus: {
+    backgroundColor: colors.primary,
+  },
+  qtyBox: {
+    minWidth: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  qtyNumber: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#0F172A',
   },
   bottomCartBar: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+    backgroundColor: '#0F172A',
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    elevation: 8,
+    elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: -3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
   },
   cartBarInfo: {},
   cartBarCount: {
     fontSize: 10,
-    color: colors.textSecondary,
+    color: '#94A3B8',
     fontWeight: '600',
   },
   cartBarAmount: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '900',
-    color: colors.primary,
+    color: '#38BDF8',
   },
   goToCartBtn: {
     backgroundColor: colors.primary,
@@ -505,7 +551,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     paddingHorizontal: 14,
-    paddingVertical: 8,
+    paddingVertical: 9,
     borderRadius: 6,
   },
   goToCartText: {
@@ -514,3 +560,4 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 });
+

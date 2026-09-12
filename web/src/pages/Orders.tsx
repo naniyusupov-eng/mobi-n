@@ -32,12 +32,23 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
 
   const totalSum = filteredOrders.reduce((sum, o) => sum + o.finalAmount, 0);
 
+  const counts = useMemo(() => {
+    return {
+      all: orders.length,
+      new: orders.filter((o) => o.status === 'new').length,
+      confirmed: orders.filter((o) => o.status === 'confirmed').length,
+      delivered: orders.filter((o) => o.status === 'delivered').length,
+    };
+  }, [orders]);
+
   const filterTabs = [
-    { id: 'all', label: t('tab_all') },
-    { id: 'new', label: t('tab_new') },
-    { id: 'confirmed', label: t('tab_confirmed') },
-    { id: 'delivered', label: t('tab_delivered') },
+    { id: 'all', label: t('tab_all'), count: counts.all },
+    { id: 'new', label: t('tab_new'), count: counts.new },
+    { id: 'confirmed', label: t('tab_confirmed'), count: counts.confirmed },
+    { id: 'delivered', label: t('tab_delivered'), count: counts.delivered },
   ];
+
+  const avgCheck = filteredOrders.length > 0 ? Math.round(totalSum / filteredOrders.length) : 0;
 
   const getStatusLabel = (st: OrderStatus) => {
     switch (st) {
@@ -66,9 +77,9 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
   const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3.5">
       {/* Search & Filter Toolbar */}
-      <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="bg-white p-3 rounded-lg border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
         {/* Search */}
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
@@ -77,25 +88,55 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
             placeholder={t('search_orders_placeholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-blue-500"
           />
         </div>
 
-        {/* Status Pills */}
+        {/* Status Pills with Counters */}
         <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
-          {filterTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setStatusFilter(tab.id)}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${
-                statusFilter === tab.id
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          {filterTabs.map((tab) => {
+            const isActive = statusFilter === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setStatusFilter(tab.id)}
+                className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                    isActive ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {tab.count}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Summary Metrics Bar */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/80 shadow-2xs flex items-center justify-between">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase">{t('total_orders_count')}</span>
+          <span className="font-display text-base font-black text-slate-900 tabular-nums">{filteredOrders.length}</span>
+        </div>
+        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/80 shadow-2xs flex items-center justify-between">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase">{t('displayed_sum')}</span>
+          <span className="font-display text-base font-black text-blue-600 tabular-nums">
+            {totalSum.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-500">{t('som')}</span>
+          </span>
+        </div>
+        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/80 shadow-2xs flex items-center justify-between">
+          <span className="text-[11px] font-semibold text-slate-500 uppercase">{t('col_avg_check')}</span>
+          <span className="font-display text-base font-black text-emerald-600 tabular-nums">
+            {avgCheck.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-500">{t('som')}</span>
+          </span>
         </div>
       </div>
 

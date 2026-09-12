@@ -133,6 +133,18 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
     );
   };
 
+  const handleDirectOrder = (shop: Shop) => {
+    setCurrentShop(shop);
+    setCartShop(shop);
+    navigation.navigate('CatalogTab', { screen: 'CatalogMain' });
+  };
+
+  const handleDirectPayment = (shop: Shop) => {
+    setSelectedShop(shop);
+    setPaymentAmount('');
+    setPaymentModalVisible(true);
+  };
+
   const handleOpenCard = () => {
     if (selectedShop) {
       setCurrentShop(selectedShop);
@@ -141,54 +153,88 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
     }
   };
 
-  const renderShopItem = ({ item, index }: { item: Shop; index: number }) => {
+  const renderShopItem = ({ item }: { item: Shop }) => {
     const isVisited = Boolean(item.lastVisitedAt);
 
     return (
-      <TouchableOpacity
-        style={styles.shopRow}
-        onPress={() => handleOpenActionMenu(item)}
-        activeOpacity={0.7}
-      >
-        {/* Left Status Marker */}
-        <View style={styles.statusIndicator}>
-          {isVisited ? (
-            <CheckCircle2 size={20} color={colors.success} />
-          ) : (
-            <Circle size={18} color={colors.textMuted} />
-          )}
-        </View>
-
-        {/* Shop Info High-Density Column */}
-        <View style={styles.shopDetails}>
-          <View style={styles.titleRow}>
-            <Text style={styles.shopCode}>[00{index + 1}]</Text>
-            <Text style={styles.shopName} numberOfLines={1}>
-              {item.name}
-            </Text>
-          </View>
-          <Text style={styles.shopSubtext} numberOfLines={1}>
-            {item.ownerName} • {item.address}
-          </Text>
-        </View>
-
-        {/* Right Debt / Status Badge */}
-        <View style={styles.debtColumn}>
-          {item.debtBalance > 0 ? (
-            <View style={styles.debtBadgeRed}>
-              <Text style={styles.debtTextRed}>
-                {item.debtBalance.toLocaleString('ru-RU')}
+      <View style={styles.shopCard}>
+        {/* Top Header Row */}
+        <TouchableOpacity
+          style={styles.shopCardHeader}
+          onPress={() => handleOpenActionMenu(item)}
+          activeOpacity={0.7}
+        >
+          <View style={styles.shopHeaderLeft}>
+            <View style={styles.statusIndicator}>
+              {isVisited ? (
+                <CheckCircle2 size={18} color={colors.success} />
+              ) : (
+                <Circle size={16} color={colors.textMuted} />
+              )}
+            </View>
+            <View style={{ flex: 1 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Text style={styles.shopName} numberOfLines={1}>
+                  {item.name}
+                </Text>
+                <View style={styles.routeDayPill}>
+                  <Text style={styles.routeDayText}>{item.visitDay ? item.visitDay.slice(0, 3) : ''}</Text>
+                </View>
+              </View>
+              <Text style={styles.shopSubtext} numberOfLines={1}>
+                {item.ownerName} • {item.address}
               </Text>
-              <Text style={styles.debtSubLabel}>{t('shop_debt')} ({t('currency')})</Text>
             </View>
-          ) : (
-            <View style={styles.debtBadgeGreen}>
-              <Text style={styles.debtTextGreen}>0 {t('currency')}</Text>
-              <Text style={styles.debtSubLabel}>{t('shop_no_debt')}</Text>
-            </View>
-          )}
+          </View>
+
+          {/* Right Debt Badge */}
+          <View style={styles.debtColumn}>
+            {item.debtBalance > 0 ? (
+              <View style={styles.debtBadgeRed}>
+                <Text style={styles.debtTextRed}>
+                  {item.debtBalance.toLocaleString('ru-RU')}
+                </Text>
+                <Text style={styles.debtSubLabel}>{t('shop_debt')}</Text>
+              </View>
+            ) : (
+              <View style={styles.debtBadgeGreen}>
+                <Text style={styles.debtTextGreen}>0</Text>
+                <Text style={styles.debtSubLabel}>{t('shop_no_debt')}</Text>
+              </View>
+            )}
+          </View>
+        </TouchableOpacity>
+
+        {/* Quick Ergonomic Action Bar */}
+        <View style={styles.shopActionBar}>
+          <TouchableOpacity
+            style={styles.actionBtnOrder}
+            onPress={() => handleDirectOrder(item)}
+            activeOpacity={0.8}
+          >
+            <ShoppingBag size={13} color="#fff" />
+            <Text style={styles.actionBtnOrderText}>{t('shop_action_order')}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionBtnPko}
+            onPress={() => handleDirectPayment(item)}
+            activeOpacity={0.8}
+          >
+            <CreditCard size={13} color={colors.primary} />
+            <Text style={styles.actionBtnPkoText}>{t('shop_action_pko')}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.actionBtnDetails}
+            onPress={() => handleOpenActionMenu(item)}
+            activeOpacity={0.8}
+          >
+            <FileText size={13} color={colors.textSecondary} />
+            <Text style={styles.actionBtnDetailsText}>{t('shop_action_history')}</Text>
+          </TouchableOpacity>
         </View>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -258,7 +304,6 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
         keyExtractor={(item) => item.id}
         renderItem={renderShopItem}
         contentContainerStyle={styles.listContent}
-        ItemSeparatorComponent={() => <View style={styles.separator} />}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyTitle}>
@@ -475,44 +520,107 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   listContent: {
-    paddingBottom: 80,
+    padding: 8,
+    paddingBottom: 85,
+    gap: 8,
   },
-  shopRow: {
+  shopCard: {
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    overflow: 'hidden',
+  },
+  shopCardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    backgroundColor: '#fff',
+    padding: 10,
+    gap: 8,
   },
-  separator: {
-    height: 1,
-    backgroundColor: colors.border,
-    marginLeft: 40,
+  shopHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 8,
+  },
+  routeDayPill: {
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 3,
+  },
+  routeDayText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  shopActionBar: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#F1F5F9',
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 6,
+  },
+  actionBtnOrder: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: colors.primary,
+    paddingVertical: 6,
+    borderRadius: 5,
+  },
+  actionBtnOrderText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  actionBtnPko: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: '#EFF6FF',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+  },
+  actionBtnPkoText: {
+    color: colors.primary,
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  actionBtnDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: '#fff',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  actionBtnDetailsText: {
+    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '600',
   },
   statusIndicator: {
-    width: 28,
+    width: 22,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  shopDetails: {
-    flex: 1,
-    paddingHorizontal: 8,
-  },
-  titleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  shopCode: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
-  },
   shopName: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '800',
     color: colors.text,
-    flex: 1,
   },
   shopSubtext: {
     fontSize: 11,
@@ -521,21 +629,29 @@ const styles = StyleSheet.create({
   },
   debtColumn: {
     alignItems: 'flex-end',
-    minWidth: 85,
+    minWidth: 70,
   },
   debtBadgeRed: {
     alignItems: 'flex-end',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   debtTextRed: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: '900',
     color: colors.danger,
   },
   debtBadgeGreen: {
     alignItems: 'flex-end',
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   debtTextGreen: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '800',
     color: colors.success,
   },
