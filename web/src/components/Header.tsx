@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar } from 'lucide-react';
+import { Calendar, RefreshCw, Trash2, Wifi, WifiOff } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { Language } from '../i18n/translations';
 
@@ -8,6 +8,8 @@ interface HeaderProps {
   subtitle?: string;
   totalTodaySales: number;
   activeAgentsCount: number;
+  isServerConnected?: boolean;
+  onResetData?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -15,6 +17,8 @@ export const Header: React.FC<HeaderProps> = ({
   subtitle,
   totalTodaySales,
   activeAgentsCount,
+  isServerConnected = false,
+  onResetData,
 }) => {
   const { lang, setLang, t } = useLanguage();
 
@@ -44,6 +48,33 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div className="flex items-center gap-3 sm:gap-4">
+        {/* Live Server Sync Status Badge */}
+        <div
+          title={isServerConnected ? "Sync Server: Ulangan (192.168.1.47:3000)" : "Sync Server: Bogʻlanilmagan"}
+          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition ${
+            isServerConnected
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-amber-50 text-amber-700 border-amber-200'
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full ${isServerConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+          <span className="hidden md:inline">
+            {isServerConnected ? 'Server: Ulangan (3000)' : 'Server: Kutishda'}
+          </span>
+        </div>
+
+        {/* Reset All to 0 Button */}
+        {onResetData && (
+          <button
+            onClick={onResetData}
+            title="Barcha zakaz va qarzlarni 0 qilish"
+            className="flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1.5 rounded-md font-semibold transition"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+            <span className="hidden xl:inline">0 qilish</span>
+          </button>
+        )}
+
         {/* Quick Stats Pill */}
         <div className="hidden xl:flex items-center gap-3 bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-md text-xs font-semibold">
           <div>

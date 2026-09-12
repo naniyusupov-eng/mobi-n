@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,16 +12,15 @@ import {
 import { useAuthStore } from '../../store/authStore';
 import { useSyncStore } from '../../store/syncStore';
 import { useLanguageStore } from '../../store/languageStore';
-import { MobileLanguage } from '../../i18n/mobileTranslations';
+import { apiClient, DEFAULT_API_BASE_URL, getApiUrl, setCustomApiUrl } from '../../services/apiClient';
 import { colors } from '../../theme/colors';
-import { DEFAULT_API_BASE_URL, apiClient } from '../../services/apiClient';
+import { MobileLanguage } from '../../i18n/mobileTranslations';
 import {
   User,
   RefreshCw,
   LogOut,
-  ShieldCheck,
   Database,
-  Globe,
+  ShieldCheck,
   Check,
 } from 'lucide-react-native';
 
@@ -33,26 +32,38 @@ export const ProfileScreen = () => {
   const [apiUrl, setApiUrl] = useState(DEFAULT_API_BASE_URL);
   const [testingServer, setTestingServer] = useState(false);
 
+  useEffect(() => {
+    getApiUrl().then((saved) => {
+      if (saved) setApiUrl(saved);
+    });
+  }, []);
+
+  const handleUrlChange = (newUrl: string) => {
+    setApiUrl(newUrl);
+    setCustomApiUrl(newUrl);
+  };
+
   const handleTestConnection = async () => {
     try {
       setTestingServer(true);
-      await apiClient.get('/health', { timeout: 4000 });
+      await setCustomApiUrl(apiUrl);
+      await apiClient.get('/health', { baseURL: apiUrl.trim().replace(/\/+$/, ''), timeout: 4000 });
       Alert.alert(
         t('success'),
         lang === 'ru'
-          ? 'Связь с сервером установлена'
+          ? 'Связь с сервером установлена (192.168.1.47)'
           : lang === 'uz_cyrl'
-          ? 'Сервер билан алоқа ўрнатилди'
-          : 'Server bilan aloqa oʻrnatildi'
+          ? 'Сервер билан алоқа ўрнатилди (192.168.1.47)'
+          : 'Server bilan aloqa oʻrnatildi (192.168.1.47)'
       );
     } catch (e: any) {
       Alert.alert(
         t('warning'),
         lang === 'ru'
-          ? 'Автономный режим (без интернета)'
+          ? `Сервер недоступен (${apiUrl}). Проверьте Wi-Fi.`
           : lang === 'uz_cyrl'
-          ? 'Автоном режим (интернетсиз)'
-          : 'Avtonom rejim (internetsiz)'
+          ? `Серверга уланиб бўлмади (${apiUrl}). Wi-Fi ни текширинг.`
+          : `Serverga ulanib boʻlmadi (${apiUrl}). Kompyuter va telefon bitta Wi-Fi da ekanini tekshiring.`
       );
     } finally {
       setTestingServer(false);
@@ -120,9 +131,11 @@ export const ProfileScreen = () => {
           <TextInput
             style={styles.apiInput}
             value={apiUrl}
-            onChangeText={setApiUrl}
-            placeholder="https://api.mobir-trade.com/api/v1"
+            onChangeText={handleUrlChange}
+            placeholder="http://192.168.1.47:3000/api/v1"
             placeholderTextColor={colors.textMuted}
+            autoCapitalize="none"
+            autoCorrect={false}
           />
 
           <View style={styles.syncStatusStrip}>

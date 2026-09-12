@@ -163,12 +163,19 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
                     #{order.id.slice(-6).toUpperCase()}
                   </td>
                   <td className="py-2.5 px-4 text-slate-500 font-medium">
-                    {new Date(order.createdAt).toLocaleDateString(numLocale, {
-                      day: '2-digit',
-                      month: 'short',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    <div>
+                      {new Date(order.createdAt).toLocaleDateString(numLocale, {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </div>
+                    {order.deliveryDate && (
+                      <div className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold mt-0.5 inline-block border border-emerald-200">
+                        📅 {order.deliveryDate}
+                      </div>
+                    )}
                   </td>
                   <td className="py-2.5 px-4">
                     <div className="font-extrabold text-slate-900">{order.shopName}</div>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Sidebar, NavPage } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Dashboard } from './pages/Dashboard';
@@ -23,16 +23,83 @@ export default function App() {
   const { t } = useLanguage();
   const [activePage, setActivePage] = useState<NavPage>('dashboard');
 
-  // Application Data States
+  // Application Data States (Clean 0 start)
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
   const [agents, setAgents] = useState<Agent[]>(INITIAL_AGENTS);
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
   const [shops, setShops] = useState<Shop[]>(INITIAL_SHOPS);
   const categories = INITIAL_CATEGORIES;
 
+  const [isServerConnected, setIsServerConnected] = useState(false);
+
   // Modals state
   const [qrBadgeAgent, setQrBadgeAgent] = useState<Agent | null>(null);
   const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
+
+  // Live polling from Mobi_R Sync Server (port 3000)
+  useEffect(() => {
+    let isMounted = true;
+
+    const fetchServerData = async () => {
+      try {
+        const [ordersRes, shopsRes] = await Promise.all([
+          fetch('http://localhost:3000/api/v1/orders').then((r) => r.json()),
+          fetch('http://localhost:3000/api/v1/shops').then((r) => r.json()),
+        ]);
+
+        if (!isMounted) return;
+
+        setIsServerConnected(true);
+
+        if (ordersRes && Array.isArray(ordersRes.orders)) {
+          setOrders(ordersRes.orders);
+
+          // Dynamically compute agent stats based on real synced orders
+          setAgents((prevAgents) =>
+            prevAgents.map((ag) => {
+              const agentOrders = ordersRes.orders.filter((o: Order) => o.agentId === ag.id);
+              const totalSales = agentOrders.reduce((sum: number, o: Order) => sum + (o.finalAmount || 0), 0);
+              return {
+                ...ag,
+                ordersCount: agentOrders.length,
+                totalSales,
+              };
+            })
+          );
+        }
+
+        if (shopsRes && Array.isArray(shopsRes.shops)) {
+          setShops(shopsRes.shops);
+        }
+      } catch {
+        if (isMounted) {
+          setIsServerConnected(false);
+        }
+      }
+    };
+
+    fetchServerData();
+    const interval = setInterval(fetchServerData, 2500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const handleResetData = async () => {
+    if (!window.confirm('Barcha buyurtma va qarzlarni 0 ga tushirishni tasdiqlaysizmi?')) {
+      return;
+    }
+    try {
+      await fetch('http://localhost:3000/api/v1/reset', { method: 'POST' });
+    } catch (e) {
+      console.warn('Reset server call failed:', e);
+    }
+    setOrders([]);
+    setShops((prev) => prev.map((s) => ({ ...s, debtBalance: 0 })));
+    setAgents((prev) => prev.map((a) => ({ ...a, ordersCount: 0, totalSales: 0 })));
+  };
 
   // Handlers
   const handleStatusChange = (orderId: string, newStatus: OrderStatus) => {
@@ -108,6 +175,8 @@ export default function App() {
           subtitle={pageInfo.sub}
           totalTodaySales={totalTodaySales}
           activeAgentsCount={agents.length}
+          isServerConnected={isServerConnected}
+          onResetData={handleResetData}
         />
 
         <main className="flex-1 overflow-y-auto p-5 md:p-6">

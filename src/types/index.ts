@@ -79,6 +79,7 @@ export interface Order {
   latitude?: number;
   longitude?: number;
   notes?: string;
+  deliveryDate?: string;  // Yetkazish sanasi (e.g. 2026-09-13)
   createdAt: string;
   isSynced: boolean;
   items?: OrderItem[];

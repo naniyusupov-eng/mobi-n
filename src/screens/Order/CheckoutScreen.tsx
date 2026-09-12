@@ -19,17 +19,53 @@ import { colors } from '../../theme/colors';
 import {
   Check,
   AlertTriangle,
+  Calendar,
 } from 'lucide-react-native';
 
 export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
   const { lang, t } = useLanguageStore();
-  const { shop, items, paymentMethod, setPaymentMethod, notes, setNotes, getFinalAmount, submitOrder } =
-    useCartStore();
+  const {
+    shop,
+    items,
+    paymentMethod,
+    setPaymentMethod,
+    deliveryDate,
+    setDeliveryDate,
+    notes,
+    setNotes,
+    getFinalAmount,
+    submitOrder,
+  } = useCartStore();
   const { agent } = useAuthStore();
   const [submitting, setSubmitting] = useState(false);
 
   const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
   const finalAmount = getFinalAmount();
+
+  const getDatePlusDays = (days: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  };
+
+  const todayStr = getDatePlusDays(0);
+  const tomorrowStr = getDatePlusDays(1);
+  const dayAfterStr = getDatePlusDays(2);
+
+  const getFormattedDate = (dateStr: string) => {
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        const day = d.getDate();
+        const year = d.getFullYear();
+        const uzMonths = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
+        const uzWeekdays = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
+        return `${day}-${uzMonths[d.getMonth()]}, ${year} (${uzWeekdays[d.getDay()]})`;
+      }
+    } catch (e) {}
+    return dateStr;
+  };
 
   const paymentMethodsList: { key: PaymentMethod; label: string; sub: string }[] = [
     {
@@ -115,6 +151,65 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
               </Text>
             </View>
           )}
+        </View>
+
+        {/* Delivery Date Selection Section */}
+        <Text style={styles.sectionTitle}>
+          {lang === 'ru' ? 'ДАТА ДОСТАВКИ (ВВОД ДАТЫ)' : lang === 'uz_cyrl' ? 'ЕТКАЗИШ САНАСИ (САНА КИРИТИШ)' : 'YETKAZISH SANASI (SANA KIRITISH)'}
+        </Text>
+        <View style={styles.dateCard}>
+          {/* Quick Choice Chips */}
+          <View style={styles.dateChipsRow}>
+            <TouchableOpacity
+              style={[styles.dateChip, deliveryDate === todayStr && styles.dateChipActive]}
+              onPress={() => setDeliveryDate(todayStr)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.dateChipText, deliveryDate === todayStr && styles.dateChipTextActive]}>
+                {lang === 'ru' ? 'Сегодня' : 'Bugun'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.dateChip, deliveryDate === tomorrowStr && styles.dateChipActive]}
+              onPress={() => setDeliveryDate(tomorrowStr)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.dateChipText, deliveryDate === tomorrowStr && styles.dateChipTextActive]}>
+                {lang === 'ru' ? 'Завтра' : 'Ertaga'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.dateChip, deliveryDate === dayAfterStr && styles.dateChipActive]}
+              onPress={() => setDeliveryDate(dayAfterStr)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.dateChipText, deliveryDate === dayAfterStr && styles.dateChipTextActive]}>
+                {lang === 'ru' ? 'Послезавтра' : 'Indinga'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Date Input with Calendar Icon */}
+          <View style={styles.dateInputWrapper}>
+            <View style={styles.dateInputIcon}>
+              <Calendar size={18} color={colors.primary} />
+            </View>
+            <TextInput
+              style={styles.dateTextInput}
+              value={deliveryDate}
+              onChangeText={setDeliveryDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textMuted}
+              maxLength={10}
+            />
+          </View>
+
+          {/* Formatted Date Preview */}
+          <Text style={styles.datePreviewText}>
+            📅 {getFormattedDate(deliveryDate)}
+          </Text>
         </View>
 
         {/* Payment Method Selector */}
@@ -236,6 +331,67 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     letterSpacing: 0.5,
     marginTop: 6,
+    marginLeft: 2,
+  },
+  dateCard: {
+    backgroundColor: '#fff',
+    borderRadius: 6,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+    gap: 10,
+  },
+  dateChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dateChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  dateChipActive: {
+    backgroundColor: '#EFF6FF',
+    borderColor: colors.primary,
+  },
+  dateChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748B',
+  },
+  dateChipTextActive: {
+    color: colors.primary,
+    fontWeight: '800',
+  },
+  dateInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 6,
+    backgroundColor: '#F8FAFC',
+    paddingHorizontal: 10,
+    height: 42,
+  },
+  dateInputIcon: {
+    marginRight: 8,
+  },
+  dateTextInput: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+    paddingVertical: 0,
+  },
+  datePreviewText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
     marginLeft: 2,
   },
   paymentMethodsContainer: {

@@ -34,6 +34,7 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
     clearCart,
     discountPercent,
     setDiscountPercent,
+    deliveryDate,
     getTotalAmount,
     getDiscountAmount,
     getFinalAmount,
@@ -166,6 +167,14 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>{t('checkout_total_before')}</Text>
                 <Text style={styles.totalVal}>{totalAmount.toLocaleString(numLocale)} {t('currency')}</Text>
+              </View>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>
+                  {lang === 'ru' ? 'Дата доставки:' : lang === 'uz_cyrl' ? 'Етказиш санаси:' : 'Yetkazish sanasi:'}
+                </Text>
+                <Text style={[styles.totalVal, { color: colors.primary, fontWeight: '800' }]}>
+                  {deliveryDate}
+                </Text>
               </View>
               {discountPercent > 0 && (
                 <View style={styles.totalRow}>

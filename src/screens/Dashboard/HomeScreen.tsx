@@ -22,11 +22,12 @@ import {
   Store,
   FileText,
   Package,
-  RefreshCw,
   BarChart3,
   Settings,
   ChevronRight,
+  ChevronLeft,
   ArrowRight,
+  RefreshCw,
 } from 'lucide-react-native';
 
 export const HomeScreen = ({ navigation }: { navigation: any }) => {
@@ -40,12 +41,14 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
     cashCollected: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
+  const [currentDate, setCurrentDate] = useState(new Date());
 
   const { shop } = useCartStore();
   const { currentShop } = useShopStore();
   const activeShop = shop || currentShop;
 
   const loadData = useCallback(() => {
+    setCurrentDate(new Date());
     if (agent?.id) {
       const todayStats = orderRepository.getTodayStats(agent.id);
       setStats(todayStats);
@@ -55,10 +58,17 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
 
   useEffect(() => {
     loadData();
+    const interval = setInterval(() => {
+      setCurrentDate(new Date());
+    }, 30000);
+
     const unsubscribe = navigation.addListener('focus', () => {
       loadData();
     });
-    return unsubscribe;
+    return () => {
+      clearInterval(interval);
+      unsubscribe();
+    };
   }, [navigation, loadData]);
 
   const onRefresh = async () => {
@@ -77,8 +87,27 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
     }
   };
 
-  const getFormattedDateWithDay = () => {
+  const shiftDay = (days: number) => {
+    const nextDate = new Date(currentDate);
+    nextDate.setDate(nextDate.getDate() + days);
+    setCurrentDate(nextDate);
+  };
+
+  const resetToToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  const isToday = () => {
     const now = new Date();
+    return (
+      currentDate.getDate() === now.getDate() &&
+      currentDate.getMonth() === now.getMonth() &&
+      currentDate.getFullYear() === now.getFullYear()
+    );
+  };
+
+  const getFormattedDateWithDay = () => {
+    const now = currentDate;
     const day = now.getDate();
     const year = now.getFullYear();
 
@@ -115,29 +144,48 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
 
-      {/* Top Header Bar */}
+      {/* Top Header Bar - Clean Centered Mobi_R without reload icon */}
       <View style={styles.topHeader}>
         <Text style={styles.appBrand}>Mobi_R</Text>
-        <TouchableOpacity
-          style={styles.headerSyncBtn}
-          onPress={handleSyncNow}
-          disabled={isSyncing}
-          activeOpacity={0.7}
-        >
-          <RefreshCw
-            size={18}
-            color="#fff"
-            style={isSyncing ? { transform: [{ rotate: '45deg' }] } : {}}
-          />
-        </TouchableOpacity>
       </View>
 
-      {/* Prominent Date Ribbon with Weekday in Parentheses */}
+      {/* Interactive Date Ribbon with Day navigation */}
       <View style={styles.dateRibbon}>
-        <View style={styles.dateIconCircle}>
-          <Calendar size={15} color={colors.primary} />
-        </View>
-        <Text style={styles.dateRibbonText}>{getFormattedDateWithDay()}</Text>
+        <TouchableOpacity
+          style={styles.dateNavBtn}
+          onPress={() => shiftDay(-1)}
+          activeOpacity={0.7}
+        >
+          <ChevronLeft size={18} color={colors.primary} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.dateCenterContent}
+          onPress={resetToToday}
+          activeOpacity={0.7}
+        >
+          <View style={styles.dateIconCircle}>
+            <Calendar size={15} color={colors.primary} />
+          </View>
+          <Text style={styles.dateRibbonText}>{getFormattedDateWithDay()}</Text>
+          {isToday() ? (
+            <View style={styles.todayBadge}>
+              <Text style={styles.todayBadgeText}>{lang === 'ru' ? 'Сегодня' : 'Bugun'}</Text>
+            </View>
+          ) : (
+            <TouchableOpacity onPress={resetToToday} style={styles.todayActionBtn}>
+              <Text style={styles.todayActionText}>{lang === 'ru' ? 'На сегодня' : 'Bugunga'}</Text>
+            </TouchableOpacity>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.dateNavBtn}
+          onPress={() => shiftDay(1)}
+          activeOpacity={0.7}
+        >
+          <ChevronRight size={18} color={colors.primary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -316,35 +364,45 @@ const styles = StyleSheet.create({
   topHeader: {
     height: 52,
     backgroundColor: colors.primaryDark,
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 16,
   },
   appBrand: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '900',
-    letterSpacing: 1.2,
-  },
-  headerSyncBtn: {
-    padding: 8,
-    borderRadius: 6,
-    backgroundColor: 'rgba(255,255,255,0.14)',
+    letterSpacing: 1.5,
+    textAlign: 'center',
   },
   dateRibbon: {
     backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'space-between',
     borderBottomWidth: 1,
     borderBottomColor: '#E2E8F0',
   },
+  dateNavBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 6,
+    backgroundColor: '#F1F5F9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dateCenterContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    justifyContent: 'center',
+  },
   dateIconCircle: {
-    width: 28,
-    height: 28,
+    width: 26,
+    height: 26,
     borderRadius: 6,
     backgroundColor: '#EFF6FF',
     alignItems: 'center',
@@ -354,6 +412,28 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '800',
     color: '#1E293B',
+  },
+  todayBadge: {
+    backgroundColor: '#DCFCE7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  todayBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#15803D',
+  },
+  todayActionBtn: {
+    backgroundColor: '#E0E7FF',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  todayActionText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#4338CA',
   },
   scrollContent: {
     padding: 12,

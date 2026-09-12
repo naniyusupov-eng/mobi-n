@@ -36,7 +36,8 @@
     "prebuild:android": "expo prebuild --platform android",
     "build:apk": "eas build -p android --profile preview",
     "web:dev": "npm run dev --prefix web",
-    "web:build": "npm run build --prefix web"
+    "web:build": "npm run build --prefix web",
+    "server": "node server/sync-server.cjs"
   },
   "private": true
 }

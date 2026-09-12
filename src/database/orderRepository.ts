@@ -13,6 +13,7 @@ export const orderRepository = {
     discountAmount: number;
     finalAmount: number;
     paymentMethod: PaymentMethod;
+    deliveryDate?: string;
     latitude?: number;
     longitude?: number;
     notes?: string;
@@ -31,6 +32,12 @@ export const orderRepository = {
     const orderId = `ord_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     const createdAt = new Date().toISOString();
     const status: OrderStatus = 'confirmed';
+
+    // Format notes with delivery date if present
+    let finalNotes = data.notes || '';
+    if (data.deliveryDate) {
+      finalNotes = finalNotes ? `${finalNotes} (Yetkazish: ${data.deliveryDate})` : `Yetkazish: ${data.deliveryDate}`;
+    }
 
     // Insert Order inside transaction
     db.runSync(
@@ -58,7 +65,7 @@ export const orderRepository = {
         $status: status,
         $latitude: data.latitude || null,
         $longitude: data.longitude || null,
-        $notes: data.notes || '',
+        $notes: finalNotes,
         $createdAt: createdAt,
       }
     );
@@ -140,7 +147,8 @@ export const orderRepository = {
       status,
       latitude: data.latitude,
       longitude: data.longitude,
-      notes: data.notes,
+      notes: finalNotes,
+      deliveryDate: data.deliveryDate,
       createdAt,
       isSynced: false,
       items: insertedItems,

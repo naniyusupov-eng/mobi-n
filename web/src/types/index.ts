@@ -73,6 +73,7 @@ export interface Order {
   paymentMethod: PaymentMethod;
   status: OrderStatus;
   notes?: string;
+  deliveryDate?: string;
   createdAt: string;
   items: OrderItem[];
 }

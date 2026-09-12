@@ -7,6 +7,7 @@ interface CartState {
   items: CartItem[];
   paymentMethod: PaymentMethod;
   discountPercent: number;
+  deliveryDate: string;
   notes: string;
 
   setShop: (shop: Shop | null) => void;
@@ -16,6 +17,7 @@ interface CartState {
   removeItem: (productId: string, unit: PackagingUnit) => void;
   setPaymentMethod: (method: PaymentMethod) => void;
   setDiscountPercent: (percent: number) => void;
+  setDeliveryDate: (date: string) => void;
   setNotes: (notes: string) => void;
   clearCart: () => void;
 
@@ -28,6 +30,8 @@ interface CartState {
   // Submit
   submitOrder: (agentId: string, agentName: string, coords?: { latitude?: number; longitude?: number }) => Order | null;
 }
+
+const getTodayString = () => new Date().toISOString().split('T')[0];
 
 const getUnitPrice = (product: Product, unit: PackagingUnit): number => {
   switch (unit) {
@@ -49,13 +53,16 @@ export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   paymentMethod: 'naqd',
   discountPercent: 0,
+  deliveryDate: getTodayString(),
   notes: '',
+
+  setDeliveryDate: (deliveryDate: string) => set({ deliveryDate }),
 
   setShop: (shop) => {
     // If selecting a different shop, reset cart items
     const current = get().shop;
     if (current && shop && current.id !== shop.id) {
-      set({ shop, items: [], discountPercent: 0, notes: '', paymentMethod: 'naqd' });
+      set({ shop, items: [], discountPercent: 0, notes: '', paymentMethod: 'naqd', deliveryDate: getTodayString() });
     } else {
       set({ shop });
     }
@@ -152,6 +159,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       discountPercent: 0,
       notes: '',
       paymentMethod: 'naqd',
+      deliveryDate: getTodayString(),
     }),
 
   getTotalAmount: () => {
@@ -175,7 +183,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   },
 
   submitOrder: (agentId, agentName, coords) => {
-    const { shop, items, paymentMethod, discountPercent, notes } = get();
+    const { shop, items, paymentMethod, discountPercent, deliveryDate, notes } = get();
     if (!shop || items.length === 0) return null;
 
     const totalAmount = get().getTotalAmount();
@@ -191,6 +199,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       discountAmount,
       finalAmount,
       paymentMethod,
+      deliveryDate,
       latitude: coords?.latitude,
       longitude: coords?.longitude,
       notes,

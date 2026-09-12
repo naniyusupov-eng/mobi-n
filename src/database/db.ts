@@ -179,6 +179,28 @@ export const initDatabase = (db: SQLite.SQLiteDatabase) => {
     });
     insertShop.finalizeSync();
   }
+
+  // Ensure clean slate: all shop debts set to 0 initially
+  try {
+    db.execSync(`
+      UPDATE shops SET debtBalance = 0;
+      DELETE FROM order_items;
+      DELETE FROM orders;
+      DELETE FROM sync_queue;
+    `);
+  } catch (e) {
+    console.warn('Init reset error:', e);
+  }
+};
+
+export const resetAllDataToZero = () => {
+  const db = getDatabase();
+  db.execSync(`
+    UPDATE shops SET debtBalance = 0;
+    DELETE FROM order_items;
+    DELETE FROM orders;
+    DELETE FROM sync_queue;
+  `);
 };
 
 export const getDatabase = (): SQLite.SQLiteDatabase => {
