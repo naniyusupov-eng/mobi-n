@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { CartItem, PackagingUnit, PaymentMethod, Product, Shop, Order } from '../types';
 import { orderRepository } from '../database/orderRepository';
+import { useDateStore } from './dateStore';
 
 interface CartState {
   shop: Shop | null;
@@ -31,7 +32,7 @@ interface CartState {
   submitOrder: (agentId: string, agentName: string, coords?: { latitude?: number; longitude?: number }) => Order | null;
 }
 
-const getTodayString = () => new Date().toISOString().split('T')[0];
+const getWorkingDate = () => useDateStore.getState().workingDate;
 
 const getUnitPrice = (product: Product, unit: PackagingUnit): number => {
   switch (unit) {
@@ -53,7 +54,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   paymentMethod: 'naqd',
   discountPercent: 0,
-  deliveryDate: getTodayString(),
+  deliveryDate: getWorkingDate(),
   notes: '',
 
   setDeliveryDate: (deliveryDate: string) => set({ deliveryDate }),
@@ -62,7 +63,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     // If selecting a different shop, reset cart items
     const current = get().shop;
     if (current && shop && current.id !== shop.id) {
-      set({ shop, items: [], discountPercent: 0, notes: '', paymentMethod: 'naqd', deliveryDate: getTodayString() });
+      set({ shop, items: [], discountPercent: 0, notes: '', paymentMethod: 'naqd', deliveryDate: getWorkingDate() });
     } else {
       set({ shop });
     }
@@ -159,7 +160,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       discountPercent: 0,
       notes: '',
       paymentMethod: 'naqd',
-      deliveryDate: getTodayString(),
+      deliveryDate: getWorkingDate(),
     }),
 
   getTotalAmount: () => {

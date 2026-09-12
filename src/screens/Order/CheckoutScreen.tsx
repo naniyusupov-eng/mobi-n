@@ -264,7 +264,7 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
             {submitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.confirmBtnText}>{t('checkout_confirm_btn')}</Text>
+              <Text style={styles.confirmBtnText} numberOfLines={1}>{t('checkout_confirm_btn')}</Text>
             )}
           </TouchableOpacity>
         </View>

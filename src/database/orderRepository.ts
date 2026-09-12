@@ -29,8 +29,11 @@ export const orderRepository = {
     }>;
   }): Order => {
     const db = getDatabase();
-    const orderId = `ord_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-    const createdAt = new Date().toISOString();
+    const orderId = `ord_${Date.now()}`;
+    const timeStr = new Date().toISOString().split('T')[1];
+    const createdAt = data.deliveryDate
+      ? `${data.deliveryDate}T${timeStr}`
+      : new Date().toISOString();
     const status: OrderStatus = 'confirmed';
 
     // Format notes with delivery date if present

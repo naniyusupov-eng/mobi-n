@@ -213,7 +213,9 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
             activeOpacity={0.8}
           >
             <ShoppingBag size={13} color="#fff" />
-            <Text style={styles.actionBtnOrderText}>{t('shop_action_order')}</Text>
+            <Text style={styles.actionBtnOrderText} numberOfLines={1}>
+              {t('shop_action_order')}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -222,7 +224,9 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
             activeOpacity={0.8}
           >
             <CreditCard size={13} color={colors.primary} />
-            <Text style={styles.actionBtnPkoText}>{t('shop_action_pko')}</Text>
+            <Text style={styles.actionBtnPkoText} numberOfLines={1}>
+              {t('shop_action_pko_short')}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -231,7 +235,9 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
             activeOpacity={0.8}
           >
             <FileText size={13} color={colors.textSecondary} />
-            <Text style={styles.actionBtnDetailsText}>{t('shop_action_history')}</Text>
+            <Text style={styles.actionBtnDetailsText} numberOfLines={1}>
+              {t('shop_action_history_short')}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -564,13 +570,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   actionBtnOrder: {
-    flex: 1,
+    flex: 1.3,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
     backgroundColor: colors.primary,
     paddingVertical: 6,
+    paddingHorizontal: 4,
     borderRadius: 5,
   },
   actionBtnOrderText: {
@@ -579,13 +586,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   actionBtnPko: {
+    flex: 0.9,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
     backgroundColor: '#EFF6FF',
-    paddingHorizontal: 12,
     paddingVertical: 6,
+    paddingHorizontal: 4,
     borderRadius: 5,
     borderWidth: 1,
     borderColor: '#BFDBFE',
@@ -596,13 +604,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   actionBtnDetails: {
+    flex: 0.8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 4,
     backgroundColor: '#fff',
-    paddingHorizontal: 10,
     paddingVertical: 6,
+    paddingHorizontal: 4,
     borderRadius: 5,
     borderWidth: 1,
     borderColor: '#E2E8F0',

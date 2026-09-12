@@ -15,6 +15,7 @@ import { useSyncStore } from '../../store/syncStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { useCartStore } from '../../store/cartStore';
 import { useShopStore } from '../../store/shopStore';
+import { useDateStore } from '../../store/dateStore';
 import { orderRepository } from '../../database/orderRepository';
 import { colors } from '../../theme/colors';
 import {
@@ -41,14 +42,12 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
     cashCollected: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
-  const [currentDate, setCurrentDate] = useState(new Date());
 
   const { shop } = useCartStore();
   const { currentShop } = useShopStore();
   const activeShop = shop || currentShop;
 
   const loadData = useCallback(() => {
-    setCurrentDate(new Date());
     if (agent?.id) {
       const todayStats = orderRepository.getTodayStats(agent.id);
       setStats(todayStats);
@@ -58,17 +57,10 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
 
   useEffect(() => {
     loadData();
-    const interval = setInterval(() => {
-      setCurrentDate(new Date());
-    }, 30000);
-
     const unsubscribe = navigation.addListener('focus', () => {
       loadData();
     });
-    return () => {
-      clearInterval(interval);
-      unsubscribe();
-    };
+    return unsubscribe;
   }, [navigation, loadData]);
 
   const onRefresh = async () => {
@@ -77,6 +69,8 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
     setRefreshing(false);
   };
 
+  const { workingDate, shiftWorkingDay, resetToToday, getFormattedWorkingDate } = useDateStore();
+
   const handleSyncNow = async () => {
     const res = await triggerSync();
     if (res.success) {
@@ -84,59 +78,6 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
       loadData();
     } else {
       Alert.alert(t('warning'), t('home_sync_failed'));
-    }
-  };
-
-  const shiftDay = (days: number) => {
-    const nextDate = new Date(currentDate);
-    nextDate.setDate(nextDate.getDate() + days);
-    setCurrentDate(nextDate);
-  };
-
-  const resetToToday = () => {
-    setCurrentDate(new Date());
-  };
-
-  const isToday = () => {
-    const now = new Date();
-    return (
-      currentDate.getDate() === now.getDate() &&
-      currentDate.getMonth() === now.getMonth() &&
-      currentDate.getFullYear() === now.getFullYear()
-    );
-  };
-
-  const getFormattedDateWithDay = () => {
-    const now = currentDate;
-    const day = now.getDate();
-    const year = now.getFullYear();
-
-    const uzMonths = [
-      'Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun',
-      'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'
-    ];
-    const ruMonths = [
-      'Января', 'Февраля', 'Марта', 'Апреля', 'Мая', 'Июня',
-      'Июля', 'Августа', 'Сентября', 'Октября', 'Ноября', 'Декабря'
-    ];
-    const cyrlMonths = [
-      'Январ', 'Феврал', 'Март', 'Апрел', 'Май', 'Июн',
-      'Июл', 'Август', 'Сентябр', 'Октабр', 'Ноябр', 'Декабр'
-    ];
-
-    const uzWeekdays = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
-    const ruWeekdays = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-    const cyrlWeekdays = ['Якшанба', 'Душанба', 'Сешанба', 'Чоршанба', 'Пайшанба', 'Жума', 'Шанба'];
-
-    const monthIndex = now.getMonth();
-    const dayOfWeekIndex = now.getDay();
-
-    if (lang === 'ru') {
-      return `${day} ${ruMonths[monthIndex]}, ${year} (${ruWeekdays[dayOfWeekIndex]})`;
-    } else if (lang === 'uz_cyrl') {
-      return `${day}-${cyrlMonths[monthIndex]}, ${year} (${cyrlWeekdays[dayOfWeekIndex]})`;
-    } else {
-      return `${day}-${uzMonths[monthIndex]}, ${year} (${uzWeekdays[dayOfWeekIndex]})`;
     }
   };
 
@@ -153,7 +94,7 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
       <View style={styles.dateRibbon}>
         <TouchableOpacity
           style={styles.dateNavBtn}
-          onPress={() => shiftDay(-1)}
+          onPress={() => shiftWorkingDay(-1)}
           activeOpacity={0.7}
         >
           <ChevronLeft size={18} color={colors.primary} />
@@ -167,21 +108,12 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
           <View style={styles.dateIconCircle}>
             <Calendar size={15} color={colors.primary} />
           </View>
-          <Text style={styles.dateRibbonText}>{getFormattedDateWithDay()}</Text>
-          {isToday() ? (
-            <View style={styles.todayBadge}>
-              <Text style={styles.todayBadgeText}>{lang === 'ru' ? 'Сегодня' : 'Bugun'}</Text>
-            </View>
-          ) : (
-            <TouchableOpacity onPress={resetToToday} style={styles.todayActionBtn}>
-              <Text style={styles.todayActionText}>{lang === 'ru' ? 'На сегодня' : 'Bugunga'}</Text>
-            </TouchableOpacity>
-          )}
+          <Text style={styles.dateRibbonText}>{getFormattedWorkingDate(lang)}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.dateNavBtn}
-          onPress={() => shiftDay(1)}
+          onPress={() => shiftWorkingDay(1)}
           activeOpacity={0.7}
         >
           <ChevronRight size={18} color={colors.primary} />

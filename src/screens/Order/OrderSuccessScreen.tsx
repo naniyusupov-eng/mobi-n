@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   Alert,
   ActivityIndicator,
+  BackHandler,
 } from 'react-native';
 import { orderRepository } from '../../database/orderRepository';
 import { shopRepository } from '../../database/shopRepository';
@@ -49,12 +50,28 @@ export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigati
   };
 
   const handleGoHome = () => {
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'CatalogMain' }],
+    });
     navigation.navigate('HomeTab');
   };
 
   const handleNewOrder = () => {
-    navigation.navigate('CatalogTab', { screen: 'CatalogMain' });
+    navigation.reset({
+      index: 0,
+      routes: [{ name: 'CatalogMain' }],
+    });
   };
+
+  useEffect(() => {
+    const onBackPress = () => {
+      handleGoHome();
+      return true;
+    };
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+    return () => backHandler.remove();
+  }, []);
 
   const getPaymentLabel = (pm: string) => {
     if (pm === 'naqd') return t('checkout_pay_cash');
@@ -139,8 +156,8 @@ export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigati
               onPress={handleNewOrder}
               activeOpacity={0.8}
             >
-              <ShoppingBag size={18} color={colors.primary} />
-              <Text style={styles.newOrderText}>{t('catalog_order_btn')}</Text>
+              <ShoppingBag size={17} color={colors.primary} />
+              <Text style={styles.newOrderText} numberOfLines={1}>{t('order_new_btn')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -148,8 +165,8 @@ export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigati
               onPress={handleGoHome}
               activeOpacity={0.8}
             >
-              <Home size={18} color={colors.textSecondary} />
-              <Text style={styles.homeButtonText}>{t('order_back_home')}</Text>
+              <Home size={17} color={colors.textSecondary} />
+              <Text style={styles.homeButtonText} numberOfLines={1}>{t('order_back_home')}</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -101,6 +101,7 @@ export interface MobileTranslations {
   order_print_receipt: string;
   order_share: string;
   order_back_home: string;
+  order_new_btn: string;
 
   // Shops & Visits
   shops_search: string;
@@ -114,7 +115,9 @@ export interface MobileTranslations {
   shop_action_visit: string;
   shop_action_order: string;
   shop_action_pko: string;
+  shop_action_pko_short: string;
   shop_action_history: string;
+  shop_action_history_short: string;
   pko_modal_title: string;
   pko_amount_label: string;
   pko_success: string;
@@ -294,7 +297,8 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     order_success_sub: 'Yuk xati raqami:',
     order_print_receipt: 'Chekni chop etish (PDF)',
     order_share: 'Ulashish',
-    order_back_home: 'Bosh sahifaga qaytish',
+    order_back_home: 'Bosh sahifa',
+    order_new_btn: 'Yangi zakaz',
 
     // Shops
     shops_search: 'Doʻkon yoki manzil...',
@@ -308,7 +312,9 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     shop_action_visit: 'Tashrifni qayd etish',
     shop_action_order: 'Zakaz olish',
     shop_action_pko: 'Qarz toʻlovini olish (PKO)',
+    shop_action_pko_short: 'PKO',
     shop_action_history: 'Oldingi zakazlar',
+    shop_action_history_short: 'Tarix',
     pko_modal_title: 'Qarz toʻlovi (PKO)',
     pko_amount_label: 'Qabul qilingan summa (soʻm):',
     pko_success: 'Toʻlov qabul qilindi va mijoz qarzi kamaytirildi.',
@@ -487,7 +493,8 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     order_success_sub: 'Номер накладной:',
     order_print_receipt: 'Печать квитанции (PDF)',
     order_share: 'Поделиться',
-    order_back_home: 'На главную панель',
+    order_back_home: 'На главную',
+    order_new_btn: 'Новый заказ',
 
     // Shops
     shops_search: 'Название точки, адрес...',
@@ -501,7 +508,9 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     shop_action_visit: 'Оформить визит',
     shop_action_order: 'Новый заказ',
     shop_action_pko: 'Прием оплаты (ПКО)',
+    shop_action_pko_short: 'ПКО',
     shop_action_history: 'История заявок',
+    shop_action_history_short: 'История',
     pko_modal_title: 'Прием оплаты (ПКО)',
     pko_amount_label: 'Сумма оплаты (сум):',
     pko_success: 'Оплата успешно принята и долг погашен.',
@@ -680,7 +689,8 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     order_success_sub: 'Юк хати рақами:',
     order_print_receipt: 'Чекни чоп этиш (PDF)',
     order_share: 'Улашиш',
-    order_back_home: 'Бош саҳифага қайтиш',
+    order_back_home: 'Бош саҳифа',
+    order_new_btn: 'Янги заказ',
 
     // Shops
     shops_search: 'Дўкон ёки манзил...',
@@ -694,7 +704,9 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     shop_action_visit: 'Ташрифни қайд этиш',
     shop_action_order: 'Заказ олиш',
     shop_action_pko: 'Қарз тўловини олиш (ПКО)',
+    shop_action_pko_short: 'ПКО',
     shop_action_history: 'Олдинги заказлар',
+    shop_action_history_short: 'Тарих',
     pko_modal_title: 'Қарз тўлови (ПКО)',
     pko_amount_label: 'Қабул қилинган сумма (сўм):',
     pko_success: 'Тўлов қабул қилинди ва мижоз қарзи камайтирилди.',

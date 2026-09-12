@@ -270,7 +270,7 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
             activeOpacity={0.85}
           >
             <ShoppingCart size={16} color="#fff" />
-            <Text style={styles.goToCartText}>{t('cart_proceed')}</Text>
+            <Text style={styles.goToCartText} numberOfLines={1}>{t('cart_proceed')}</Text>
             <ArrowRight size={14} color="#fff" />
           </TouchableOpacity>
         </View>

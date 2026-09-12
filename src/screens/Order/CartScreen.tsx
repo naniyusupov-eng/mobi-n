@@ -197,7 +197,7 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
               onPress={() => navigation.navigate('CheckoutScreen')}
               activeOpacity={0.8}
             >
-              <Text style={styles.checkoutBtnText}>{t('cart_proceed')}</Text>
+              <Text style={styles.checkoutBtnText} numberOfLines={1}>{t('cart_proceed')}</Text>
               <ArrowRight size={18} color="#fff" />
             </TouchableOpacity>
           </View>

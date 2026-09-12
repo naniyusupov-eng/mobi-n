@@ -139,6 +139,7 @@ export const invoiceService = {
             <td class="label">Sana va vaqt:</td>
             <td class="val">${formattedDate}</td>
           </tr>
+          ${order.deliveryDate ? `<tr><td class="label">Yetkazish sanasi:</td><td class="val" style="color: #d97706; font-weight: 700;">${order.deliveryDate}</td></tr>` : ''}
           <tr>
             <td class="label">Doʻkon (Mijoz):</td>
             <td class="val">${order.shopName}</td>
