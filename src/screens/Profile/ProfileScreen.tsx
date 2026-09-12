@@ -37,11 +37,22 @@ export const ProfileScreen = () => {
     try {
       setTestingServer(true);
       await apiClient.get('/health', { timeout: 4000 });
-      Alert.alert(t('success'), 'NestJS Server Online!');
+      Alert.alert(
+        t('success'),
+        lang === 'ru'
+          ? 'Связь с сервером установлена'
+          : lang === 'uz_cyrl'
+          ? 'Сервер билан алоқа ўрнатилди'
+          : 'Server bilan aloqa oʻrnatildi'
+      );
     } catch (e: any) {
       Alert.alert(
         t('warning'),
-        'SQLite Offline Mode'
+        lang === 'ru'
+          ? 'Автономный режим (без интернета)'
+          : lang === 'uz_cyrl'
+          ? 'Автоном режим (интернетсиз)'
+          : 'Avtonom rejim (internetsiz)'
       );
     } finally {
       setTestingServer(false);
