@@ -8,9 +8,9 @@ import {
   ActivityIndicator,
   TextInput,
   ScrollView,
-  SafeAreaView,
   Image,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useAuthStore, DEMO_AGENTS } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';

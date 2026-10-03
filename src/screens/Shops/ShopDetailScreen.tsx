@@ -5,10 +5,10 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   Linking,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { useShopStore } from '../../store/shopStore';
 import { useLanguageStore } from '../../store/languageStore';
@@ -90,7 +90,7 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
 
   if (!shop) {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
         <View style={styles.centerContainer}>
           <Text style={styles.errorText}>
             {lang === 'ru' ? 'Данные точки не найдены' : lang === 'uz_cyrl' ? 'Дўкон маълумотлари топилмади' : 'Doʻkon maʼlumotlari topilmadi'}
@@ -101,7 +101,7 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Main Shop Info Card */}
         <View style={styles.mainCard}>

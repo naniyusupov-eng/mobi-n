@@ -6,11 +6,11 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   Linking,
   Modal,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { useShopStore } from '../../store/shopStore';
 import { useCartStore } from '../../store/cartStore';
@@ -245,7 +245,7 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       {/* Search Input Bar */}
       <View style={styles.searchBarContainer}>
         <View style={styles.searchInputBox}>

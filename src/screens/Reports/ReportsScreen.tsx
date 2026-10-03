@@ -5,9 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  SafeAreaView,
   FlatList,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { orderRepository } from '../../database/orderRepository';
 import { shopRepository } from '../../database/shopRepository';
 import { useAuthStore } from '../../store/authStore';
@@ -49,7 +49,7 @@ export const ReportsScreen = () => {
   const totalDebt = debtShops.reduce((sum, s) => sum + s.debtBalance, 0);
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       {/* Mobi-S Sub-navigation Tabs */}
       <View style={styles.subTabs}>
         <TouchableOpacity

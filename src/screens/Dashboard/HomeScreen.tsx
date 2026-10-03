@@ -6,10 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   RefreshControl,
-  SafeAreaView,
   Alert,
   StatusBar,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useAuthStore } from '../../store/authStore';
 import { useSyncStore } from '../../store/syncStore';
 import { useLanguageStore } from '../../store/languageStore';
@@ -33,7 +33,10 @@ import {
 
 export const HomeScreen = ({ navigation }: { navigation: any }) => {
   const { agent } = useAuthStore();
-  const { isSyncing, pendingCount, refreshPendingCount, triggerSync } = useSyncStore();
+  const isSyncing = useSyncStore((state) => state.isSyncing);
+  const pendingCount = useSyncStore((state) => state.pendingCount);
+  const refreshPendingCount = useSyncStore((state) => state.refreshPendingCount);
+  const triggerSync = useSyncStore((state) => state.triggerSync);
   const { lang, t } = useLanguageStore();
 
   const [stats, setStats] = useState({
@@ -53,7 +56,7 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
       setStats(todayStats);
     }
     refreshPendingCount();
-  }, [agent?.id, refreshPendingCount]);
+  }, [agent?.id]);
 
   useEffect(() => {
     loadData();

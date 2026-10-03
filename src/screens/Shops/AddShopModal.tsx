@@ -6,10 +6,10 @@ import {
   TextInput,
   TouchableOpacity,
   ScrollView,
-  SafeAreaView,
   Alert,
   ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { useShopStore } from '../../store/shopStore';
 import { useLanguageStore } from '../../store/languageStore';
@@ -105,7 +105,7 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.modalTitle}>{t('add_shop_title')}</Text>
         <Text style={styles.modalSubtitle}>

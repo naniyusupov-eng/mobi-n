@@ -6,9 +6,9 @@ import {
   FlatList,
   TextInput,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { productRepository } from '../../database/productRepository';
 import { useCartStore } from '../../store/cartStore';
 import { useShopStore } from '../../store/shopStore';
@@ -182,7 +182,7 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       {/* Selected Client Bar (Mobi-S Style) */}
       <View style={styles.clientTopBar}>
         <View style={styles.clientLeft}>

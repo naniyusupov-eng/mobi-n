@@ -5,10 +5,10 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  SafeAreaView,
   Alert,
   RefreshControl,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { orderRepository } from '../../database/orderRepository';
 import { shopRepository } from '../../database/shopRepository';
 import { invoiceService } from '../../services/invoiceService';
@@ -148,7 +148,7 @@ export const OrdersHistoryScreen = ({ navigation }: { navigation: any }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       {/* Date Navigation Bar for Daily Archive */}
       <View style={styles.dateRibbon}>
         <TouchableOpacity
