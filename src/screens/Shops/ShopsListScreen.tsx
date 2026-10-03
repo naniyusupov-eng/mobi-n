@@ -11,10 +11,10 @@ import {
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import * as Location from 'expo-location';
 import { useShopStore } from '../../store/shopStore';
 import { useCartStore } from '../../store/cartStore';
 import { useLanguageStore } from '../../store/languageStore';
+import { shopRepository } from '../../database/shopRepository';
 import { Shop } from '../../types';
 import { colors } from '../../theme/colors';
 import {
@@ -23,26 +23,22 @@ import {
   Phone,
   MapPin,
   CheckCircle2,
-  Circle,
-  AlertCircle,
-  ShoppingBag,
-  CreditCard,
-  Navigation,
-  FileText,
+  Calendar,
   X,
-  XCircle,
+  CreditCard,
+  ShoppingBag,
+  ChevronRight,
 } from 'lucide-react-native';
 
 type FilterTab = 'today' | 'all' | 'debt' | 'visited';
 
 export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
-  const { shops, loadShops, searchQuery, setSearchQuery, setCurrentShop, markShopVisited } = useShopStore();
+  const { shops, loadShops, searchQuery, setSearchQuery, setCurrentShop } = useShopStore();
   const { setShop: setCartShop } = useCartStore();
   const { t, lang } = useLanguageStore();
 
   const [activeTab, setActiveTab] = useState<FilterTab>('today');
-  const [selectedShop, setSelectedShop] = useState<Shop | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedShopForPayment, setSelectedShopForPayment] = useState<Shop | null>(null);
   const [paymentModalVisible, setPaymentModalVisible] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState('');
 
@@ -50,20 +46,26 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
     loadShops();
   }, []);
 
-  // Filter logic based on Mobi-S tabs
+  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
+
   const filteredShops = useMemo(() => {
     return shops.filter((shop) => {
-      // Text search
+      const q = searchQuery.toLowerCase().trim();
       const matchesSearch =
-        !searchQuery ||
-        shop.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        shop.ownerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        shop.address.toLowerCase().includes(searchQuery.toLowerCase());
+        !q ||
+        shop.name.toLowerCase().includes(q) ||
+        shop.ownerName.toLowerCase().includes(q) ||
+        shop.address.toLowerCase().includes(q);
 
       if (!matchesSearch) return false;
 
       if (activeTab === 'today') {
-        return shop.visitDay === 'Dushanba' || shop.visitDay === 'Barchasi' || shop.visitDay === t('day_mon') || shop.visitDay === t('day_all');
+        return (
+          shop.visitDay === 'Dushanba' ||
+          shop.visitDay === 'Barchasi' ||
+          shop.visitDay === t('day_mon') ||
+          shop.visitDay === t('day_all')
+        );
       }
       if (activeTab === 'debt') {
         return shop.debtBalance > 0;
@@ -71,174 +73,135 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
       if (activeTab === 'visited') {
         return Boolean(shop.lastVisitedAt);
       }
-      return true; // 'all'
+      return true;
     });
   }, [shops, searchQuery, activeTab, t]);
 
-  const handleOpenActionMenu = (shop: Shop) => {
-    setSelectedShop(shop);
-    setModalVisible(true);
-  };
-
-  const handleStartOrder = () => {
-    if (selectedShop) {
-      setCurrentShop(selectedShop);
-      setCartShop(selectedShop);
-      setModalVisible(false);
-      navigation.navigate('CatalogTab', { screen: 'CatalogMain' });
-    }
-  };
-
-  const handleRegisterGPS = async () => {
-    if (!selectedShop) return;
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('GPS', lang === 'ru' ? 'Доступ к геопозиции отклонен' : lang === 'uz_cyrl' ? 'Геолокацияга рухсат берилмади' : 'Geolokatsiyaga ruxsat berilmadi');
-        return;
-      }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      markShopVisited(selectedShop.id);
-      setModalVisible(false);
-      Alert.alert(
-        t('shop_visited_today') + ' ✅',
-        (lang === 'ru' ? 'Координаты: ' : lang === 'uz_cyrl' ? 'Координаталар: ' : 'Koordinatalar: ') +
-          `${loc.coords.latitude.toFixed(4)}, ${loc.coords.longitude.toFixed(4)}`
-      );
-    } catch (e: any) {
-      Alert.alert(t('error'), e.message);
-    }
-  };
-
-  const handleAcceptPayment = () => {
-    setModalVisible(false);
-    setPaymentAmount('');
-    setPaymentModalVisible(true);
-  };
-
-  const handleConfirmPayment = () => {
-    const amount = parseFloat(paymentAmount.replace(/\D/g, ''));
-    if (!amount || amount <= 0 || !selectedShop) {
-      Alert.alert(t('error'), lang === 'ru' ? 'Введите корректную сумму оплаты' : lang === 'uz_cyrl' ? 'Тўғри тўлов суммасини киритинг' : 'Toʻgʻri toʻlov summasini kiriting');
-      return;
-    }
-
-    const { shopRepository } = require('../../database/shopRepository');
-    shopRepository.collectPayment(selectedShop.id, amount);
-    loadShops();
-    setPaymentModalVisible(false);
-    Alert.alert(
-      t('pko_modal_title'),
-      `${t('pko_success')}\n${amount.toLocaleString('ru-RU')} ${t('currency')}`
-    );
-  };
-
-  const handleDirectOrder = (shop: Shop) => {
+  const handleStartOrder = (shop: Shop) => {
     setCurrentShop(shop);
     setCartShop(shop);
     navigation.navigate('CatalogTab', { screen: 'CatalogMain' });
   };
 
-  const handleDirectPayment = (shop: Shop) => {
-    setSelectedShop(shop);
-    setPaymentAmount('');
+  const handleOpenPayment = (shop: Shop) => {
+    setSelectedShopForPayment(shop);
+    setPaymentAmount(shop.debtBalance > 0 ? String(shop.debtBalance) : '');
     setPaymentModalVisible(true);
   };
 
-  const handleOpenCard = () => {
-    if (selectedShop) {
-      setCurrentShop(selectedShop);
-      setModalVisible(false);
-      navigation.navigate('ShopDetail', { shopId: selectedShop.id });
+  const handleConfirmPayment = () => {
+    const amount = parseFloat(paymentAmount.replace(/\D/g, ''));
+    if (!amount || amount <= 0 || !selectedShopForPayment) {
+      Alert.alert(
+        t('error'),
+        lang === 'ru'
+          ? 'Введите корректную сумму оплаты'
+          : lang === 'uz_cyrl'
+          ? 'Тўғри тўлов суммасини киритинг'
+          : 'Toʻgʻri toʻlov summasini kiriting'
+      );
+      return;
     }
+
+    shopRepository.collectPayment(selectedShopForPayment.id, amount);
+    loadShops();
+    setPaymentModalVisible(false);
+    Alert.alert(
+      t('pko_modal_title'),
+      `${t('pko_success')}\n${amount.toLocaleString(numLocale)} ${t('currency')}`
+    );
+  };
+
+  const handleCardPress = (shop: Shop) => {
+    setCurrentShop(shop);
+    navigation.navigate('ShopDetail', { shopId: shop.id });
+  };
+
+  const setShortcutAmount = (val: number) => {
+    setPaymentAmount(String(val));
   };
 
   const renderShopItem = ({ item }: { item: Shop }) => {
     const isVisited = Boolean(item.lastVisitedAt);
+    const hasDebt = item.debtBalance > 0;
 
     return (
       <View style={styles.shopCard}>
-        {/* Top Header Row */}
+        {/* Card Header & Body - tap to open details */}
         <TouchableOpacity
-          style={styles.shopCardHeader}
-          onPress={() => handleOpenActionMenu(item)}
+          style={styles.cardMainArea}
+          onPress={() => handleCardPress(item)}
           activeOpacity={0.7}
         >
-          <View style={styles.shopHeaderLeft}>
-            <View style={styles.statusIndicator}>
-              {isVisited ? (
-                <CheckCircle2 size={18} color={colors.success} />
-              ) : (
-                <Circle size={16} color={colors.textMuted} />
+          <View style={styles.cardHeader}>
+            <View style={styles.titleRow}>
+              <Text style={styles.shopName} numberOfLines={1}>{item.name}</Text>
+              {isVisited && (
+                <View style={styles.visitedChip}>
+                  <CheckCircle2 size={11} color={colors.success} />
+                  <Text style={styles.visitedText}>{t('shop_visited_today')}</Text>
+                </View>
               )}
             </View>
-            <View style={{ flex: 1 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                <Text style={styles.shopName} numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <View style={styles.routeDayPill}>
-                  <Text style={styles.routeDayText}>{item.visitDay ? item.visitDay.slice(0, 3) : ''}</Text>
-                </View>
-              </View>
-              <Text style={styles.shopSubtext} numberOfLines={1}>
-                {item.ownerName} • {item.address}
-              </Text>
+            <View style={styles.dayChip}>
+              <Text style={styles.dayChipText}>{item.visitDay}</Text>
             </View>
           </View>
 
-          {/* Right Debt Badge */}
-          <View style={styles.debtColumn}>
-            {item.debtBalance > 0 ? (
-              <View style={styles.debtBadgeRed}>
-                <Text style={styles.debtTextRed}>
-                  {item.debtBalance.toLocaleString('ru-RU')}
-                </Text>
-                <Text style={styles.debtSubLabel}>{t('shop_debt')}</Text>
-              </View>
-            ) : (
-              <View style={styles.debtBadgeGreen}>
-                <Text style={styles.debtTextGreen}>0</Text>
-                <Text style={styles.debtSubLabel}>{t('shop_no_debt')}</Text>
-              </View>
-            )}
+          <Text style={styles.ownerText}>
+            {item.ownerName}
+          </Text>
+
+          <View style={styles.addressRow}>
+            <MapPin size={13} color={colors.textMuted} />
+            <Text style={styles.addressText} numberOfLines={1}>{item.address}</Text>
           </View>
         </TouchableOpacity>
 
-        {/* Quick Ergonomic Action Bar */}
-        <View style={styles.shopActionBar}>
-          <TouchableOpacity
-            style={styles.actionBtnOrder}
-            onPress={() => handleDirectOrder(item)}
-            activeOpacity={0.8}
-          >
-            <ShoppingBag size={13} color="#fff" />
-            <Text style={styles.actionBtnOrderText} numberOfLines={1}>
-              {t('shop_action_order')}
-            </Text>
-          </TouchableOpacity>
+        {/* Card Footer: Debt/Phone strip & Action Buttons */}
+        <View style={styles.cardFooter}>
+          <View style={styles.footerLeft}>
+            {hasDebt ? (
+              <View style={styles.debtPill}>
+                <Text style={styles.debtPillText}>
+                  {item.debtBalance.toLocaleString(numLocale)} {t('currency')}
+                </Text>
+              </View>
+            ) : (
+              <Text style={styles.noDebtText}>{t('shop_no_debt_text')}</Text>
+            )}
 
-          <TouchableOpacity
-            style={styles.actionBtnPko}
-            onPress={() => handleDirectPayment(item)}
-            activeOpacity={0.8}
-          >
-            <CreditCard size={13} color={colors.primary} />
-            <Text style={styles.actionBtnPkoText} numberOfLines={1}>
-              {t('shop_action_pko_short')}
-            </Text>
-          </TouchableOpacity>
+            {item.phone ? (
+              <TouchableOpacity
+                style={styles.phoneBtn}
+                onPress={() => Linking.openURL(`tel:${item.phone}`)}
+                activeOpacity={0.7}
+              >
+                <Phone size={12} color={colors.textSecondary} />
+                <Text style={styles.phoneBtnText}>{item.phone}</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
 
-          <TouchableOpacity
-            style={styles.actionBtnDetails}
-            onPress={() => handleOpenActionMenu(item)}
-            activeOpacity={0.8}
-          >
-            <FileText size={13} color={colors.textSecondary} />
-            <Text style={styles.actionBtnDetailsText} numberOfLines={1}>
-              {t('shop_action_history_short')}
-            </Text>
-          </TouchableOpacity>
+          <View style={styles.footerActions}>
+            <TouchableOpacity
+              style={styles.pkoBtn}
+              onPress={() => handleOpenPayment(item)}
+              activeOpacity={0.7}
+            >
+              <CreditCard size={13} color={colors.textSecondary} />
+              <Text style={styles.pkoBtnText}>PKO</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.orderBtn}
+              onPress={() => handleStartOrder(item)}
+              activeOpacity={0.8}
+            >
+              <ShoppingBag size={13} color="#FFFFFF" />
+              <Text style={styles.orderBtnText}>{t('shop_action_order')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
     );
@@ -246,13 +209,13 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      {/* Search Input Bar */}
-      <View style={styles.searchBarContainer}>
-        <View style={styles.searchInputBox}>
-          <Search size={16} color={colors.textSecondary} />
+      {/* Search Bar */}
+      <View style={styles.searchSection}>
+        <View style={styles.searchBar}>
+          <Search size={16} color={colors.textMuted} />
           <TextInput
             style={styles.searchInput}
-            placeholder={t('shops_search')}
+            placeholder={t('search') + '...'}
             placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
@@ -263,48 +226,60 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
             </TouchableOpacity>
           )}
         </View>
+
+        <TouchableOpacity
+          style={styles.addShopBtn}
+          onPress={() => navigation.navigate('AddShopModal')}
+          activeOpacity={0.8}
+        >
+          <Plus size={18} color="#FFFFFF" />
+        </TouchableOpacity>
       </View>
 
-      {/* Mobi-S 4 Filter Tabs */}
-      <View style={styles.tabsStrip}>
+      {/* Filter Tabs */}
+      <View style={styles.tabsRow}>
         <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'today' && styles.tabBtnActive]}
+          style={[styles.tabChip, activeTab === 'today' && styles.tabChipActive]}
           onPress={() => setActiveTab('today')}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'today' && styles.tabTextActive]}>
-            {t('tab_today')}
+          <Text style={[styles.tabChipText, activeTab === 'today' && styles.tabChipTextActive]}>
+            {t('home_route_plan')}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'all' && styles.tabBtnActive]}
+          style={[styles.tabChip, activeTab === 'all' && styles.tabChipActive]}
           onPress={() => setActiveTab('all')}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'all' && styles.tabTextActive]}>
-            {t('tab_all_shops')} ({shops.length})
+          <Text style={[styles.tabChipText, activeTab === 'all' && styles.tabChipTextActive]}>
+            {t('catalog_all')} ({shops.length})
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'debt' && styles.tabBtnActive]}
+          style={[styles.tabChip, activeTab === 'debt' && styles.tabChipActive]}
           onPress={() => setActiveTab('debt')}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'debt' && styles.tabTextActive]}>
-            {t('tab_debt_shops')}
+          <Text style={[styles.tabChipText, activeTab === 'debt' && styles.tabChipTextActive]}>
+            {t('rep_client_debts')}
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.tabBtn, activeTab === 'visited' && styles.tabBtnActive]}
+          style={[styles.tabChip, activeTab === 'visited' && styles.tabChipActive]}
           onPress={() => setActiveTab('visited')}
+          activeOpacity={0.7}
         >
-          <Text style={[styles.tabText, activeTab === 'visited' && styles.tabTextActive]}>
-            {t('tab_visited_shops')}
+          <Text style={[styles.tabChipText, activeTab === 'visited' && styles.tabChipTextActive]}>
+            {t('shop_visited_today')}
           </Text>
         </TouchableOpacity>
       </View>
 
-      {/* High Density Table List */}
+      {/* Shops List */}
       <FlatList
         data={filteredShops}
         keyExtractor={(item) => item.id}
@@ -312,161 +287,101 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>
-              {lang === 'ru' ? 'Клиенты не найдены' : lang === 'uz_cyrl' ? 'Мижозлар топилмади' : 'Mijozlar topilmadi'}
-            </Text>
-            <Text style={styles.emptySubtitle}>
-              {lang === 'ru' ? 'В выбранном фильтре нет торговых точек' : lang === 'uz_cyrl' ? 'Танланган филтрда савдо нуқталари йўқ' : 'Tanlangan filtrda savdo nuqtalari yoʻq'}
-            </Text>
+            <Text style={styles.emptyText}>{t('search')} — {t('error')}</Text>
           </View>
         }
       />
 
-      {/* FAB: Add New Client */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('AddShopModal')}
-        activeOpacity={0.85}
-      >
-        <Plus size={22} color="#fff" />
-        <Text style={styles.fabText}>{t('shops_add_btn')}</Text>
-      </TouchableOpacity>
-
-      {/* Mobi-S Point Action Menu (Меню торговой точки) */}
+      {/* Fast PKO Payment Modal */}
       <Modal
-        visible={modalVisible}
+        visible={paymentModalVisible}
         transparent
         animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
+        onRequestClose={() => setPaymentModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.actionSheet}>
-            <View style={styles.sheetHeader}>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.sheetShopName}>{selectedShop?.name}</Text>
-                <Text style={styles.sheetOwner}>
-                  {selectedShop?.ownerName} • {selectedShop?.phone}
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>{t('pko_modal_title')}</Text>
+                <Text style={styles.modalClientName} numberOfLines={1}>
+                  {selectedShopForPayment?.name}
                 </Text>
-                {selectedShop && selectedShop.debtBalance > 0 && (
-                  <Text style={styles.sheetDebtAlert}>
-                    {t('shop_balance_debt')} {selectedShop.debtBalance.toLocaleString('ru-RU')} {t('currency')}
-                  </Text>
-                )}
               </View>
-              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeBtn}>
+              <TouchableOpacity onPress={() => setPaymentModalVisible(false)}>
                 <X size={20} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
-            <View style={styles.sheetActions}>
-              {/* Option 1: Новый заказ */}
-              <TouchableOpacity style={styles.menuActionItem} onPress={handleStartOrder}>
-                <View style={[styles.menuActionIcon, { backgroundColor: colors.primaryLight }]}>
-                  <ShoppingBag size={20} color={colors.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.menuActionTitle}>{t('shop_action_order')}</Text>
-                  <Text style={styles.menuActionSubtitle}>
-                    {lang === 'ru' ? 'Оформить поставку кондитерских изделий' : lang === 'uz_cyrl' ? 'Қандолат маҳсулотлари буюртмасини шакллантириш' : 'Qandolat mahsulotlari buyurtmasini shakllantirish'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+            {selectedShopForPayment && selectedShopForPayment.debtBalance > 0 && (
+              <View style={styles.modalDebtAlert}>
+                <Text style={styles.modalDebtLabel}>{t('rep_debt_receivable')}:</Text>
+                <Text style={styles.modalDebtValue}>
+                  {selectedShopForPayment.debtBalance.toLocaleString(numLocale)} {t('currency')}
+                </Text>
+              </View>
+            )}
 
-              {/* Option 2: Прием оплаты (ПКО) */}
-              <TouchableOpacity style={styles.menuActionItem} onPress={handleAcceptPayment}>
-                <View style={[styles.menuActionIcon, { backgroundColor: '#E8F5E9' }]}>
-                  <CreditCard size={20} color={colors.success} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.menuActionTitle}>{t('shop_action_pko')}</Text>
-                  <Text style={styles.menuActionSubtitle}>
-                    {lang === 'ru' ? 'Внести деньги в счет погашения долга' : lang === 'uz_cyrl' ? 'Қарзни ёпиш учун нақд пул қабул қилиш' : 'Qarzni yopish uchun naqd pul qabul qilish'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Option 3: Зафиксировать GPS визит */}
-              <TouchableOpacity style={styles.menuActionItem} onPress={handleRegisterGPS}>
-                <View style={[styles.menuActionIcon, { backgroundColor: '#FFF3E0' }]}>
-                  <Navigation size={20} color={colors.accent} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.menuActionTitle}>{t('shop_gps_register')}</Text>
-                  <Text style={styles.menuActionSubtitle}>
-                    {lang === 'ru' ? 'Отметить прибытие в торговую точку' : lang === 'uz_cyrl' ? 'Дўконга келганликни белгилаш' : 'Doʻkonga kelganlikni belgilash'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Option 4: Позвонить */}
-              <TouchableOpacity
-                style={styles.menuActionItem}
-                onPress={() => {
-                  setModalVisible(false);
-                  if (selectedShop?.phone) Linking.openURL(`tel:${selectedShop.phone}`);
-                }}
-              >
-                <View style={[styles.menuActionIcon, { backgroundColor: '#E0F2FE' }]}>
-                  <Phone size={20} color={colors.info} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.menuActionTitle}>{t('shop_call_client')}</Text>
-                  <Text style={styles.menuActionSubtitle}>{selectedShop?.phone}</Text>
-                </View>
-              </TouchableOpacity>
-
-              {/* Option 5: Карточка клиента */}
-              <TouchableOpacity style={styles.menuActionItem} onPress={handleOpenCard}>
-                <View style={[styles.menuActionIcon, { backgroundColor: '#ECEFF1' }]}>
-                  <FileText size={20} color={colors.secondary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.menuActionTitle}>{t('nav_shop_detail')}</Text>
-                  <Text style={styles.menuActionSubtitle}>
-                    {lang === 'ru' ? 'Реквизиты, прошлые накладные' : lang === 'uz_cyrl' ? 'Маълумотлар, аввалги юк хатлари' : 'Maʼlumotlar, avvalgi yuk xatlari'}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+            <Text style={styles.modalInputLabel}>{t('pko_amount_label')}</Text>
+            <View style={styles.modalInputWrapper}>
+              <TextInput
+                style={styles.modalAmountInput}
+                keyboardType="numeric"
+                value={paymentAmount}
+                onChangeText={setPaymentAmount}
+                placeholder="0"
+                placeholderTextColor={colors.textMuted}
+                autoFocus
+              />
+              <Text style={styles.modalCurrencySuffix}>{t('currency')}</Text>
             </View>
-          </View>
-        </View>
-      </Modal>
 
-      {/* Payment / ПКО Modal */}
-      <Modal visible={paymentModalVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.actionSheet, { padding: 20 }]}>
-            <Text style={styles.sheetShopName}>{t('pko_modal_title')}</Text>
-            <Text style={styles.sheetOwner}>{selectedShop?.name}</Text>
-            <Text style={styles.sheetDebtAlert}>
-              {t('shop_balance_debt')} {selectedShop?.debtBalance.toLocaleString('ru-RU')} {t('currency')}
-            </Text>
-
-            <TextInput
-              style={styles.paymentInput}
-              placeholder={t('pko_amount_label')}
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numeric"
-              value={paymentAmount}
-              onChangeText={setPaymentAmount}
-              autoFocus
-            />
-
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+            {/* Quick Amount Shortcuts */}
+            <View style={styles.shortcutsRow}>
               <TouchableOpacity
-                style={[styles.sheetBtn, { backgroundColor: colors.background }]}
+                style={styles.shortcutBtn}
+                onPress={() => setShortcutAmount(100000)}
+              >
+                <Text style={styles.shortcutBtnText}>100k</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.shortcutBtn}
+                onPress={() => setShortcutAmount(500000)}
+              >
+                <Text style={styles.shortcutBtnText}>500k</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.shortcutBtn}
+                onPress={() => setShortcutAmount(1000000)}
+              >
+                <Text style={styles.shortcutBtnText}>1M</Text>
+              </TouchableOpacity>
+              {selectedShopForPayment && selectedShopForPayment.debtBalance > 0 && (
+                <TouchableOpacity
+                  style={[styles.shortcutBtn, { backgroundColor: colors.primaryLight }]}
+                  onPress={() => setShortcutAmount(selectedShopForPayment.debtBalance)}
+                >
+                  <Text style={[styles.shortcutBtnText, { color: colors.primary }]}>
+                    {lang === 'ru' ? 'Весь долг' : 'Toʻliq qarz'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
+            {/* Actions */}
+            <View style={styles.modalActionsRow}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
                 onPress={() => setPaymentModalVisible(false)}
               >
-                <Text style={{ color: colors.textSecondary, fontWeight: '700' }}>{t('cancel')}</Text>
+                <Text style={styles.modalCancelText}>{t('cancel')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.sheetBtn, { backgroundColor: colors.success, flex: 1 }]}
+                style={styles.modalConfirmBtn}
                 onPress={handleConfirmPayment}
               >
-                <Text style={{ color: '#fff', fontWeight: '800' }}>
-                  {lang === 'ru' ? 'Принять оплату' : lang === 'uz_cyrl' ? 'Тўловни қабул қилиш' : 'Toʻlovni qabul qilish'}
-                </Text>
+                <Text style={styles.modalConfirmText}>{t('confirm')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -479,312 +394,348 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.background,
   },
-  searchBarContainer: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 12,
-    paddingBottom: 10,
-  },
-  searchInputBox: {
+  searchSection: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    height: 38,
+    paddingHorizontal: 12,
+    paddingTop: 10,
+    paddingBottom: 6,
     gap: 8,
+    backgroundColor: '#FFFFFF',
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    height: 40,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   searchInput: {
     flex: 1,
     fontSize: 13,
     color: colors.text,
+    paddingVertical: 0,
   },
-  tabsStrip: {
-    flexDirection: 'row',
-    backgroundColor: colors.primaryDark,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  tabBtn: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: 'center',
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
-  },
-  tabBtnActive: {
-    borderBottomColor: colors.accent,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  tabText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#CFD8DC',
-  },
-  tabTextActive: {
-    color: '#fff',
-  },
-  listContent: {
-    padding: 8,
-    paddingBottom: 85,
-    gap: 8,
-  },
-  shopCard: {
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    overflow: 'hidden',
-  },
-  shopCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 10,
-    gap: 8,
-  },
-  shopHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
-    gap: 8,
-  },
-  routeDayPill: {
-    backgroundColor: '#EFF6FF',
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 3,
-  },
-  routeDayText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  shopActionBar: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 8,
-    paddingVertical: 6,
-    gap: 6,
-  },
-  actionBtnOrder: {
-    flex: 1.3,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    backgroundColor: colors.primary,
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderRadius: 5,
-  },
-  actionBtnOrderText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  actionBtnPko: {
-    flex: 0.9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    backgroundColor: '#EFF6FF',
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-  },
-  actionBtnPkoText: {
-    color: colors.primary,
-    fontSize: 11,
-    fontWeight: '700',
-  },
-  actionBtnDetails: {
-    flex: 0.8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 4,
-    backgroundColor: '#fff',
-    paddingVertical: 6,
-    paddingHorizontal: 4,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  actionBtnDetailsText: {
-    color: '#64748B',
-    fontSize: 11,
-    fontWeight: '600',
-  },
-  statusIndicator: {
-    width: 22,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  shopName: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  shopSubtext: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  debtColumn: {
-    alignItems: 'flex-end',
-    minWidth: 70,
-  },
-  debtBadgeRed: {
-    alignItems: 'flex-end',
-    backgroundColor: '#FEE2E2',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  debtTextRed: {
-    fontSize: 11,
-    fontWeight: '900',
-    color: colors.danger,
-  },
-  debtBadgeGreen: {
-    alignItems: 'flex-end',
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  debtTextGreen: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: colors.success,
-  },
-  debtSubLabel: {
-    fontSize: 9,
-    color: colors.textMuted,
-    textTransform: 'uppercase',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    paddingTop: 60,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.text,
-  },
-  emptySubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 4,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 16,
-    right: 16,
-    backgroundColor: colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    elevation: 4,
-  },
-  fabText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 13,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  actionSheet: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 16,
-    paddingBottom: 28,
-  },
-  sheetHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    paddingBottom: 12,
-    marginBottom: 8,
-  },
-  sheetShopName: {
-    fontSize: 17,
-    fontWeight: '900',
-    color: colors.text,
-  },
-  sheetOwner: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  sheetDebtAlert: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.danger,
-    marginTop: 4,
-  },
-  closeBtn: {
-    padding: 4,
-  },
-  sheetActions: {
-    gap: 4,
-  },
-  menuActionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 10,
-    gap: 12,
-  },
-  menuActionIcon: {
+  addShopBtn: {
     width: 40,
     height: 40,
     borderRadius: 8,
-    justifyContent: 'center',
+    backgroundColor: colors.primary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  menuActionTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.text,
+  tabsRow: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  menuActionSubtitle: {
+  tabChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  tabChipActive: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  tabChipText: {
     fontSize: 11,
+    fontWeight: '500',
     color: colors.textSecondary,
-    marginTop: 1,
   },
-  paymentInput: {
+  tabChipTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  listContent: {
+    padding: 12,
+    gap: 10,
+  },
+  shopCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 8,
     padding: 12,
-    fontSize: 16,
-    fontWeight: '800',
-    color: colors.text,
-    marginTop: 14,
-    backgroundColor: colors.background,
   },
-  sheetBtn: {
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+  cardMainArea: {
+    marginBottom: 10,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+  },
+  titleRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  shopName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
+    flexShrink: 1,
+  },
+  visitedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.successLight,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  visitedText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.success,
+  },
+  dayChip: {
+    backgroundColor: colors.surfaceSecondary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  dayChipText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  ownerText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 4,
+  },
+  addressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  addressText: {
+    fontSize: 11,
+    color: colors.textMuted,
+    flex: 1,
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  footerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  debtPill: {
+    backgroundColor: colors.dangerLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  debtPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.danger,
+  },
+  noDebtText: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  phoneBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  phoneBtnText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  footerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  pkoBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  pkoBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  orderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+  },
+  orderBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  emptyContainer: {
+    padding: 30,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.4)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  modalCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  modalTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  modalClientName: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+  modalDebtAlert: {
+    backgroundColor: colors.dangerLight,
+    padding: 8,
+    borderRadius: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  modalDebtLabel: {
+    fontSize: 12,
+    color: colors.danger,
+  },
+  modalDebtValue: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.danger,
+  },
+  modalInputLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginBottom: 6,
+    fontWeight: '500',
+  },
+  modalInputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingHorizontal: 12,
+    height: 48,
+    marginBottom: 12,
+  },
+  modalAmountInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  modalCurrencySuffix: {
+    fontSize: 13,
+    color: colors.textSecondary,
+  },
+  shortcutsRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginBottom: 16,
+  },
+  shortcutBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  shortcutBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  modalActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modalCancelBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  modalConfirmBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalConfirmText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#FFFFFF',
   },
 });

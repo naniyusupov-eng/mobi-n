@@ -19,7 +19,6 @@ import {
   User,
   RefreshCw,
   LogOut,
-  Database,
   ShieldCheck,
   Check,
 } from 'lucide-react-native';
@@ -63,7 +62,7 @@ export const ProfileScreen = () => {
           ? `Сервер недоступен (${apiUrl}). Проверьте Wi-Fi.`
           : lang === 'uz_cyrl'
           ? `Серверга уланиб бўлмади (${apiUrl}). Wi-Fi ни текширинг.`
-          : `Serverga ulanib boʻlmadi (${apiUrl}). Kompyuter va telefon bitta Wi-Fi da ekanini tekshiring.`
+          : `Serverga ulanib boʻlmadi (${apiUrl}). Kompyuter va telefon bitta Wi-Fi tarmogʻida ekanini tekshiring.`
       );
     } finally {
       setTestingServer(false);
@@ -79,27 +78,31 @@ export const ProfileScreen = () => {
 
   const languages: { id: MobileLanguage; label: string; desc: string }[] = [
     { id: 'uz', label: "🇺🇿 Oʻzbekcha", desc: 'Lotin yozuvida' },
-    { id: 'ru', label: '🇷🇺 Русский', desc: 'Классический Моби-С' },
+    { id: 'ru', label: '🇷🇺 Русский', desc: 'Классический' },
     { id: 'uz_cyrl', label: '🇺🇿 Ўзбекча', desc: 'Кирилл ёзувида' },
   ];
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Agent Card */}
+        {/* Agent Passport Card */}
         <View style={styles.agentCard}>
           <View style={styles.avatarCircle}>
-            <User size={32} color={colors.primary} />
+            <User size={26} color={colors.primary} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.agentName}>{agent?.name}</Text>
-            <Text style={styles.agentCode}>{t('profile_agent_code')} {agent?.code}</Text>
-            <Text style={styles.territoryText}>{t('profile_route')} {agent?.territory}</Text>
+            <View style={styles.agentMetaRow}>
+              <View style={styles.codeBadge}>
+                <Text style={styles.codeText}>{agent?.code}</Text>
+              </View>
+              <Text style={styles.territoryText}>{agent?.territory}</Text>
+            </View>
           </View>
         </View>
 
         {/* Language Selector Card */}
-        <Text style={styles.sectionHeader}>{t('profile_language_title')}</Text>
+        <Text style={styles.sectionHeader}>{t('profile_language_title').toUpperCase()}</Text>
         <View style={styles.card}>
           {languages.map((item, idx) => {
             const isSelected = lang === item.id;
@@ -114,18 +117,18 @@ export const ProfileScreen = () => {
                 onPress={() => setLang(item.id)}
                 activeOpacity={0.7}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                   <Text style={styles.langOptionLabel}>{item.label}</Text>
                   <Text style={styles.langOptionDesc}>({item.desc})</Text>
                 </View>
-                {isSelected && <Check size={18} color={colors.primary} />}
+                {isSelected && <Check size={16} color={colors.primary} strokeWidth={2.5} />}
               </TouchableOpacity>
             );
           })}
         </View>
 
-        {/* Mobi-S Exchange Parameters */}
-        <Text style={styles.sectionHeader}>{t('profile_server_title')}</Text>
+        {/* 1C / Mobi_R Server Connection Parameters */}
+        <Text style={styles.sectionHeader}>{t('profile_server_title').toUpperCase()}</Text>
         <View style={styles.card}>
           <Text style={styles.inputLabel}>{t('profile_server_url')}</Text>
           <TextInput
@@ -140,11 +143,13 @@ export const ProfileScreen = () => {
 
           <View style={styles.syncStatusStrip}>
             <Text style={styles.syncStatusText}>
-              {t('profile_unsynced_docs')}{' '}
-              <Text style={{ fontWeight: '900', color: colors.danger }}>{pendingCount}</Text>
+              {t('profile_unsynced_docs')}:{' '}
+              <Text style={{ fontWeight: '700', color: pendingCount > 0 ? colors.warning : colors.success }}>
+                {pendingCount}
+              </Text>
             </Text>
             <Text style={styles.syncStatusText}>
-              {t('profile_last_sync')} {lastSyncedAt || t('profile_never_synced')}
+              {lastSyncedAt ? `${t('profile_last_sync')} ${lastSyncedAt.split('T')[0]}` : t('profile_never_synced')}
             </Text>
           </View>
 
@@ -156,7 +161,7 @@ export const ProfileScreen = () => {
               disabled={isSyncing}
               activeOpacity={0.8}
             >
-              <RefreshCw size={16} color="#fff" />
+              <RefreshCw size={14} color="#FFFFFF" />
               <Text style={styles.fullSyncText}>
                 {isSyncing ? t('loading') : t('profile_sync_btn')}
               </Text>
@@ -166,26 +171,17 @@ export const ProfileScreen = () => {
               style={styles.testConnBtn}
               onPress={handleTestConnection}
               disabled={testingServer}
+              activeOpacity={0.7}
             >
-              <ShieldCheck size={16} color={colors.secondary} />
+              <ShieldCheck size={14} color={colors.textSecondary} />
               <Text style={styles.testConnText}>{t('profile_test_btn')}</Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Database info */}
-        <Text style={styles.sectionHeader}>SQLITE DATABASE</Text>
-        <View style={styles.card}>
-          <View style={styles.dbRow}>
-            <Database size={16} color={colors.textSecondary} />
-            <Text style={styles.dbLabel}>Engine:</Text>
-            <Text style={styles.dbVal}>SQLite (expo-sqlite v57)</Text>
-          </View>
-        </View>
-
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-          <LogOut size={18} color={colors.danger} />
+          <LogOut size={16} color={colors.danger} />
           <Text style={styles.logoutText}>{t('profile_logout_btn')}</Text>
         </TouchableOpacity>
       </ScrollView>
@@ -200,13 +196,13 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 12,
-    gap: 10,
-    paddingBottom: 36,
+    gap: 8,
+    paddingBottom: 30,
   },
   agentCard: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
-    padding: 14,
+    padding: 12,
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
@@ -214,159 +210,153 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   avatarCircle: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: colors.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
   agentName: {
-    fontSize: 16,
-    fontWeight: '800',
+    fontSize: 15,
+    fontWeight: '700',
     color: colors.text,
   },
-  agentCode: {
-    fontSize: 12,
+  agentMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  codeBadge: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  codeText: {
+    fontSize: 11,
+    fontWeight: '600',
     color: colors.primary,
-    fontWeight: '700',
-    marginTop: 2,
   },
   territoryText: {
     fontSize: 11,
     color: colors.textSecondary,
-    marginTop: 2,
   },
   sectionHeader: {
     fontSize: 11,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.textSecondary,
     letterSpacing: 0.5,
-    marginTop: 6,
+    marginTop: 8,
     marginLeft: 2,
   },
   card: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
-    padding: 12,
     borderWidth: 1,
     borderColor: colors.border,
+    padding: 12,
   },
   langOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingVertical: 10,
-    paddingHorizontal: 6,
   },
   langOptionBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: colors.borderSubtle,
   },
   langOptionSelected: {
-    backgroundColor: '#f8fafc',
-    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
   },
   langOptionLabel: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 13,
     color: colors.text,
+    fontWeight: '500',
   },
   langOptionDesc: {
     fontSize: 11,
-    color: colors.textSecondary,
+    color: colors.textMuted,
   },
   inputLabel: {
     fontSize: 11,
-    fontWeight: '700',
     color: colors.textSecondary,
     marginBottom: 6,
+    fontWeight: '500',
   },
   apiInput: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
+    paddingHorizontal: 10,
+    height: 38,
     fontSize: 12,
     color: colors.text,
+    marginBottom: 8,
   },
   syncStatusStrip: {
-    marginTop: 10,
-    padding: 8,
-    backgroundColor: '#f8fafc',
-    borderRadius: 6,
-    gap: 4,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 10,
   },
   syncStatusText: {
     fontSize: 11,
     color: colors.textSecondary,
   },
   syncActionsContainer: {
-    marginTop: 12,
+    flexDirection: 'row',
     gap: 8,
   },
   fullSyncBtn: {
+    flex: 1,
     backgroundColor: colors.primary,
+    borderRadius: 6,
+    paddingVertical: 9,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 6,
-    gap: 8,
+    gap: 6,
   },
   fullSyncText: {
-    color: '#fff',
-    fontWeight: '800',
+    color: '#FFFFFF',
     fontSize: 12,
-    letterSpacing: 0.5,
+    fontWeight: '600',
   },
   testConnBtn: {
+    flex: 1,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.border,
+    paddingVertical: 9,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
-    borderRadius: 6,
     gap: 6,
   },
   testConnText: {
-    color: colors.text,
-    fontWeight: '600',
-    fontSize: 12,
-  },
-  dbRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingVertical: 4,
-  },
-  dbLabel: {
-    fontSize: 11,
     color: colors.textSecondary,
-  },
-  dbVal: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.text,
+    fontSize: 12,
+    fontWeight: '500',
   },
   logoutBtn: {
-    backgroundColor: '#fff',
+    backgroundColor: colors.dangerLight,
     borderWidth: 1,
-    borderColor: '#fee2e2',
+    borderColor: '#FECDD3',
+    borderRadius: 8,
+    paddingVertical: 11,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 6,
-    gap: 8,
+    gap: 6,
     marginTop: 10,
   },
   logoutText: {
     color: colors.danger,
-    fontWeight: '700',
     fontSize: 13,
+    fontWeight: '600',
   },
 });

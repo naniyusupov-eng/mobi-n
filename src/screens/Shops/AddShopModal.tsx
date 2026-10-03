@@ -14,7 +14,7 @@ import * as Location from 'expo-location';
 import { useShopStore } from '../../store/shopStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { colors } from '../../theme/colors';
-import { Store, User, Phone, MapPin, Calendar, Navigation, Check } from 'lucide-react-native';
+import { Store, User, Phone, MapPin, Navigation, Check } from 'lucide-react-native';
 
 export const AddShopModal = ({ navigation }: { navigation: any }) => {
   const { addNewShop } = useShopStore();
@@ -43,25 +43,32 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
       setGettingLocation(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('GPS', lang === 'ru' ? 'Доступ к геопозиции отклонен' : lang === 'uz_cyrl' ? 'Геолокацияга рухсат берилмади' : 'GPS lokatsiyaga ruxsat berilmadi');
+        Alert.alert(
+          'GPS',
+          lang === 'ru'
+            ? 'Доступ к геопозиции отклонен'
+            : lang === 'uz_cyrl'
+            ? 'Геолокацияга рухсат берилмади'
+            : 'GPS lokatsiyaga ruxsat berilmadi'
+        );
         setGettingLocation(false);
         return;
       }
 
-      const loc = await Location.getCurrentPositionAsync({});
+      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       setCoords({
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
       });
       Alert.alert(
         t('success'),
-        (lang === 'ru' ? 'Широта: ' : lang === 'uz_cyrl' ? 'Кенглик: ' : 'Kenglik: ') +
+        (lang === 'ru' ? 'Широта: ' : 'Kenglik: ') +
           `${loc.coords.latitude.toFixed(4)}\n` +
-          (lang === 'ru' ? 'Долгота: ' : lang === 'uz_cyrl' ? 'Узунлик: ' : 'Uzunlik: ') +
+          (lang === 'ru' ? 'Долгота: ' : 'Uzunlik: ') +
           `${loc.coords.longitude.toFixed(4)}`
       );
     } catch (e: any) {
-      Alert.alert(t('error'), lang === 'ru' ? 'Не удалось определить GPS' : lang === 'uz_cyrl' ? 'GPS координаталарни олиб бўлмади' : 'GPS lokatsiyani aniqlab boʻlmadi');
+      Alert.alert(t('error'), 'GPS');
     } finally {
       setGettingLocation(false);
     }
@@ -69,15 +76,15 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
 
   const handleSave = () => {
     if (!name.trim()) {
-      Alert.alert(t('error'), lang === 'ru' ? 'Пожалуйста, введите название торговой точки' : lang === 'uz_cyrl' ? 'Илтимос, дўкон номини киритинг' : 'Iltimos, doʻkon nomini kiriting');
+      Alert.alert(t('error'), lang === 'ru' ? 'Введите название точки' : 'Iltimos, doʻkon nomini kiriting');
       return;
     }
     if (!ownerName.trim()) {
-      Alert.alert(t('error'), lang === 'ru' ? 'Введите имя ответственного лица' : lang === 'uz_cyrl' ? 'Дўкон эгаси ёки сотувчи исмини киритинг' : 'Doʻkon egasi yoki sotuvchi ismini kiriting');
+      Alert.alert(t('error'), lang === 'ru' ? 'Введите имя ответственного' : 'Doʻkon egasi ismini kiriting');
       return;
     }
     if (!address.trim()) {
-      Alert.alert(t('error'), lang === 'ru' ? 'Введите адрес торговой точки' : lang === 'uz_cyrl' ? 'Дўкон манзилини киритинг' : 'Doʻkon manzilini kiriting');
+      Alert.alert(t('error'), lang === 'ru' ? 'Введите адрес точки' : 'Doʻkon manzilini kiriting');
       return;
     }
 
@@ -108,19 +115,17 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.modalTitle}>{t('add_shop_title')}</Text>
-        <Text style={styles.modalSubtitle}>
-          {t('add_shop_subtitle')}
-        </Text>
+        <Text style={styles.modalSubtitle}>{t('add_shop_subtitle')}</Text>
 
-        {/* Form Fields */}
+        {/* Form Card */}
         <View style={styles.formCard}>
           {/* Shop Name */}
           <Text style={styles.label}>{t('add_shop_name')}</Text>
           <View style={styles.inputRow}>
-            <Store size={18} color={colors.textSecondary} />
+            <Store size={16} color={colors.textMuted} />
             <TextInput
               style={styles.input}
-              placeholder={lang === 'ru' ? 'Например: Барака Продукты' : lang === 'uz_cyrl' ? 'Масалан: Барака Озиқ-овқат' : 'Masalan: Baraka Oziq-ovqat'}
+              placeholder={lang === 'ru' ? 'Например: Барака Маркет' : 'Masalan: Baraka Oziq-ovqat'}
               placeholderTextColor={colors.textMuted}
               value={name}
               onChangeText={setName}
@@ -130,10 +135,10 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
           {/* Owner Name */}
           <Text style={styles.label}>{t('add_shop_owner')}</Text>
           <View style={styles.inputRow}>
-            <User size={18} color={colors.textSecondary} />
+            <User size={16} color={colors.textMuted} />
             <TextInput
               style={styles.input}
-              placeholder={lang === 'ru' ? 'Например: Рустам ака' : lang === 'uz_cyrl' ? 'Масалан: Рустам ака' : 'Masalan: Rustam aka'}
+              placeholder={lang === 'ru' ? 'Например: Рустам ака' : 'Masalan: Rustam aka'}
               placeholderTextColor={colors.textMuted}
               value={ownerName}
               onChangeText={setOwnerName}
@@ -143,7 +148,7 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
           {/* Phone */}
           <Text style={styles.label}>{t('add_shop_phone')}</Text>
           <View style={styles.inputRow}>
-            <Phone size={18} color={colors.textSecondary} />
+            <Phone size={16} color={colors.textMuted} />
             <TextInput
               style={styles.input}
               placeholder="+998 90 123 45 67"
@@ -157,10 +162,10 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
           {/* Address */}
           <Text style={styles.label}>{t('add_shop_address')}</Text>
           <View style={styles.inputRow}>
-            <MapPin size={18} color={colors.textSecondary} />
+            <MapPin size={16} color={colors.textMuted} />
             <TextInput
               style={styles.input}
-              placeholder={lang === 'ru' ? 'Например: Чиланзар 1-квартал, дом 23' : lang === 'uz_cyrl' ? 'Масалан: Чилонзор 1-мавзе, 23-уй' : 'Masalan: Chilonzor 1-mavze, 23-uy'}
+              placeholder={lang === 'ru' ? 'Например: Чиланзар 1-квартал' : 'Masalan: Chilonzor 1-mavze'}
               placeholderTextColor={colors.textMuted}
               value={address}
               onChangeText={setAddress}
@@ -168,16 +173,17 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
           </View>
 
           {/* GPS Button */}
-          <Text style={styles.label}>GPS</Text>
+          <Text style={styles.label}>GPS LOKATSIYA</Text>
           <TouchableOpacity
             style={styles.gpsBtn}
             onPress={handleGetLocation}
             disabled={gettingLocation}
+            activeOpacity={0.7}
           >
             {gettingLocation ? (
               <ActivityIndicator size="small" color={colors.primary} />
             ) : (
-              <Navigation size={18} color={colors.primary} />
+              <Navigation size={16} color={colors.primary} />
             )}
             <Text style={styles.gpsBtnText}>
               {coords.latitude
@@ -196,6 +202,7 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
                   key={day.key}
                   style={[styles.dayItem, selected && styles.dayItemSelected]}
                   onPress={() => setVisitDay(day.key)}
+                  activeOpacity={0.7}
                 >
                   <Text style={[styles.dayItemText, selected && styles.dayItemTextSelected]}>
                     {day.label}
@@ -206,11 +213,11 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
           </View>
         </View>
 
-        {/* Submit Buttons */}
+        {/* Action Buttons */}
         <TouchableOpacity style={styles.submitBtn} onPress={handleSave} activeOpacity={0.8}>
-          <Check size={20} color="#fff" />
+          <Check size={18} color="#FFFFFF" strokeWidth={2.5} />
           <Text style={styles.submitBtnText}>
-            {lang === 'ru' ? 'Сохранить точку' : lang === 'uz_cyrl' ? 'Дўконни Сақлаш' : 'Doʻkonni Saqlash'}
+            {lang === 'ru' ? 'Сохранить точку' : 'Doʻkonni saqlash'}
           </Text>
         </TouchableOpacity>
 
@@ -232,116 +239,122 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: 12,
+    paddingBottom: 30,
   },
   modalTitle: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: colors.text,
-  },
-  modalSubtitle: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginTop: 4,
-    marginBottom: 16,
-  },
-  formCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 20,
-  },
-  label: {
-    fontSize: 13,
+    fontSize: 18,
     fontWeight: '700',
     color: colors.text,
-    marginBottom: 6,
-    marginTop: 10,
+    marginBottom: 2,
+  },
+  modalSubtitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 12,
+  },
+  formCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+    marginBottom: 14,
+  },
+  label: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    marginBottom: 5,
+    marginTop: 8,
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    height: 48,
-    gap: 10,
+    paddingHorizontal: 10,
+    height: 38,
+    gap: 8,
   },
   input: {
     flex: 1,
-    fontSize: 14,
+    fontSize: 13,
     color: colors.text,
+    paddingVertical: 0,
   },
   gpsBtn: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
     backgroundColor: colors.primaryLight,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FDE68A',
+    borderColor: colors.primaryBorder,
+    borderRadius: 6,
+    paddingVertical: 9,
   },
   gpsBtnText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
   },
   daysGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
+    gap: 6,
     marginTop: 4,
   },
   dayItem: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 8,
-    backgroundColor: colors.background,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
     borderColor: colors.border,
   },
   dayItemSelected: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primaryBorder,
   },
   dayItemText: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   dayItemTextSelected: {
-    color: '#fff',
-    fontWeight: '700',
+    color: colors.primary,
+    fontWeight: '600',
   },
   submitBtn: {
     backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    paddingVertical: 15,
-    borderRadius: 14,
-    marginBottom: 10,
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 8,
   },
   submitBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '800',
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   cancelBtn: {
-    paddingVertical: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    paddingVertical: 10,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   cancelBtnText: {
     color: colors.textSecondary,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '500',
   },
 });

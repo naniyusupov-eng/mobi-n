@@ -71,17 +71,17 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
     {
       key: 'naqd',
       label: t('checkout_pay_cash'),
-      sub: lang === 'ru' ? 'Оплата сразу' : lang === 'uz_cyrl' ? 'Дарҳол тўлов' : 'Darhol toʻlov',
+      sub: lang === 'ru' ? 'Оплата сразу' : 'Darhol toʻlov',
     },
     {
       key: 'nasiya',
       label: t('checkout_pay_debt'),
-      sub: lang === 'ru' ? 'Отсрочка платежа' : lang === 'uz_cyrl' ? 'Кейинчалик тўлов' : 'Keyinchalik toʻlov',
+      sub: lang === 'ru' ? 'Отсрочка платежа' : 'Keyinchalik toʻlov',
     },
     {
       key: 'otkazma',
       label: t('checkout_pay_bank'),
-      sub: lang === 'ru' ? 'Расчетный счет' : lang === 'uz_cyrl' ? 'Ҳисоб-рақам орқали' : 'Hisob-raqam orqali',
+      sub: lang === 'ru' ? 'Расчетный счет' : 'Hisob-raqam orqali',
     },
   ];
 
@@ -139,13 +139,13 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
           </View>
           <View style={styles.docRow}>
             <Text style={styles.docLabel}>
-              {lang === 'ru' ? 'Торговый агент:' : lang === 'uz_cyrl' ? 'Савдо агенти:' : 'Savdo agenti:'}
+              {lang === 'ru' ? 'Торговый агент:' : 'Savdo agenti:'}
             </Text>
             <Text style={styles.docVal}>{agent?.name}</Text>
           </View>
           {shop && shop.debtBalance > 0 && (
             <View style={styles.debtWarningRow}>
-              <AlertTriangle size={14} color={colors.danger} />
+              <AlertTriangle size={13} color={colors.danger} />
               <Text style={styles.debtWarningText}>
                 {t('shop_debt')} {shop.debtBalance.toLocaleString(numLocale)} {t('currency')}
               </Text>
@@ -155,7 +155,7 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
 
         {/* Delivery Date Selection Section */}
         <Text style={styles.sectionTitle}>
-          {lang === 'ru' ? 'ДАТА ДОСТАВКИ (ВВОД ДАТЫ)' : lang === 'uz_cyrl' ? 'ЕТКАЗИШ САНАСИ (САНА КИРИТИШ)' : 'YETKAZISH SANASI (SANA KIRITISH)'}
+          {lang === 'ru' ? 'ДАТА ДОСТАВКИ' : 'YETKAZISH SANASI'}
         </Text>
         <View style={styles.dateCard}>
           {/* Quick Choice Chips */}
@@ -193,9 +193,7 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
 
           {/* Date Input with Calendar Icon */}
           <View style={styles.dateInputWrapper}>
-            <View style={styles.dateInputIcon}>
-              <Calendar size={18} color={colors.primary} />
-            </View>
+            <Calendar size={16} color={colors.primary} />
             <TextInput
               style={styles.dateTextInput}
               value={deliveryDate}
@@ -229,7 +227,7 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
                   <Text style={styles.pmSub}>{pm.sub}</Text>
                 </View>
                 <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
-                  {isSelected && <Check size={14} color="#fff" />}
+                  {isSelected && <Check size={12} color="#FFFFFF" strokeWidth={2.5} />}
                 </View>
               </TouchableOpacity>
             );
@@ -245,7 +243,7 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
           value={notes}
           onChangeText={setNotes}
           multiline
-          numberOfLines={3}
+          numberOfLines={2}
         />
 
         {/* Final Amount & Submit Button */}
@@ -262,9 +260,9 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
             activeOpacity={0.8}
           >
             {submitting ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
-              <Text style={styles.confirmBtnText} numberOfLines={1}>{t('checkout_confirm_btn')}</Text>
+              <Text style={styles.confirmBtnText}>{t('checkout_confirm_btn')}</Text>
             )}
           </TouchableOpacity>
         </View>
@@ -280,152 +278,148 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 12,
-    gap: 10,
-    paddingBottom: 36,
+    paddingBottom: 30,
   },
   docHeaderCard: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 6,
+    padding: 12,
+    marginBottom: 12,
   },
   docTypeTitle: {
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 11,
+    fontWeight: '700',
     color: colors.primary,
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   docRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 4,
   },
   docLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textSecondary,
   },
   docVal: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 12,
+    fontWeight: '600',
     color: colors.text,
   },
   debtWarningRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: '#fff1f2',
+    backgroundColor: colors.dangerLight,
     padding: 6,
     borderRadius: 4,
-    marginTop: 4,
+    marginTop: 6,
   },
   debtWarningText: {
-    fontSize: 10,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '600',
     color: colors.danger,
   },
   sectionTitle: {
-    fontSize: 10,
-    fontWeight: '800',
+    fontSize: 11,
+    fontWeight: '600',
     color: colors.textSecondary,
+    marginBottom: 6,
     letterSpacing: 0.5,
-    marginTop: 6,
-    marginLeft: 2,
   },
   dateCard: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 10,
+    padding: 12,
+    marginBottom: 12,
   },
   dateChipsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 6,
+    marginBottom: 10,
   },
   dateChip: {
     flex: 1,
-    paddingVertical: 8,
+    paddingVertical: 6,
     borderRadius: 6,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
-    justifyContent: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   dateChipActive: {
-    backgroundColor: '#EFF6FF',
-    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primaryBorder,
   },
   dateChipText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#64748B',
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
   },
   dateChipTextActive: {
     color: colors.primary,
-    fontWeight: '800',
+    fontWeight: '600',
   },
   dateInputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    height: 38,
     borderWidth: 1,
     borderColor: colors.border,
-    borderRadius: 6,
-    backgroundColor: '#F8FAFC',
-    paddingHorizontal: 10,
-    height: 42,
-  },
-  dateInputIcon: {
-    marginRight: 8,
   },
   dateTextInput: {
     flex: 1,
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 13,
     color: colors.text,
     paddingVertical: 0,
   },
   datePreviewText: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.primary,
-    marginLeft: 2,
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 6,
   },
   paymentMethodsContainer: {
     gap: 6,
+    marginBottom: 12,
   },
   pmCard: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 12,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
+    padding: 10,
   },
   pmCardActive: {
-    borderColor: colors.primary,
-    backgroundColor: '#F8FAFF',
+    borderColor: colors.primaryBorder,
+    backgroundColor: colors.primaryLight,
   },
   pmInfo: {
     flex: 1,
   },
   pmLabel: {
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
   },
   pmLabelActive: {
     color: colors.primary,
   },
   pmSub: {
-    fontSize: 10,
+    fontSize: 11,
     color: colors.textSecondary,
-    marginTop: 2,
+    marginTop: 1,
   },
   radioCircle: {
     width: 20,
@@ -433,56 +427,58 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     borderWidth: 1.5,
     borderColor: colors.border,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   radioCircleActive: {
     borderColor: colors.primary,
     backgroundColor: colors.primary,
   },
   notesInput: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
     padding: 10,
-    fontSize: 12,
+    fontSize: 13,
     color: colors.text,
+    marginBottom: 16,
+    minHeight: 60,
     textAlignVertical: 'top',
   },
   summaryBox: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    marginTop: 8,
+    padding: 12,
   },
   amountStrip: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 10,
   },
   amountLabel: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
   },
   amountVal: {
     fontSize: 16,
-    fontWeight: '900',
+    fontWeight: '700',
     color: colors.primary,
   },
   confirmBtn: {
     backgroundColor: colors.primary,
+    borderRadius: 8,
     paddingVertical: 12,
-    borderRadius: 6,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   confirmBtnText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 13,
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

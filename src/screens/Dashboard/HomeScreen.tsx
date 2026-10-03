@@ -17,18 +17,23 @@ import { useCartStore } from '../../store/cartStore';
 import { useShopStore } from '../../store/shopStore';
 import { useDateStore } from '../../store/dateStore';
 import { orderRepository } from '../../database/orderRepository';
+import { shopRepository } from '../../database/shopRepository';
+import { invoiceService } from '../../services/invoiceService';
+import { Order } from '../../types';
 import { colors } from '../../theme/colors';
 import {
   Calendar,
   Store,
   FileText,
-  Package,
-  BarChart3,
-  Settings,
+  Printer,
+  CheckCircle2,
+  Clock,
   ChevronRight,
   ChevronLeft,
   ArrowRight,
   RefreshCw,
+  PlusCircle,
+  ShoppingBag,
 } from 'lucide-react-native';
 
 export const HomeScreen = ({ navigation }: { navigation: any }) => {
@@ -44,19 +49,29 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
     orderCount: 0,
     cashCollected: 0,
   });
+  const [todayOrders, setTodayOrders] = useState<Order[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
   const { shop } = useCartStore();
   const { currentShop } = useShopStore();
   const activeShop = shop || currentShop;
 
+  const { workingDate, shiftWorkingDay, resetToToday, getFormattedWorkingDate } = useDateStore();
+  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
+
   const loadData = useCallback(() => {
     if (agent?.id) {
-      const todayStats = orderRepository.getTodayStats(agent.id);
-      setStats(todayStats);
+      const s = orderRepository.getTodayStats(agent.id);
+      setStats(s);
     }
+    const all = orderRepository.getAll();
+    const filtered = all.filter((o) => {
+      const orderDate = o.deliveryDate || (o.createdAt ? o.createdAt.split('T')[0] : '');
+      return orderDate === workingDate;
+    });
+    setTodayOrders(filtered);
     refreshPendingCount();
-  }, [agent?.id]);
+  }, [agent?.id, workingDate, refreshPendingCount]);
 
   useEffect(() => {
     loadData();
@@ -72,8 +87,6 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
     setRefreshing(false);
   };
 
-  const { workingDate, shiftWorkingDay, resetToToday, getFormattedWorkingDate } = useDateStore();
-
   const handleSyncNow = async () => {
     const res = await triggerSync();
     if (res.success) {
@@ -84,23 +97,61 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
     }
   };
 
+  const handlePrintReceipt = async (order: Order) => {
+    try {
+      const fullOrder = orderRepository.getById(order.id);
+      if (!fullOrder) return;
+      const sh = shopRepository.getById(order.shopId);
+      await invoiceService.printOrSharePdf(fullOrder, sh);
+    } catch (e: any) {
+      Alert.alert(t('error'), 'PDF error');
+    }
+  };
+
+  const getPaymentLabel = (pm: string) => {
+    if (pm === 'naqd') return t('checkout_pay_cash');
+    if (pm === 'nasiya') return t('checkout_pay_debt');
+    return t('checkout_pay_bank');
+  };
+
+  const debtAmount = Math.max(0, stats.totalSales - stats.cashCollected);
+
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={colors.primaryDark} />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-      {/* Top Header Bar - Clean Centered Mobi_R without reload icon */}
+      {/* Minimalist Top App Bar */}
       <View style={styles.topHeader}>
-        <Text style={styles.appBrand}>Mobi_R</Text>
+        <View style={styles.headerLeft}>
+          <Text style={styles.appBrand}>Mobi_R</Text>
+          {agent && (
+            <View style={styles.agentBadge}>
+              <Text style={styles.agentBadgeText}>{agent.code}</Text>
+            </View>
+          )}
+        </View>
+
+        <TouchableOpacity
+          style={[styles.syncHeaderBtn, pendingCount > 0 && styles.syncHeaderBtnPending]}
+          onPress={handleSyncNow}
+          disabled={isSyncing}
+          activeOpacity={0.7}
+        >
+          <RefreshCw size={14} color={pendingCount > 0 ? colors.warning : colors.primary} />
+          <Text style={[styles.syncHeaderText, pendingCount > 0 && { color: colors.warning }]}>
+            {isSyncing ? t('loading') : pendingCount > 0 ? `+${pendingCount}` : '1C'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      {/* Interactive Date Ribbon with Day navigation */}
+      {/* Date Ribbon - Clean & Documental */}
       <View style={styles.dateRibbon}>
         <TouchableOpacity
           style={styles.dateNavBtn}
           onPress={() => shiftWorkingDay(-1)}
-          activeOpacity={0.7}
+          activeOpacity={0.6}
         >
-          <ChevronLeft size={18} color={colors.primary} />
+          <ChevronLeft size={16} color={colors.textSecondary} />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -108,18 +159,16 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
           onPress={resetToToday}
           activeOpacity={0.7}
         >
-          <View style={styles.dateIconCircle}>
-            <Calendar size={15} color={colors.primary} />
-          </View>
+          <Calendar size={14} color={colors.primary} />
           <Text style={styles.dateRibbonText}>{getFormattedWorkingDate(lang)}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.dateNavBtn}
           onPress={() => shiftWorkingDay(1)}
-          activeOpacity={0.7}
+          activeOpacity={0.6}
         >
-          <ChevronRight size={18} color={colors.primary} />
+          <ChevronRight size={16} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -127,163 +176,180 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
         contentContainerStyle={styles.scrollContent}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
       >
-        {/* Active Selected Shop Banner (If any shop chosen) */}
-        {activeShop && (
+        {/* Active Client / Document Session Banner */}
+        {activeShop ? (
+          <View style={styles.activeShopCard}>
+            <View style={styles.activeShopHeader}>
+              <View style={styles.activeShopBadge}>
+                <Store size={13} color={colors.primary} />
+                <Text style={styles.activeShopBadgeText}>{t('checkout_client')}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('ShopsTab')}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.changeShopLink}>{lang === 'ru' ? 'Сменить' : 'Almashtirish'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={styles.activeShopName} numberOfLines={1}>{activeShop.name}</Text>
+            <Text style={styles.activeShopAddress} numberOfLines={1}>{activeShop.address}</Text>
+
+            <TouchableOpacity
+              style={styles.startOrderBtn}
+              onPress={() => navigation.navigate('CatalogTab')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.startOrderBtnText}>{t('tab_catalog')} ({t('home_menu_order')})</Text>
+              <ArrowRight size={14} color="#FFFFFF" />
+            </TouchableOpacity>
+          </View>
+        ) : (
           <TouchableOpacity
-            style={styles.activeShopBanner}
-            onPress={() => navigation.navigate('CatalogTab')}
+            style={styles.selectShopPrompt}
+            onPress={() => navigation.navigate('ShopsTab')}
             activeOpacity={0.8}
           >
-            <View style={styles.activeShopLeft}>
-              <View style={styles.activeShopIcon}>
-                <Store size={18} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.activeShopSubLabel}>{t('checkout_client')}:</Text>
-                <Text style={styles.activeShopName} numberOfLines={1}>{activeShop.name}</Text>
-              </View>
+            <View style={styles.selectShopIconBox}>
+              <Store size={18} color={colors.primary} />
             </View>
-            <View style={styles.activeShopAction}>
-              <Text style={styles.activeShopActionText}>{t('tab_catalog')}</Text>
-              <ArrowRight size={14} color="#fff" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.selectShopTitle}>{lang === 'ru' ? 'Выберите торговую точку' : 'Mijozni tanlang'}</Text>
+              <Text style={styles.selectShopSub}>{lang === 'ru' ? 'Для оформления нового заказа' : 'Yangi buyurtma ochish uchun'}</Text>
             </View>
+            <ArrowRight size={16} color={colors.primary} />
           </TouchableOpacity>
         )}
 
-        {/* 3 Balanced KPI Business Cards */}
-        <View style={styles.kpiContainer}>
-          <View style={styles.kpiItem}>
+        {/* 4 Clean Micro KPI Cards */}
+        <View style={styles.kpiGrid}>
+          <View style={styles.kpiCard}>
             <Text style={styles.kpiLabel}>{t('home_orders_count')}</Text>
-            <Text style={styles.kpiVal}>
+            <Text style={styles.kpiValue}>
               {stats.orderCount} <Text style={styles.kpiUnit}>{t('pcs')}</Text>
             </Text>
           </View>
-          <View style={styles.kpiDivider} />
-          <View style={styles.kpiItem}>
+
+          <View style={styles.kpiCard}>
             <Text style={styles.kpiLabel}>{t('home_sales_today')}</Text>
-            <Text style={[styles.kpiVal, { color: colors.primary }]}>
-              {stats.totalSales > 0 ? `${(stats.totalSales / 1000).toFixed(0)}k` : '0'}
+            <Text style={[styles.kpiValue, { color: colors.primary }]}>
+              {stats.totalSales > 0 ? (stats.totalSales / 1000).toLocaleString(numLocale, { maximumFractionDigits: 1 }) + 'k' : '0'}
               <Text style={styles.kpiUnit}> {t('currency')}</Text>
             </Text>
           </View>
-          <View style={styles.kpiDivider} />
-          <View style={styles.kpiItem}>
+
+          <View style={styles.kpiCard}>
             <Text style={styles.kpiLabel}>{t('reports_cash')}</Text>
-            <Text style={[styles.kpiVal, { color: '#16A34A' }]}>
-              {stats.cashCollected > 0 ? `${(stats.cashCollected / 1000).toFixed(0)}k` : '0'}
+            <Text style={[styles.kpiValue, { color: colors.success }]}>
+              {stats.cashCollected > 0 ? (stats.cashCollected / 1000).toLocaleString(numLocale, { maximumFractionDigits: 1 }) + 'k' : '0'}
+              <Text style={styles.kpiUnit}> {t('currency')}</Text>
+            </Text>
+          </View>
+
+          <View style={styles.kpiCard}>
+            <Text style={styles.kpiLabel}>{t('reports_debt')}</Text>
+            <Text style={[styles.kpiValue, { color: debtAmount > 0 ? colors.danger : colors.textSecondary }]}>
+              {debtAmount > 0 ? (debtAmount / 1000).toLocaleString(numLocale, { maximumFractionDigits: 1 }) + 'k' : '0'}
               <Text style={styles.kpiUnit}> {t('currency')}</Text>
             </Text>
           </View>
         </View>
 
-        {/* 2-Column Action Grid */}
-        <Text style={styles.sectionHeader}>{t('tab_home').toUpperCase()}</Text>
-        <View style={styles.grid2Col}>
-          {/* Tile 1: Doʻkonlar / Mijozlar */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('ShopsTab')}
-            activeOpacity={0.75}
-          >
-            <View style={styles.actionCardTop}>
-              <View style={[styles.actionIconBox, { backgroundColor: '#E3F2FD' }]}>
-                <Store size={22} color={colors.primary} />
-              </View>
-              <ChevronRight size={16} color={colors.textMuted} />
-            </View>
-            <Text style={styles.actionTitle} numberOfLines={1}>{t('home_menu_route')}</Text>
-            <Text style={styles.actionSub} numberOfLines={1}>{t('tab_shops')}</Text>
+        {/* Today's Orders / Live Feed Section */}
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>{t('rep_orders_today')}</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('HistoryTab')} activeOpacity={0.7}>
+            <Text style={styles.viewAllLink}>{t('tab_history')} →</Text>
           </TouchableOpacity>
+        </View>
 
-          {/* Tile 2: Buyurtmalar / Hujjatlar */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('HistoryTab')}
-            activeOpacity={0.75}
-          >
-            <View style={styles.actionCardTop}>
-              <View style={[styles.actionIconBox, { backgroundColor: '#E8F5E9' }]}>
-                <FileText size={22} color={colors.success} />
-              </View>
-              {stats.orderCount > 0 && (
-                <View style={[styles.actionBadge, { backgroundColor: '#E8F5E9' }]}>
-                  <Text style={[styles.actionBadgeText, { color: colors.success }]}>{stats.orderCount}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.actionTitle} numberOfLines={1}>{t('home_menu_docs')}</Text>
-            <Text style={styles.actionSub} numberOfLines={1}>{t('history_title')}</Text>
-          </TouchableOpacity>
-
-          {/* Tile 3: Tovarlar / Katalog */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('CatalogTab')}
-            activeOpacity={0.75}
-          >
-            <View style={styles.actionCardTop}>
-              <View style={[styles.actionIconBox, { backgroundColor: '#FFF3E0' }]}>
-                <Package size={22} color={colors.accent} />
-              </View>
-              <ChevronRight size={16} color={colors.textMuted} />
-            </View>
-            <Text style={styles.actionTitle} numberOfLines={1}>{t('tab_catalog')}</Text>
-            <Text style={styles.actionSub} numberOfLines={1}>{t('catalog_in_stock')}</Text>
-          </TouchableOpacity>
-
-          {/* Tile 4: Hisobotlar */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('ReportsTab')}
-            activeOpacity={0.75}
-          >
-            <View style={styles.actionCardTop}>
-              <View style={[styles.actionIconBox, { backgroundColor: '#FCE4EC' }]}>
-                <BarChart3 size={22} color="#C2185B" />
-              </View>
-              <ChevronRight size={16} color={colors.textMuted} />
-            </View>
-            <Text style={styles.actionTitle} numberOfLines={1}>{t('home_menu_reports')}</Text>
-            <Text style={styles.actionSub} numberOfLines={1}>{t('reports_total_sales')}</Text>
-          </TouchableOpacity>
-
-          {/* Tile 5: Maʼlumotlarni yangilash */}
-          <TouchableOpacity
-            style={styles.actionCard}
-            onPress={handleSyncNow}
-            activeOpacity={0.75}
-            disabled={isSyncing}
-          >
-            <View style={styles.actionCardTop}>
-              <View style={[styles.actionIconBox, { backgroundColor: '#EDE7F6' }]}>
-                <RefreshCw size={22} color="#673AB7" />
-              </View>
-              {pendingCount > 0 && (
-                <View style={[styles.actionBadge, { backgroundColor: '#FEE2E2' }]}>
-                  <Text style={[styles.actionBadgeText, { color: colors.danger }]}>+{pendingCount}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.actionTitle} numberOfLines={1}>{t('home_menu_sync')}</Text>
-            <Text style={styles.actionSub} numberOfLines={1}>
-              {pendingCount > 0 ? `${pendingCount} ${t('home_to_export')}` : t('home_base_actual')}
+        {todayOrders.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <ShoppingBag size={32} color={colors.textMuted} />
+            <Text style={styles.emptyTitle}>
+              {lang === 'ru' ? 'На эту дату заказов пока нет' : 'Ushbu sanada buyurtmalar mavjud emas'}
             </Text>
+            <TouchableOpacity
+              style={styles.emptyActionBtn}
+              onPress={() => navigation.navigate('ShopsTab')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.emptyActionText}>{lang === 'ru' ? 'Оформить заказ' : 'Buyurtma olish'}</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.ordersList}>
+            {todayOrders.map((ord) => (
+              <View key={ord.id} style={styles.orderItemCard}>
+                <View style={styles.orderTopRow}>
+                  <View style={styles.orderIdPill}>
+                    <Text style={styles.orderIdText}>#{ord.id.slice(-6).toUpperCase()}</Text>
+                  </View>
+
+                  <View style={styles.orderTopRight}>
+                    {ord.isSynced ? (
+                      <View style={styles.syncedChip}>
+                        <CheckCircle2 size={11} color={colors.success} />
+                        <Text style={styles.syncedChipText}>1C</Text>
+                      </View>
+                    ) : (
+                      <View style={styles.pendingChip}>
+                        <Clock size={11} color={colors.warning} />
+                        <Text style={styles.pendingChipText}>{t('home_to_export')}</Text>
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.printIconBtn}
+                      onPress={() => handlePrintReceipt(ord)}
+                      activeOpacity={0.7}
+                    >
+                      <Printer size={14} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <Text style={styles.orderShopName} numberOfLines={1}>{ord.shopName}</Text>
+
+                <View style={styles.orderBottomRow}>
+                  <View style={styles.orderMeta}>
+                    <Text style={styles.orderTimeText}>
+                      {new Date(ord.createdAt).toLocaleTimeString(numLocale, { hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                    <Text style={styles.orderDot}>•</Text>
+                    <Text style={[styles.orderPayMethod, ord.paymentMethod === 'nasiya' && { color: colors.danger }]}>
+                      {getPaymentLabel(ord.paymentMethod)}
+                    </Text>
+                  </View>
+
+                  <Text style={styles.orderFinalSum}>
+                    {ord.finalAmount.toLocaleString(numLocale)} {t('currency')}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* Quick Utilities Strip */}
+        <View style={styles.quickUtilities}>
+          <TouchableOpacity
+            style={styles.utilityBtn}
+            onPress={() => navigation.navigate('ShopsTab', { screen: 'AddShopModal' })}
+            activeOpacity={0.7}
+          >
+            <PlusCircle size={16} color={colors.primary} />
+            <Text style={styles.utilityBtnText}>{t('nav_new_shop')}</Text>
           </TouchableOpacity>
 
-          {/* Tile 6: Sozlamalar */}
           <TouchableOpacity
-            style={styles.actionCard}
-            onPress={() => navigation.navigate('ProfileTab')}
-            activeOpacity={0.75}
+            style={styles.utilityBtn}
+            onPress={handleSyncNow}
+            disabled={isSyncing}
+            activeOpacity={0.7}
           >
-            <View style={styles.actionCardTop}>
-              <View style={[styles.actionIconBox, { backgroundColor: '#ECEFF1' }]}>
-                <Settings size={22} color={colors.secondary} />
-              </View>
-              <ChevronRight size={16} color={colors.textMuted} />
-            </View>
-            <Text style={styles.actionTitle} numberOfLines={1}>{t('home_menu_settings')}</Text>
-            <Text style={styles.actionSub} numberOfLines={1}>{t('profile_language_title')}</Text>
+            <RefreshCw size={16} color={colors.primary} />
+            <Text style={styles.utilityBtnText}>{t('home_menu_sync')}</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -294,37 +360,77 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.background,
   },
   topHeader: {
     height: 52,
-    backgroundColor: colors.primaryDark,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   appBrand: {
-    color: '#fff',
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-    textAlign: 'center',
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  agentBadge: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  agentBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  syncHeaderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  syncHeaderBtnPending: {
+    backgroundColor: colors.warningLight,
+    borderColor: '#FDE68A',
+  },
+  syncHeaderText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primary,
   },
   dateRibbon: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 10,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: colors.border,
   },
   dateNavBtn: {
     width: 32,
-    height: 32,
+    height: 30,
     borderRadius: 6,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -335,187 +441,298 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
   },
-  dateIconCircle: {
-    width: 26,
-    height: 26,
-    borderRadius: 6,
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   dateRibbonText: {
     fontSize: 13,
-    fontWeight: '800',
-    color: '#1E293B',
-  },
-  todayBadge: {
-    backgroundColor: '#DCFCE7',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  todayBadgeText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#15803D',
-  },
-  todayActionBtn: {
-    backgroundColor: '#E0E7FF',
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  todayActionText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: '#4338CA',
+    fontWeight: '600',
+    color: colors.text,
   },
   scrollContent: {
     padding: 12,
-    paddingBottom: 30,
+    paddingBottom: 24,
   },
-  activeShopBanner: {
-    backgroundColor: '#0F172A',
+  activeShopCard: {
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
     padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#334155',
+    borderColor: colors.border,
   },
-  activeShopLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    flex: 1,
-  },
-  activeShopIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: 6,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  activeShopSubLabel: {
-    fontSize: 10,
-    color: '#94A3B8',
-    fontWeight: '600',
-  },
-  activeShopName: {
-    fontSize: 13,
-    color: '#fff',
-    fontWeight: '700',
-  },
-  activeShopAction: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-  },
-  activeShopActionText: {
-    fontSize: 11,
-    color: '#fff',
-    fontWeight: '700',
-  },
-  kpiContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 8,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  kpiItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  kpiDivider: {
-    width: 1,
-    backgroundColor: '#E2E8F0',
-    height: '75%',
-    alignSelf: 'center',
-  },
-  kpiLabel: {
-    fontSize: 10,
-    color: '#64748B',
-    fontWeight: '700',
-    marginBottom: 3,
-    textTransform: 'uppercase',
-  },
-  kpiVal: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#0F172A',
-  },
-  kpiUnit: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748B',
-  },
-  sectionHeader: {
-    fontSize: 11,
-    fontWeight: '800',
-    color: '#64748B',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-    marginLeft: 2,
-  },
-  grid2Col: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 10,
-    marginBottom: 14,
-  },
-  actionCard: {
-    width: '48.5%',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  actionCardTop: {
+  activeShopHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
-  actionIconBox: {
-    width: 38,
-    height: 38,
-    borderRadius: 6,
-    justifyContent: 'center',
+  activeShopBadge: {
+    flexDirection: 'row',
     alignItems: 'center',
-  },
-  actionBadge: {
-    backgroundColor: '#E3F2FD',
+    gap: 5,
+    backgroundColor: colors.primaryLight,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  actionBadgeText: {
-    fontSize: 11,
-    fontWeight: '700',
+  activeShopBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
     color: colors.primary,
   },
-  actionTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#0F172A',
+  changeShopLink: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  activeShopName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: colors.text,
     marginBottom: 2,
   },
-  actionSub: {
+  activeShopAddress: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 10,
+  },
+  startOrderBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 6,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  startOrderBtnText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  selectShopPrompt: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  selectShopIconBox: {
+    width: 38,
+    height: 38,
+    borderRadius: 8,
+    backgroundColor: colors.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectShopTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  selectShopSub: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    marginTop: 1,
+  },
+  kpiGrid: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 16,
+  },
+  kpiCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  kpiLabel: {
     fontSize: 10,
-    color: '#64748B',
+    color: colors.textSecondary,
+    marginBottom: 4,
     fontWeight: '500',
+  },
+  kpiValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  kpiUnit: {
+    fontSize: 9,
+    fontWeight: '400',
+    color: colors.textSecondary,
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    marginTop: 4,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  viewAllLink: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '500',
+  },
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.border,
+    marginBottom: 14,
+  },
+  emptyTitle: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 8,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyActionBtn: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 6,
+  },
+  emptyActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  ordersList: {
+    gap: 8,
+    marginBottom: 14,
+  },
+  orderItemCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  orderTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  orderIdPill: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  orderIdText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  orderTopRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  syncedChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.successLight,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  syncedChipText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.success,
+  },
+  pendingChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.warningLight,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  pendingChipText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.warning,
+  },
+  printIconBtn: {
+    padding: 3,
+  },
+  orderShopName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  orderBottomRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  orderMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  orderTimeText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+  },
+  orderDot: {
+    fontSize: 10,
+    color: colors.textMuted,
+  },
+  orderPayMethod: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  orderFinalSum: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  quickUtilities: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 6,
+  },
+  utilityBtn: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  utilityBtnText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.text,
   },
 });

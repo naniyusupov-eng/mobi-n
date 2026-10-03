@@ -24,7 +24,6 @@ import {
   Calendar,
   ChevronLeft,
   ChevronRight,
-  Filter,
 } from 'lucide-react-native';
 
 export const OrdersHistoryScreen = ({ navigation }: { navigation: any }) => {
@@ -56,7 +55,6 @@ export const OrdersHistoryScreen = ({ navigation }: { navigation: any }) => {
     setRefreshing(false);
   };
 
-  // Filter orders by working date or show all
   const filteredOrders = useMemo(() => {
     if (filterMode === 'all') {
       return allOrders;
@@ -67,7 +65,6 @@ export const OrdersHistoryScreen = ({ navigation }: { navigation: any }) => {
     });
   }, [allOrders, filterMode, workingDate]);
 
-  // Daily statistics
   const dailyStats = useMemo(() => {
     const count = filteredOrders.length;
     const totalAmount = filteredOrders.reduce((sum, o) => sum + (o.finalAmount || 0), 0);
@@ -95,32 +92,32 @@ export const OrdersHistoryScreen = ({ navigation }: { navigation: any }) => {
     <View style={styles.orderCard}>
       {/* Top Document Header Line */}
       <View style={styles.cardHeader}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-          <FileText size={15} color={colors.primary} />
-          <Text style={styles.docType}>№{item.id.slice(-6).toUpperCase()}</Text>
+        <View style={styles.docIdPill}>
+          <Text style={styles.docIdText}>№{item.id.slice(-6).toUpperCase()}</Text>
         </View>
 
         {item.isSynced ? (
           <View style={styles.syncedBadge}>
-            <CheckCircle2 size={12} color={colors.success} />
+            <CheckCircle2 size={11} color={colors.success} />
             <Text style={styles.syncedText}>1C Sync</Text>
           </View>
         ) : (
           <View style={styles.pendingBadge}>
-            <Clock size={12} color={colors.warning} />
+            <Clock size={11} color={colors.warning} />
             <Text style={styles.pendingText}>{t('home_to_export')}</Text>
           </View>
         )}
       </View>
 
       {/* Client Name */}
-      <Text style={styles.shopName}>{item.shopName}</Text>
+      <Text style={styles.shopName} numberOfLines={1}>{item.shopName}</Text>
 
       {/* Meta Row: Date, Payment Type */}
       <View style={styles.metaRow}>
         <Text style={styles.dateText}>
           {item.deliveryDate ? `📅 ${item.deliveryDate}` : new Date(item.createdAt).toLocaleDateString(numLocale)}
         </Text>
+        <Text style={styles.dot}>•</Text>
         <Text style={[styles.paymentMethod, item.paymentMethod === 'nasiya' && { color: colors.danger }]}>
           {getPaymentLabel(item.paymentMethod)}
         </Text>
@@ -128,19 +125,16 @@ export const OrdersHistoryScreen = ({ navigation }: { navigation: any }) => {
 
       {/* Footer Strip */}
       <View style={styles.cardFooter}>
-        <View>
-          <Text style={styles.totalLabel}>{t('checkout_total_final')}</Text>
-          <Text style={styles.totalAmount}>
-            {item.finalAmount.toLocaleString(numLocale)} {t('currency')}
-          </Text>
-        </View>
+        <Text style={styles.totalAmount}>
+          {item.finalAmount.toLocaleString(numLocale)} {t('currency')}
+        </Text>
 
         <TouchableOpacity
           style={styles.printBtn}
           onPress={() => handleShareReceipt(item)}
-          activeOpacity={0.8}
+          activeOpacity={0.7}
         >
-          <Printer size={15} color={colors.primary} />
+          <Printer size={14} color={colors.primary} />
           <Text style={styles.printBtnText}>{t('order_print_receipt')}</Text>
         </TouchableOpacity>
       </View>
@@ -154,22 +148,22 @@ export const OrdersHistoryScreen = ({ navigation }: { navigation: any }) => {
         <TouchableOpacity
           style={styles.dateNavBtn}
           onPress={() => shiftWorkingDay(-1)}
-          activeOpacity={0.7}
+          activeOpacity={0.6}
         >
-          <ChevronLeft size={18} color={colors.primary} />
+          <ChevronLeft size={16} color={colors.textSecondary} />
         </TouchableOpacity>
 
         <View style={styles.dateCenterContent}>
-          <Calendar size={15} color={colors.primary} />
+          <Calendar size={14} color={colors.primary} />
           <Text style={styles.dateRibbonText}>{getFormattedWorkingDate(lang)}</Text>
         </View>
 
         <TouchableOpacity
           style={styles.dateNavBtn}
           onPress={() => shiftWorkingDay(1)}
-          activeOpacity={0.7}
+          activeOpacity={0.6}
         >
-          <ChevronRight size={18} color={colors.primary} />
+          <ChevronRight size={16} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
@@ -182,7 +176,7 @@ export const OrdersHistoryScreen = ({ navigation }: { navigation: any }) => {
             activeOpacity={0.7}
           >
             <Text style={[styles.toggleBtnText, filterMode === 'day' && styles.toggleBtnTextActive]}>
-              {lang === 'ru' ? 'За этот день' : lang === 'uz_cyrl' ? 'Шу кун' : 'Shu kun'}
+              {lang === 'ru' ? 'За этот день' : 'Shu kun'}
             </Text>
           </TouchableOpacity>
 
@@ -192,19 +186,18 @@ export const OrdersHistoryScreen = ({ navigation }: { navigation: any }) => {
             activeOpacity={0.7}
           >
             <Text style={[styles.toggleBtnText, filterMode === 'all' && styles.toggleBtnTextActive]}>
-              {lang === 'ru' ? 'Все заказы' : lang === 'uz_cyrl' ? 'Барчаси' : 'Barchasi'} ({allOrders.length})
+              {lang === 'ru' ? 'Все' : 'Barchasi'} ({allOrders.length})
             </Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsRow}>
           <Text style={styles.statsText}>
-            {lang === 'ru' ? 'Заказов:' : 'Buyurtmalar:'}{' '}
-            <Text style={styles.statsHighlight}>{dailyStats.count} {t('pcs')}</Text>
+            {dailyStats.count} {t('pcs')}
           </Text>
-          <Text style={styles.statsText}>
-            {lang === 'ru' ? 'Сумма:' : 'Jami:'}{' '}
-            <Text style={styles.statsHighlight}>{dailyStats.totalAmount.toLocaleString(numLocale)} {t('currency')}</Text>
+          <Text style={styles.dot}>•</Text>
+          <Text style={styles.statsHighlight}>
+            {dailyStats.totalAmount.toLocaleString(numLocale)} {t('currency')}
           </Text>
         </View>
       </View>
@@ -214,22 +207,23 @@ export const OrdersHistoryScreen = ({ navigation }: { navigation: any }) => {
         keyExtractor={(item) => item.id}
         renderItem={renderOrderItem}
         contentContainerStyle={styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <FileText size={48} color={colors.border} />
+            <FileText size={36} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>
               {filterMode === 'day'
-                ? (lang === 'ru' ? 'В этот день заказов не было' : 'Ushbu kunda zakazlar mavjud emas')
+                ? (lang === 'ru' ? 'В этот день заказов не было' : 'Ushbu kunda buyurtmalar mavjud emas')
                 : t('history_empty')}
             </Text>
             {filterMode === 'day' && allOrders.length > 0 && (
               <TouchableOpacity
                 style={styles.emptyActionBtn}
                 onPress={() => setFilterMode('all')}
+                activeOpacity={0.8}
               >
-                <Text style={styles.emptyActionBtnText}>
-                  {lang === 'ru' ? 'Показать все заказы' : 'Barcha arxivni koʻrish'} ({allOrders.length})
+                <Text style={styles.emptyActionText}>
+                  {lang === 'ru' ? 'Показать все заказы' : 'Barcha buyurtmalarni koʻrish'}
                 </Text>
               </TouchableOpacity>
             )}
@@ -245,149 +239,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  listContent: {
-    padding: 10,
-    gap: 8,
-    paddingBottom: 24,
-  },
-  orderCard: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 4,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 2,
-  },
-  docType: {
-    fontSize: 12,
-    fontWeight: '800',
-    color: colors.primary,
-  },
-  syncedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.successLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  syncedText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.success,
-  },
-  pendingBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.warningLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  pendingText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: colors.warning,
-  },
-  shopName: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 2,
-  },
-  dateText: {
-    fontSize: 10,
-    color: colors.textSecondary,
-  },
-  paymentMethod: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: colors.textSecondary,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  totalLabel: {
-    fontSize: 9,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  totalAmount: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: colors.primaryDark,
-  },
-  printBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: colors.primaryLight,
-  },
-  printBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  emptyContainer: {
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  emptyTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  emptyActionBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 6,
-    backgroundColor: colors.primary,
-    marginTop: 4,
-  },
-  emptyActionBtnText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '700',
-  },
   dateRibbon: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
     paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: colors.border,
   },
   dateNavBtn: {
     width: 32,
-    height: 32,
+    height: 30,
     borderRadius: 6,
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -398,56 +264,187 @@ const styles = StyleSheet.create({
   },
   dateRibbonText: {
     fontSize: 13,
-    fontWeight: '800',
-    color: '#1E293B',
+    fontWeight: '600',
+    color: colors.text,
   },
   summaryRibbon: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 12,
     paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
-    gap: 8,
-  },
-  toggleRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  toggleBtn: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: 5,
-    backgroundColor: '#F1F5F9',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  toggleBtnActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  toggleBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748B',
-  },
-  toggleBtnTextActive: {
-    color: '#fff',
-  },
-  statsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  toggleBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  toggleBtnActive: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  toggleBtnText: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  toggleBtnTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  statsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   statsText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
     color: colors.textSecondary,
   },
   statsHighlight: {
-    fontWeight: '800',
-    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  dot: {
+    fontSize: 10,
+    color: colors.textMuted,
+  },
+  listContent: {
+    padding: 12,
+    gap: 10,
+  },
+  orderCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  docIdPill: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  docIdText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  syncedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.successLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  syncedText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.success,
+  },
+  pendingBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: colors.warningLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  pendingText: {
+    fontSize: 10,
+    fontWeight: '500',
+    color: colors.warning,
+  },
+  shopName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
+  },
+  dateText: {
+    fontSize: 11,
+    color: colors.textMuted,
+  },
+  paymentMethod: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '500',
+  },
+  cardFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
+  },
+  totalAmount: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  printBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  printBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  emptyContainer: {
+    padding: 30,
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    marginTop: 8,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  emptyActionBtn: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  emptyActionText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
   },
 });

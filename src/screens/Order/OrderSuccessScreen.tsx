@@ -15,7 +15,7 @@ import { invoiceService } from '../../services/invoiceService';
 import { useLanguageStore } from '../../store/languageStore';
 import { Order, Shop } from '../../types';
 import { colors } from '../../theme/colors';
-import { CheckCircle2, Share2, Home, ShoppingBag, Printer } from 'lucide-react-native';
+import { CheckCircle2, Home, ShoppingBag, Printer } from 'lucide-react-native';
 
 export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigation: any }) => {
   const { orderId, shopId } = route.params;
@@ -54,7 +54,12 @@ export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigati
       index: 0,
       routes: [{ name: 'CatalogMain' }],
     });
-    navigation.navigate('HomeTab');
+    const parent = navigation.getParent();
+    if (parent) {
+      parent.navigate('HomeTab');
+    } else {
+      navigation.navigate('HomeTab');
+    }
   };
 
   const handleNewOrder = () => {
@@ -82,27 +87,25 @@ export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigati
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        {/* Success Icon */}
+        {/* Minimalist Success Icon */}
         <View style={styles.iconCircle}>
-          <CheckCircle2 size={56} color={colors.success} />
+          <CheckCircle2 size={44} color={colors.success} strokeWidth={2} />
         </View>
 
         <Text style={styles.title}>{t('order_success_title')}</Text>
-        <Text style={styles.subtitle}>
-          {t('checkout_confirm_msg')}
-        </Text>
+        <Text style={styles.subtitle}>{t('checkout_confirm_msg')}</Text>
 
-        {/* Order Details Card */}
+        {/* Document Receipt Card */}
         {order && (
           <View style={styles.detailsCard}>
             <View style={styles.detailRow}>
               <Text style={styles.label}>{t('order_success_sub')}</Text>
-              <Text style={styles.value}>#{order.id.slice(-8).toUpperCase()}</Text>
+              <Text style={styles.orderIdBadge}>#{order.id.slice(-8).toUpperCase()}</Text>
             </View>
 
             <View style={styles.detailRow}>
               <Text style={styles.label}>{t('checkout_client')}</Text>
-              <Text style={styles.value}>{order.shopName}</Text>
+              <Text style={styles.value} numberOfLines={1}>{order.shopName}</Text>
             </View>
 
             <View style={styles.detailRow}>
@@ -110,22 +113,27 @@ export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigati
               <Text
                 style={[
                   styles.value,
-                  {
-                    color: order.paymentMethod === 'nasiya' ? colors.danger : colors.success,
-                  },
+                  order.paymentMethod === 'nasiya' && { color: colors.danger },
                 ]}
               >
                 {getPaymentLabel(order.paymentMethod)}
               </Text>
             </View>
 
+            {order.deliveryDate ? (
+              <View style={styles.detailRow}>
+                <Text style={styles.label}>
+                  {lang === 'ru' ? 'Дата доставки:' : 'Yetkazish:'}
+                </Text>
+                <Text style={styles.value}>{order.deliveryDate}</Text>
+              </View>
+            ) : null}
+
             <View style={styles.divider} />
 
             <View style={styles.detailRow}>
-              <Text style={[styles.label, { fontSize: 13, fontWeight: '800' }]}>
-                {t('checkout_total_final')}
-              </Text>
-              <Text style={[styles.value, { fontSize: 16, color: colors.primary, fontWeight: '900' }]}>
+              <Text style={styles.finalLabel}>{t('checkout_total_final')}</Text>
+              <Text style={styles.finalAmount}>
                 {order.finalAmount.toLocaleString(numLocale)} {t('currency')}
               </Text>
             </View>
@@ -141,10 +149,10 @@ export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigati
             activeOpacity={0.8}
           >
             {isGeneratingPdf ? (
-              <ActivityIndicator color="#fff" />
+              <ActivityIndicator color="#FFFFFF" size="small" />
             ) : (
               <>
-                <Printer size={18} color="#fff" />
+                <Printer size={16} color="#FFFFFF" />
                 <Text style={styles.pdfButtonText}>{t('order_print_receipt')}</Text>
               </>
             )}
@@ -156,7 +164,7 @@ export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigati
               onPress={handleNewOrder}
               activeOpacity={0.8}
             >
-              <ShoppingBag size={17} color={colors.primary} />
+              <ShoppingBag size={15} color={colors.primary} />
               <Text style={styles.newOrderText} numberOfLines={1}>{t('order_new_btn')}</Text>
             </TouchableOpacity>
 
@@ -165,7 +173,7 @@ export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigati
               onPress={handleGoHome}
               activeOpacity={0.8}
             >
-              <Home size={17} color={colors.textSecondary} />
+              <Home size={15} color={colors.textSecondary} />
               <Text style={styles.homeButtonText} numberOfLines={1}>{t('order_back_home')}</Text>
             </TouchableOpacity>
           </View>
@@ -187,17 +195,17 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   iconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 68,
+    height: 68,
+    borderRadius: 34,
     backgroundColor: colors.successLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 14,
+    marginBottom: 12,
   },
   title: {
-    fontSize: 20,
-    fontWeight: '900',
+    fontSize: 18,
+    fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
   },
@@ -206,18 +214,18 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     marginTop: 4,
-    marginBottom: 20,
+    marginBottom: 16,
     paddingHorizontal: 16,
   },
   detailsCard: {
     width: '100%',
-    backgroundColor: '#fff',
-    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     padding: 14,
     borderWidth: 1,
     borderColor: colors.border,
     gap: 8,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   detailRow: {
     flexDirection: 'row',
@@ -225,19 +233,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   label: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textSecondary,
-    fontWeight: '600',
   },
   value: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
     color: colors.text,
+  },
+  orderIdBadge: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.primary,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border,
+    backgroundColor: colors.borderSubtle,
     marginVertical: 4,
+  },
+  finalLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  finalAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: colors.primary,
   },
   actionsContainer: {
     width: '100%',
@@ -248,14 +274,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: colors.primary,
+    borderRadius: 8,
     paddingVertical: 12,
-    borderRadius: 6,
     gap: 8,
   },
   pdfButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '800',
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   secondaryButtonsRow: {
     flexDirection: 'row',
@@ -266,33 +292,33 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
-    borderColor: colors.primary,
-    paddingVertical: 12,
-    borderRadius: 6,
+    borderColor: colors.primaryBorder,
+    paddingVertical: 10,
     gap: 6,
   },
   newOrderText: {
     color: colors.primary,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   homeButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    paddingVertical: 12,
-    borderRadius: 6,
+    paddingVertical: 10,
     gap: 6,
   },
   homeButtonText: {
     color: colors.textSecondary,
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '500',
   },
 });

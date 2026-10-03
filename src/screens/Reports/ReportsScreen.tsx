@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  FlatList,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { orderRepository } from '../../database/orderRepository';
@@ -14,14 +13,6 @@ import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { Shop, Order } from '../../types';
 import { colors } from '../../theme/colors';
-import {
-  BarChart2,
-  AlertCircle,
-  Banknote,
-  TrendingUp,
-  FileText,
-  Users,
-} from 'lucide-react-native';
 
 type ReportTab = 'sales' | 'debts' | 'cash';
 
@@ -32,6 +23,8 @@ export const ReportsScreen = () => {
   const [stats, setStats] = useState({ totalSales: 0, orderCount: 0, cashCollected: 0 });
   const [debtShops, setDebtShops] = useState<Shop[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+
+  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
 
   useEffect(() => {
     if (agent?.id) {
@@ -50,11 +43,12 @@ export const ReportsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      {/* Mobi-S Sub-navigation Tabs */}
+      {/* Segmented Sub Tabs */}
       <View style={styles.subTabs}>
         <TouchableOpacity
           style={[styles.subTabItem, activeTab === 'sales' && styles.subTabItemActive]}
           onPress={() => setActiveTab('sales')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.subTabText, activeTab === 'sales' && styles.subTabTextActive]}>
             {t('rep_sales_day')}
@@ -64,6 +58,7 @@ export const ReportsScreen = () => {
         <TouchableOpacity
           style={[styles.subTabItem, activeTab === 'debts' && styles.subTabItemActive]}
           onPress={() => setActiveTab('debts')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.subTabText, activeTab === 'debts' && styles.subTabTextActive]}>
             {t('rep_client_debts')}
@@ -73,6 +68,7 @@ export const ReportsScreen = () => {
         <TouchableOpacity
           style={[styles.subTabItem, activeTab === 'cash' && styles.subTabItemActive]}
           onPress={() => setActiveTab('cash')}
+          activeOpacity={0.7}
         >
           <Text style={[styles.subTabText, activeTab === 'cash' && styles.subTabTextActive]}>
             {t('rep_agent_cash')}
@@ -83,47 +79,56 @@ export const ReportsScreen = () => {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {activeTab === 'sales' && (
           <View style={styles.tabContent}>
-            {/* KPI Cards */}
+            {/* KPI Summary Card */}
             <View style={styles.summaryCard}>
               <Text style={styles.cardHeaderTitle}>{t('rep_summary_today')}</Text>
+
               <View style={styles.rowItem}>
                 <Text style={styles.rowLabel}>{t('reports_total_orders')}</Text>
                 <Text style={styles.rowValBold}>{stats.orderCount} {t('rep_docs_count')}</Text>
               </View>
+
               <View style={styles.rowItem}>
                 <Text style={styles.rowLabel}>{t('reports_total_sales')}</Text>
-                <Text style={[styles.rowValBold, { color: colors.primary, fontSize: 16 }]}>
-                  {stats.totalSales.toLocaleString('ru-RU')} {t('currency')}
+                <Text style={[styles.rowValBold, { color: colors.primary }]}>
+                  {stats.totalSales.toLocaleString(numLocale)} {t('currency')}
                 </Text>
               </View>
+
               <View style={styles.divider} />
+
               <View style={styles.rowItem}>
                 <Text style={styles.rowLabel}>{t('reports_cash')}</Text>
                 <Text style={[styles.rowValBold, { color: colors.success }]}>
-                  {stats.cashCollected.toLocaleString('ru-RU')} {t('currency')}
+                  {stats.cashCollected.toLocaleString(numLocale)} {t('currency')}
                 </Text>
               </View>
+
               <View style={styles.rowItem}>
                 <Text style={styles.rowLabel}>{t('reports_debt')}</Text>
                 <Text style={[styles.rowValBold, { color: colors.danger }]}>
-                  {(stats.totalSales - stats.cashCollected).toLocaleString('ru-RU')} {t('currency')}
+                  {Math.max(0, stats.totalSales - stats.cashCollected).toLocaleString(numLocale)} {t('currency')}
                 </Text>
               </View>
             </View>
 
-            {/* List of Today's Orders */}
+            {/* List of Orders */}
             <Text style={styles.sectionTitle}>{t('rep_orders_today')}</Text>
             {orders.slice(0, 10).map((ord) => (
               <View key={ord.id} style={styles.orderRowCard}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.orderShopName}>{ord.shopName}</Text>
+                  <Text style={styles.orderShopName} numberOfLines={1}>{ord.shopName}</Text>
                   <Text style={styles.orderTime}>
-                    {new Date(ord.createdAt).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })} •{' '}
-                    {ord.paymentMethod === 'naqd' ? t('checkout_pay_cash') : ord.paymentMethod === 'nasiya' ? t('checkout_pay_debt') : t('checkout_pay_bank')}
+                    {new Date(ord.createdAt).toLocaleTimeString(numLocale, { hour: '2-digit', minute: '2-digit' })} •{' '}
+                    {ord.paymentMethod === 'naqd'
+                      ? t('checkout_pay_cash')
+                      : ord.paymentMethod === 'nasiya'
+                      ? t('checkout_pay_debt')
+                      : t('checkout_pay_bank')}
                   </Text>
                 </View>
                 <Text style={styles.orderFinalSum}>
-                  {ord.finalAmount.toLocaleString('ru-RU')} {t('currency')}
+                  {ord.finalAmount.toLocaleString(numLocale)} {t('currency')}
                 </Text>
               </View>
             ))}
@@ -133,29 +138,28 @@ export const ReportsScreen = () => {
         {activeTab === 'debts' && (
           <View style={styles.tabContent}>
             {/* Total Debt Banner */}
-            <View style={[styles.summaryCard, { backgroundColor: '#FFEBEE', borderColor: '#FFCDD2' }]}>
+            <View style={[styles.summaryCard, { backgroundColor: colors.dangerLight, borderColor: '#FECDD3' }]}>
               <Text style={[styles.cardHeaderTitle, { color: colors.danger }]}>
                 {t('rep_debt_receivable')}
               </Text>
               <Text style={styles.totalDebtNumber}>
-                {totalDebt.toLocaleString('ru-RU')} <Text style={{ fontSize: 14 }}>{t('currency')}</Text>
+                {totalDebt.toLocaleString(numLocale)} {t('currency')}
               </Text>
-              <Text style={{ fontSize: 11, color: colors.textSecondary }}>
-                {t('rep_debtors_count')} {debtShops.length}
+              <Text style={styles.totalDebtSub}>
+                {debtShops.length} {t('home_of')}
               </Text>
             </View>
 
-            {/* Table of Debtor Shops */}
-            <Text style={styles.sectionTitle}>{t('rep_debtors_list')}</Text>
-            {debtShops.map((shop, idx) => (
-              <View key={shop.id} style={styles.debtShopRow}>
-                <Text style={styles.debtShopIdx}>{idx + 1}.</Text>
-                <View style={{ flex: 1, paddingHorizontal: 8 }}>
-                  <Text style={styles.debtShopName}>{shop.name}</Text>
-                  <Text style={styles.debtShopOwner}>{shop.ownerName} • {shop.address}</Text>
+            {/* Debtor Shops List */}
+            <Text style={styles.sectionTitle}>{t('rep_client_debts')}</Text>
+            {debtShops.map((s) => (
+              <View key={s.id} style={styles.orderRowCard}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.orderShopName} numberOfLines={1}>{s.name}</Text>
+                  <Text style={styles.orderTime}>{s.ownerName} • {s.address}</Text>
                 </View>
-                <Text style={styles.debtShopAmount}>
-                  {shop.debtBalance.toLocaleString('ru-RU')} {t('currency')}
+                <Text style={[styles.orderFinalSum, { color: colors.danger }]}>
+                  {s.debtBalance.toLocaleString(numLocale)} {t('currency')}
                 </Text>
               </View>
             ))}
@@ -164,25 +168,13 @@ export const ReportsScreen = () => {
 
         {activeTab === 'cash' && (
           <View style={styles.tabContent}>
-            <View style={styles.summaryCard}>
-              <Text style={styles.cardHeaderTitle}>{t('rep_cash_movement')}</Text>
-              <View style={styles.rowItem}>
-                <Text style={styles.rowLabel}>{t('rep_cash_received')}</Text>
-                <Text style={[styles.rowValBold, { color: colors.success, fontSize: 16 }]}>
-                  {stats.cashCollected.toLocaleString('ru-RU')} {t('currency')}
-                </Text>
-              </View>
-              <View style={styles.divider} />
-              <View style={styles.rowItem}>
-                <Text style={styles.rowLabel}>{t('rep_cash_turned_in')}</Text>
-                <Text style={styles.rowValBold}>0 {t('currency')}</Text>
-              </View>
-              <View style={styles.rowItem}>
-                <Text style={styles.rowLabel}>{t('rep_cash_balance')}</Text>
-                <Text style={[styles.rowValBold, { color: colors.primary, fontSize: 16 }]}>
-                  {stats.cashCollected.toLocaleString('ru-RU')} {t('currency')}
-                </Text>
-              </View>
+            <View style={[styles.summaryCard, { backgroundColor: colors.successLight, borderColor: '#BBF7D0' }]}>
+              <Text style={[styles.cardHeaderTitle, { color: colors.success }]}>
+                {t('rep_agent_cash')}
+              </Text>
+              <Text style={[styles.totalDebtNumber, { color: colors.success }]}>
+                {stats.cashCollected.toLocaleString(numLocale)} {t('currency')}
+              </Text>
             </View>
           </View>
         )}
@@ -198,53 +190,61 @@ const styles = StyleSheet.create({
   },
   subTabs: {
     flexDirection: 'row',
-    backgroundColor: colors.primaryDark,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
   subTabItem: {
     flex: 1,
-    paddingVertical: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
-    borderBottomWidth: 3,
-    borderBottomColor: 'transparent',
+    borderWidth: 1,
+    borderColor: colors.border,
   },
   subTabItemActive: {
-    borderBottomColor: colors.accent,
-    backgroundColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primaryBorder,
   },
   subTabText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: '#CFD8DC',
+    fontWeight: '500',
+    color: colors.textSecondary,
   },
   subTabTextActive: {
-    color: '#fff',
+    color: colors.primary,
+    fontWeight: '600',
   },
   scrollContent: {
     padding: 12,
     paddingBottom: 30,
   },
   tabContent: {
-    gap: 12,
+    gap: 10,
   },
   summaryCard: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 8,
+    padding: 12,
   },
   cardHeaderTitle: {
     fontSize: 11,
-    fontWeight: '900',
+    fontWeight: '600',
     color: colors.textSecondary,
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
-    marginBottom: 4,
+    marginBottom: 8,
   },
   rowItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    paddingVertical: 4,
   },
   rowLabel: {
     fontSize: 12,
@@ -252,80 +252,57 @@ const styles = StyleSheet.create({
   },
   rowValBold: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.text,
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 4,
+    backgroundColor: colors.borderSubtle,
+    marginVertical: 6,
   },
   sectionTitle: {
     fontSize: 11,
-    fontWeight: '900',
+    fontWeight: '600',
     color: colors.textSecondary,
+    textTransform: 'uppercase',
     letterSpacing: 0.5,
     marginTop: 6,
-    marginLeft: 4,
+    marginBottom: 2,
   },
   orderRowCard: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 12,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
+    padding: 10,
   },
   orderShopName: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.text,
   },
   orderTime: {
     fontSize: 11,
-    color: colors.textSecondary,
+    color: colors.textMuted,
     marginTop: 2,
   },
   orderFinalSum: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: colors.primary,
-  },
-  totalDebtNumber: {
-    fontSize: 22,
-    fontWeight: '900',
-    color: colors.danger,
-  },
-  debtShopRow: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  debtShopIdx: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: colors.textMuted,
-    width: 20,
-  },
-  debtShopName: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.text,
   },
-  debtShopOwner: {
+  totalDebtNumber: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: colors.danger,
+    marginTop: 4,
+  },
+  totalDebtSub: {
     fontSize: 11,
     color: colors.textSecondary,
-    marginTop: 1,
-  },
-  debtShopAmount: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: colors.danger,
+    marginTop: 2,
   },
 });

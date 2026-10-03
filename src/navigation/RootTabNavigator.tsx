@@ -13,7 +13,7 @@ import { OrdersHistoryScreen } from '../screens/History/OrdersHistoryScreen';
 import { ReportsScreen } from '../screens/Reports/ReportsScreen';
 import { ProfileScreen } from '../screens/Profile/ProfileScreen';
 import { colors } from '../theme/colors';
-import { Home, MapPin, Package, FileText, BarChart3 } from 'lucide-react-native';
+import { Home, MapPin, Package, FileText, User } from 'lucide-react-native';
 import { useLanguageStore } from '../store/languageStore';
 
 const Tab = createBottomTabNavigator();
@@ -22,9 +22,9 @@ const ShopsStack = createNativeStackNavigator();
 const CatalogStack = createNativeStackNavigator();
 
 const defaultHeaderOptions = {
-  headerStyle: { backgroundColor: colors.primary },
-  headerTintColor: '#fff',
-  headerTitleStyle: { fontWeight: '800' as const, fontSize: 16 },
+  headerStyle: { backgroundColor: '#FFFFFF' },
+  headerTintColor: colors.text,
+  headerTitleStyle: { fontWeight: '600' as const, fontSize: 16, color: colors.text },
   headerShadowVisible: false,
 };
 
@@ -38,14 +38,9 @@ const HomeStackNavigator = () => {
         options={{ headerShown: false }}
       />
       <HomeStack.Screen
-        name="ReportsTab"
+        name="ReportsScreen"
         component={ReportsScreen}
         options={{ title: t('nav_reports_agent') }}
-      />
-      <HomeStack.Screen
-        name="ProfileTab"
-        component={ProfileScreen}
-        options={{ title: t('nav_profile') }}
       />
     </HomeStack.Navigator>
   );
@@ -110,22 +105,22 @@ export const RootTabNavigator = () => {
       key={lang}
       screenOptions={{
         tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: '#fff',
+          backgroundColor: '#FFFFFF',
           borderTopColor: colors.border,
-          height: 56,
+          borderTopWidth: 1,
+          height: 58,
           paddingBottom: 6,
-          paddingTop: 4,
+          paddingTop: 6,
+          elevation: 0,
+          shadowOpacity: 0,
         },
         tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: '700',
+          fontSize: 11,
+          fontWeight: '500',
         },
-        headerStyle: { backgroundColor: colors.primary },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: '800', fontSize: 16 },
-        headerShadowVisible: false,
+        ...defaultHeaderOptions,
       }}
     >
       <Tab.Screen
@@ -134,7 +129,7 @@ export const RootTabNavigator = () => {
         options={{
           headerShown: false,
           title: t('tab_home'),
-          tabBarIcon: ({ color, size }) => <Home size={size - 2} color={color} />,
+          tabBarIcon: ({ color, size }) => <Home size={size - 2} color={color} strokeWidth={1.8} />,
         }}
       />
       <Tab.Screen
@@ -143,7 +138,7 @@ export const RootTabNavigator = () => {
         options={{
           headerShown: false,
           title: t('tab_shops'),
-          tabBarIcon: ({ color, size }) => <MapPin size={size - 2} color={color} />,
+          tabBarIcon: ({ color, size }) => <MapPin size={size - 2} color={color} strokeWidth={1.8} />,
         }}
       />
       <Tab.Screen
@@ -152,7 +147,7 @@ export const RootTabNavigator = () => {
         options={{
           headerShown: false,
           title: t('tab_catalog'),
-          tabBarIcon: ({ color, size }) => <Package size={size - 2} color={color} />,
+          tabBarIcon: ({ color, size }) => <Package size={size - 2} color={color} strokeWidth={1.8} />,
         }}
       />
       <Tab.Screen
@@ -161,16 +156,16 @@ export const RootTabNavigator = () => {
         options={{
           title: t('tab_history'),
           headerTitle: t('nav_orders_journal'),
-          tabBarIcon: ({ color, size }) => <FileText size={size - 2} color={color} />,
+          tabBarIcon: ({ color, size }) => <FileText size={size - 2} color={color} strokeWidth={1.8} />,
         }}
       />
       <Tab.Screen
-        name="ReportsTab"
-        component={ReportsScreen}
+        name="ProfileTab"
+        component={ProfileScreen}
         options={{
-          title: t('tab_reports'),
-          headerTitle: t('nav_reports_agent'),
-          tabBarIcon: ({ color, size }) => <BarChart3 size={size - 2} color={color} />,
+          title: t('nav_profile'),
+          headerTitle: t('nav_profile'),
+          tabBarIcon: ({ color, size }) => <User size={size - 2} color={color} strokeWidth={1.8} />,
         }}
       />
     </Tab.Navigator>

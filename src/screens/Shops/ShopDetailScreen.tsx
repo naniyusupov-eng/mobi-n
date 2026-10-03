@@ -7,12 +7,15 @@ import {
   TouchableOpacity,
   Alert,
   Linking,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { useShopStore } from '../../store/shopStore';
+import { useCartStore } from '../../store/cartStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { orderRepository } from '../../database/orderRepository';
+import { invoiceService } from '../../services/invoiceService';
 import { Order, Shop } from '../../types';
 import { colors } from '../../theme/colors';
 import {
@@ -25,11 +28,13 @@ import {
   CheckCircle2,
   Receipt,
   Navigation,
+  Printer,
 } from 'lucide-react-native';
 
 export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation: any }) => {
   const { shopId } = route.params;
   const { currentShop, markShopVisited, setCurrentShop, shops } = useShopStore();
+  const { setShop: setCartShop } = useCartStore();
   const { t, lang } = useLanguageStore();
 
   const [shop, setShop] = useState<Shop | null>(
@@ -37,6 +42,8 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
   );
   const [pastOrders, setPastOrders] = useState<Order[]>([]);
   const [isCheckingLocation, setIsCheckingLocation] = useState(false);
+
+  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
 
   useEffect(() => {
     if (shopId) {
@@ -48,6 +55,7 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
   const handleStartOrder = () => {
     if (shop) {
       setCurrentShop(shop);
+      setCartShop(shop);
       navigation.navigate('CatalogTab', { screen: 'CatalogMain' });
     }
   };
@@ -57,23 +65,34 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
       setIsCheckingLocation(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('GPS', lang === 'ru' ? 'Доступ к геопозиции отклонен' : lang === 'uz_cyrl' ? 'Геолокацияга рухсат берилмади' : 'Geolokatsiyaga ruxsat berilmadi');
+        Alert.alert(
+          'GPS',
+          lang === 'ru'
+            ? 'Доступ к геопозиции отклонен'
+            : lang === 'uz_cyrl'
+            ? 'Геолокацияга рухсат берилмади'
+            : 'Geolokatsiyaga ruxsat berilmadi'
+        );
         setIsCheckingLocation(false);
         return;
       }
 
-      const location = await Location.getCurrentPositionAsync({});
+      const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       if (shop) {
         markShopVisited(shop.id);
+        setShop({ ...shop, lastVisitedAt: new Date().toISOString() });
         Alert.alert(
           t('shop_visited_today') + ' ✅',
-          (lang === 'ru' ? 'Визит успешно сохранен по GPS.\nКоординаты: ' : lang === 'uz_cyrl' ? 'Дўконга ташрифингиз GPS орқали муваффақиятли сақланди.\nКоординаталар: ' : 'Doʻkonga tashrifingiz GPS orqali muvaffaqiyatli saqlandi.\nKoordinatalar: ') +
+          (lang === 'ru'
+            ? 'Визит успешно сохранен по GPS.\nКоординаты: '
+            : lang === 'uz_cyrl'
+            ? 'Дўконга ташрифингиз GPS орқали сақланди.\nКоординаталар: '
+            : 'Doʻkonga tashrifingiz GPS orqali saqlandi.\nKoordinatalar: ') +
             `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
         );
-        setShop({ ...shop, lastVisitedAt: new Date().toISOString() });
       }
     } catch (e: any) {
-      Alert.alert(t('error'), e.message || 'GPS xatoligi');
+      Alert.alert(t('error'), e.message || 'GPS');
     } finally {
       setIsCheckingLocation(false);
     }
@@ -84,7 +103,24 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
       const url = `https://www.google.com/maps/search/?api=1&query=${shop.latitude},${shop.longitude}`;
       Linking.openURL(url);
     } else {
-      Alert.alert(t('warning'), lang === 'ru' ? 'Координаты GPS для данной точки не указаны' : lang === 'uz_cyrl' ? 'Ушбу дўконнинг GPS координатаси киритилмаган' : 'Ushbu doʻkonning GPS koordinatasi kiritilmagan');
+      Alert.alert(
+        t('warning'),
+        lang === 'ru'
+          ? 'Координаты GPS для данной точки не указаны'
+          : lang === 'uz_cyrl'
+          ? 'Ушбу дўконнинг GPS координатаси киритилмаган'
+          : 'Ushbu doʻkonning GPS koordinatasi kiritilmagan'
+      );
+    }
+  };
+
+  const handlePrintReceipt = async (order: Order) => {
+    try {
+      const fullOrder = orderRepository.getById(order.id);
+      if (!fullOrder || !shop) return;
+      await invoiceService.printOrSharePdf(fullOrder, shop);
+    } catch (e: any) {
+      Alert.alert(t('error'), 'PDF error');
     }
   };
 
@@ -103,15 +139,16 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Main Shop Info Card */}
+        {/* Main Document Passport Card */}
         <View style={styles.mainCard}>
           <View style={styles.badgeRow}>
-            <View style={styles.dayPill}>
-              <Calendar size={12} color={colors.primaryDark} />
+            <View style={styles.dayChip}>
+              <Calendar size={12} color={colors.textSecondary} />
               <Text style={styles.dayText}>{shop.visitDay}</Text>
             </View>
+
             {shop.lastVisitedAt ? (
-              <View style={styles.visitedPill}>
+              <View style={styles.visitedChip}>
                 <CheckCircle2 size={12} color={colors.success} />
                 <Text style={styles.visitedText}>{t('shop_visited_today')}</Text>
               </View>
@@ -119,23 +156,25 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
           </View>
 
           <Text style={styles.title}>{shop.name}</Text>
-          <Text style={styles.ownerText}>{t('shop_responsible')} {shop.ownerName}</Text>
+          <Text style={styles.ownerText}>{t('shop_responsible')}: {shop.ownerName}</Text>
 
           <View style={styles.divider} />
 
           <View style={styles.rowItem}>
-            <MapPin size={16} color={colors.textSecondary} />
+            <MapPin size={15} color={colors.textMuted} />
             <Text style={styles.rowText}>{shop.address}</Text>
           </View>
 
-          <View style={styles.rowItem}>
-            <Phone size={16} color={colors.textSecondary} />
-            <TouchableOpacity onPress={() => Linking.openURL(`tel:${shop.phone}`)}>
-              <Text style={styles.phoneLink}>{shop.phone}</Text>
-            </TouchableOpacity>
-          </View>
+          {shop.phone ? (
+            <View style={styles.rowItem}>
+              <Phone size={15} color={colors.textMuted} />
+              <TouchableOpacity onPress={() => Linking.openURL(`tel:${shop.phone}`)}>
+                <Text style={styles.phoneLink}>{shop.phone}</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
-          {/* Debt Alert Box */}
+          {/* Debt Indicator */}
           <View style={[styles.debtBox, shop.debtBalance > 0 ? styles.debtBoxRed : styles.debtBoxGreen]}>
             <View>
               <Text style={styles.debtLabel}>{t('shop_balance_debt')}</Text>
@@ -146,51 +185,62 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
                 ]}
               >
                 {shop.debtBalance > 0
-                  ? `${shop.debtBalance.toLocaleString('ru-RU')} ${t('currency')}`
+                  ? `${shop.debtBalance.toLocaleString(numLocale)} ${t('currency')}`
                   : t('shop_no_debt_text')}
               </Text>
             </View>
-            {shop.debtBalance > 0 && <AlertCircle size={24} color={colors.danger} />}
           </View>
         </View>
 
-        {/* Action Buttons */}
-        <View style={styles.actionsContainer}>
+        {/* Primary Action: Start Order */}
+        <TouchableOpacity
+          style={styles.orderBtn}
+          onPress={handleStartOrder}
+          activeOpacity={0.8}
+        >
+          <ShoppingBag size={18} color="#FFFFFF" />
+          <Text style={styles.orderBtnText}>{t('shop_action_order')}</Text>
+        </TouchableOpacity>
+
+        {/* Secondary Actions: GPS Check-in & Google Maps */}
+        <View style={styles.subActionsRow}>
           <TouchableOpacity
-            style={styles.orderBtn}
-            onPress={handleStartOrder}
-            activeOpacity={0.8}
+            style={styles.subActionBtn}
+            onPress={handleRegisterVisit}
+            disabled={isCheckingLocation}
+            activeOpacity={0.7}
           >
-            <ShoppingBag size={20} color="#fff" />
-            <Text style={styles.orderBtnText}>{t('shop_action_order')}</Text>
+            {isCheckingLocation ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <CheckCircle2 size={16} color={colors.primary} />
+            )}
+            <Text style={styles.subActionText}>
+              {isCheckingLocation
+                ? (lang === 'ru' ? 'GPS...' : 'GPS...')
+                : t('shop_action_visit')}
+            </Text>
           </TouchableOpacity>
 
-          <View style={styles.subActionsRow}>
-            <TouchableOpacity
-              style={styles.subActionBtn}
-              onPress={handleRegisterVisit}
-              disabled={isCheckingLocation}
-            >
-              <CheckCircle2 size={16} color={colors.secondary} />
-              <Text style={styles.subActionText}>
-                {isCheckingLocation
-                  ? (lang === 'ru' ? 'Проверка GPS...' : lang === 'uz_cyrl' ? 'GPS текширилмоқда...' : 'GPS tekshirilmoqda...')
-                  : t('shop_action_visit')}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={styles.subActionBtn} onPress={handleOpenMap}>
-              <Navigation size={16} color={colors.secondary} />
-              <Text style={styles.subActionText}>{t('shop_open_map')}</Text>
-            </TouchableOpacity>
-          </View>
+          <TouchableOpacity
+            style={styles.subActionBtn}
+            onPress={handleOpenMap}
+            activeOpacity={0.7}
+          >
+            <Navigation size={16} color={colors.primary} />
+            <Text style={styles.subActionText}>{t('shop_open_map')}</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Past Orders for This Shop */}
-        <Text style={styles.historyTitle}>{t('shop_prev_orders')}</Text>
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionTitle}>{t('shop_prev_orders')}</Text>
+          <Text style={styles.sectionBadge}>{pastOrders.length}</Text>
+        </View>
+
         {pastOrders.length === 0 ? (
           <View style={styles.emptyHistory}>
-            <Receipt size={32} color={colors.textMuted} />
+            <Receipt size={28} color={colors.textMuted} />
             <Text style={styles.emptyHistoryText}>{t('shop_no_prev_orders')}</Text>
           </View>
         ) : (
@@ -198,25 +248,40 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
             {pastOrders.map((ord) => (
               <View key={ord.id} style={styles.orderItemCard}>
                 <View style={styles.orderItemHeader}>
-                  <Text style={styles.orderIdText}>#{ord.id.slice(-6).toUpperCase()}</Text>
+                  <View style={styles.orderIdPill}>
+                    <Text style={styles.orderIdText}>#{ord.id.slice(-6).toUpperCase()}</Text>
+                  </View>
                   <Text style={styles.orderDate}>
-                    {new Date(ord.createdAt).toLocaleDateString('ru-RU')}
+                    {new Date(ord.createdAt).toLocaleDateString(numLocale)}
                   </Text>
                 </View>
+
                 <View style={styles.orderItemFooter}>
                   <Text style={styles.orderAmount}>
-                    {ord.finalAmount.toLocaleString('ru-RU')} {t('currency')}
+                    {ord.finalAmount.toLocaleString(numLocale)} {t('currency')}
                   </Text>
-                  <Text
-                    style={[
-                      styles.paymentMethodBadge,
-                      {
-                        color: ord.paymentMethod === 'nasiya' ? colors.danger : colors.success,
-                      },
-                    ]}
-                  >
-                    {ord.paymentMethod === 'naqd' ? t('checkout_pay_cash') : ord.paymentMethod === 'nasiya' ? t('checkout_pay_debt') : t('checkout_pay_bank')}
-                  </Text>
+
+                  <View style={styles.orderFooterRight}>
+                    <Text
+                      style={[
+                        styles.paymentMethodBadge,
+                        ord.paymentMethod === 'nasiya' && { color: colors.danger },
+                      ]}
+                    >
+                      {ord.paymentMethod === 'naqd'
+                        ? t('checkout_pay_cash')
+                        : ord.paymentMethod === 'nasiya'
+                        ? t('checkout_pay_debt')
+                        : t('checkout_pay_bank')}
+                    </Text>
+
+                    <TouchableOpacity
+                      onPress={() => handlePrintReceipt(ord)}
+                      style={styles.printBtn}
+                    >
+                      <Printer size={14} color={colors.textSecondary} />
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             ))}
@@ -233,8 +298,8 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: 12,
+    paddingBottom: 30,
   },
   centerContainer: {
     flex: 1,
@@ -242,64 +307,66 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   errorText: {
-    fontSize: 16,
+    fontSize: 14,
     color: colors.danger,
   },
   mainCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 18,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    marginBottom: 16,
+    padding: 14,
+    marginBottom: 12,
   },
   badgeRow: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
-  dayPill: {
+  dayChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
   },
   dayText: {
     fontSize: 11,
-    fontWeight: '700',
-    color: colors.primaryDark,
+    color: colors.textSecondary,
+    fontWeight: '500',
   },
-  visitedPill: {
+  visitedChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
     backgroundColor: colors.successLight,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 4,
   },
   visitedText: {
     fontSize: 11,
-    fontWeight: '700',
     color: colors.success,
+    fontWeight: '600',
   },
   title: {
-    fontSize: 20,
-    fontWeight: '900',
+    fontSize: 17,
+    fontWeight: '700',
     color: colors.text,
+    marginBottom: 3,
   },
   ownerText: {
     fontSize: 13,
     color: colors.textSecondary,
-    marginTop: 2,
+    marginBottom: 8,
   },
   divider: {
     height: 1,
-    backgroundColor: colors.border,
-    marginVertical: 14,
+    backgroundColor: colors.borderSubtle,
+    marginVertical: 10,
   },
   rowItem: {
     flexDirection: 'row',
@@ -308,128 +375,137 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   rowText: {
-    fontSize: 13,
-    color: colors.text,
+    fontSize: 12,
+    color: colors.textSecondary,
     flex: 1,
   },
   phoneLink: {
-    fontSize: 13,
-    fontWeight: '700',
+    fontSize: 12,
     color: colors.primary,
+    fontWeight: '500',
   },
   debtBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginTop: 14,
-    borderWidth: 1,
+    marginTop: 6,
+    padding: 10,
+    borderRadius: 6,
   },
   debtBoxRed: {
     backgroundColor: colors.dangerLight,
-    borderColor: '#FECACA',
   },
   debtBoxGreen: {
     backgroundColor: colors.successLight,
-    borderColor: '#BBF7D0',
   },
   debtLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: colors.textSecondary,
-    fontWeight: '600',
+    marginBottom: 2,
   },
   debtValue: {
-    fontSize: 18,
-    fontWeight: '900',
-    marginTop: 2,
-  },
-  actionsContainer: {
-    gap: 10,
-    marginBottom: 24,
+    fontSize: 15,
+    fontWeight: '700',
   },
   orderBtn: {
     backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    paddingVertical: 14,
-    borderRadius: 14,
-    shadowColor: colors.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: 8,
   },
   orderBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '800',
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
   subActionsRow: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
+    marginBottom: 16,
   },
   subActionBtn: {
     flex: 1,
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   subActionText: {
     fontSize: 12,
-    fontWeight: '700',
-    color: colors.secondary,
+    fontWeight: '600',
+    color: colors.primary,
   },
-  historyTitle: {
-    fontSize: 16,
-    fontWeight: '800',
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.text,
-    marginBottom: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  sectionBadge: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    backgroundColor: colors.surfaceSecondary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
   },
   emptyHistory: {
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 24,
-    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
-    gap: 8,
+    padding: 24,
+    alignItems: 'center',
+    gap: 6,
   },
   emptyHistoryText: {
-    fontSize: 13,
+    fontSize: 12,
     color: colors.textMuted,
   },
   historyList: {
     gap: 8,
   },
   orderItemCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
+    padding: 10,
   },
   orderItemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4,
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  orderIdPill: {
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
   },
   orderIdText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primary,
   },
   orderDate: {
-    fontSize: 12,
-    color: colors.textSecondary,
+    fontSize: 11,
+    color: colors.textMuted,
   },
   orderItemFooter: {
     flexDirection: 'row',
@@ -437,12 +513,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   orderAmount: {
-    fontSize: 14,
-    fontWeight: '800',
+    fontSize: 13,
+    fontWeight: '700',
     color: colors.text,
   },
+  orderFooterRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   paymentMethodBadge: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  printBtn: {
+    padding: 4,
   },
 });

@@ -1,32 +1,34 @@
-// Mobi-S (Моби-С) Authentic Theme Colors
+// Mobi_R Minimalist & Documental Enterprise Theme
 export const colors = {
-  // Mobi-S Signature Deep Blue
-  primary: '#1565C0',        // Mobi-S Royal Blue (Header & Buttons)
-  primaryDark: '#0D47A1',    // To'q ko'k
-  primaryLight: '#E3F2FD',   // Och moviy (Fon va faol tablar)
-  secondary: '#263238',      // To'q po'lat rang
-  accent: '#FF9800',         // Qaynoq apelsin urg'u
+  // Primary Brand - Refined Sky & Deep Slate (Matches Web Admin)
+  primary: '#0284C7',        // Sky-600 (Primary active elements, highlights, links)
+  primaryDark: '#0369A1',    // Sky-700 (Focused actions & brand text)
+  primaryLight: '#F0F9FF',   // Sky-50 (Delicate pill backgrounds)
+  primaryBorder: '#BAE6FD',  // Sky-200 (Active borders)
+  secondary: '#334155',      // Slate-700 (Clean secondary buttons & tags)
+  accent: '#0284C7',         // Sky accent
 
-  // Background & Surfaces
-  background: '#ECEFF1',    // Mobi-S klassik och kulrang foni
-  card: '#FFFFFF',          // Oq kartochkalar
-  surfaceSecondary: '#F5F7FA',
+  // Clean Documental Surfaces
+  background: '#F8FAFC',     // Slate-50 (Ultra clean, eye-friendly light canvas)
+  card: '#FFFFFF',           // Pure white cards
+  surfaceSecondary: '#F1F5F9', // Slate-100 (Inputs, dividers, table headers)
 
-  // Typography
-  text: '#212121',          // Yirik qora matn
-  textSecondary: '#546E7A', // Kulrang-moviy izohlar
-  textMuted: '#90A4AE',     // Ochiqroq matn
-  border: '#CFD8DC',        // Mobi-S jadval chiziqlari
+  // Typography - High legibility, minimal bolding
+  text: '#0F172A',           // Slate-900 (High contrast headers & values)
+  textSecondary: '#475569',  // Slate-600 (Clear subtitles & labels)
+  textMuted: '#94A3B8',      // Slate-400 (Placeholders, secondary metadata)
+  border: '#E2E8F0',         // Slate-200 (Crisp hairline document dividers)
+  borderSubtle: '#F1F5F9',   // Slate-100 (Ultra light separator)
 
-  // Operational Status Badges
-  success: '#2E7D32',       // Yashil (Tashrif qilingan / Bajarilgan)
-  successLight: '#E8F5E9',
-  danger: '#C62828',        // Qizil (Qarz / Xatolik / Nasiya)
-  dangerLight: '#FFEBEE',
-  warning: '#EF6C00',       // Zarg'aldoq (Kutilayotgan / Rejada)
-  warningLight: '#FFF3E0',
-  info: '#0288D1',
-  infoLight: '#E1F5FE',
+  // Operational Status Badges (Soft background + vibrant tone)
+  success: '#16A34A',        // Emerald-600 (Synced, paid, visited)
+  successLight: '#F0FDF4',   // Emerald-50
+  danger: '#E11D48',         // Rose-600 (Debts, delete, cancel)
+  dangerLight: '#FEF2F2',    // Rose-50
+  warning: '#D97706',        // Amber-600 (Pending sync, low stock)
+  warningLight: '#FFFBEB',   // Amber-50
+  info: '#0284C7',           // Sky-600
+  infoLight: '#F0F9FF',      // Sky-50
 
-  shadow: '#000000',
+  shadow: '#0F172A',
 };

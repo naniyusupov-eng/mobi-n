@@ -70,15 +70,17 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
         <TouchableOpacity
           style={styles.stepperBtn}
           onPress={() => updateQuantity(item.product.id, item.unit, -1)}
+          activeOpacity={0.7}
         >
-          <Minus size={14} color={colors.text} />
+          <Minus size={13} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.qtyText}>{item.quantity}</Text>
         <TouchableOpacity
-          style={styles.stepperBtn}
+          style={[styles.stepperBtn, styles.stepperBtnAdd]}
           onPress={() => updateQuantity(item.product.id, item.unit, 1)}
+          activeOpacity={0.7}
         >
-          <Plus size={14} color={colors.primary} />
+          <Plus size={13} color="#FFFFFF" />
         </TouchableOpacity>
       </View>
 
@@ -90,8 +92,9 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
         <TouchableOpacity
           style={styles.deleteBtn}
           onPress={() => removeItem(item.product.id, item.unit)}
+          activeOpacity={0.7}
         >
-          <Trash2 size={15} color={colors.danger} />
+          <Trash2 size={14} color={colors.textMuted} />
         </TouchableOpacity>
       </View>
     </View>
@@ -99,18 +102,18 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      {/* Client Header */}
+      {/* Client Header Strip */}
       <View style={styles.clientStrip}>
-        <Store size={16} color={colors.primary} />
+        <Store size={15} color={colors.primary} />
         <View style={{ flex: 1 }}>
-          <Text style={styles.clientLabel}>{t('checkout_client')}</Text>
-          <Text style={styles.clientName}>
+          <Text style={styles.clientLabel}>{t('checkout_client')}:</Text>
+          <Text style={styles.clientName} numberOfLines={1}>
             {shop ? `${shop.name} (${shop.ownerName})` : '—'}
           </Text>
         </View>
         {items.length > 0 && (
-          <TouchableOpacity onPress={handleClear} style={styles.clearBtn}>
-            <Trash2 size={14} color={colors.danger} />
+          <TouchableOpacity onPress={handleClear} style={styles.clearBtn} activeOpacity={0.7}>
+            <Trash2 size={13} color={colors.danger} />
             <Text style={styles.clearBtnText}>{t('cart_clear')}</Text>
           </TouchableOpacity>
         )}
@@ -118,12 +121,13 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
 
       {items.length === 0 ? (
         <View style={styles.emptyContainer}>
-          <ShoppingBag size={56} color={colors.border} />
+          <ShoppingBag size={48} color={colors.textMuted} />
           <Text style={styles.emptyTitle}>{t('cart_empty')}</Text>
           <Text style={styles.emptyDesc}>{t('cart_empty_sub')}</Text>
           <TouchableOpacity
             style={styles.toCatalogBtn}
             onPress={() => navigation.navigate('CatalogTab')}
+            activeOpacity={0.8}
           >
             <Text style={styles.toCatalogText}>{t('tab_catalog')}</Text>
           </TouchableOpacity>
@@ -137,10 +141,10 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
             contentContainerStyle={styles.listContent}
           />
 
-          {/* Discount Section */}
+          {/* Discount Selector */}
           <View style={styles.discountSection}>
             <View style={styles.discountHeader}>
-              <Tag size={15} color={colors.primary} />
+              <Tag size={13} color={colors.primary} />
               <Text style={styles.discountTitle}>{t('checkout_discount')}</Text>
             </View>
             <View style={styles.discountPillsRow}>
@@ -151,6 +155,7 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
                     key={disc}
                     style={[styles.discPill, isSelected && styles.discPillActive]}
                     onPress={() => setDiscountPercent(disc)}
+                    activeOpacity={0.7}
                   >
                     <Text style={[styles.discPillText, isSelected && styles.discPillTextActive]}>
                       {disc}%
@@ -161,34 +166,43 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
             </View>
           </View>
 
-          {/* Summary & Checkout Button */}
+          {/* Document Summary Card & Checkout Button */}
           <View style={styles.footerContainer}>
             <View style={styles.totalsTable}>
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>{t('checkout_total_before')}</Text>
                 <Text style={styles.totalVal}>{totalAmount.toLocaleString(numLocale)} {t('currency')}</Text>
               </View>
-              <View style={styles.totalRow}>
-                <Text style={styles.totalLabel}>
-                  {lang === 'ru' ? 'Дата доставки:' : lang === 'uz_cyrl' ? 'Етказиш санаси:' : 'Yetkazish sanasi:'}
-                </Text>
-                <Text style={[styles.totalVal, { color: colors.primary, fontWeight: '800' }]}>
-                  {deliveryDate}
-                </Text>
-              </View>
+
+              {deliveryDate ? (
+                <View style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>
+                    {lang === 'ru' ? 'Дата доставки:' : 'Yetkazish sanasi:'}
+                  </Text>
+                  <Text style={[styles.totalVal, { color: colors.primary, fontWeight: '600' }]}>
+                    {deliveryDate}
+                  </Text>
+                </View>
+              ) : null}
+
               {discountPercent > 0 && (
                 <View style={styles.totalRow}>
-                  <Text style={[styles.totalLabel, { color: colors.accent }]}>
-                    {t('checkout_discount')} {discountPercent}%:
+                  <Text style={[styles.totalLabel, { color: colors.danger }]}>
+                    {t('checkout_discount')} ({discountPercent}%):
                   </Text>
-                  <Text style={[styles.totalVal, { color: colors.accent }]}>
+                  <Text style={[styles.totalVal, { color: colors.danger }]}>
                     -{discountAmount.toLocaleString(numLocale)} {t('currency')}
                   </Text>
                 </View>
               )}
-              <View style={[styles.totalRow, styles.grandTotalRow]}>
-                <Text style={styles.grandTotalLabel}>{t('checkout_total_final')}</Text>
-                <Text style={styles.grandTotalVal}>{finalAmount.toLocaleString(numLocale)} {t('currency')}</Text>
+
+              <View style={styles.divider} />
+
+              <View style={styles.totalRowFinal}>
+                <Text style={styles.finalLabel}>{t('checkout_total_final')}</Text>
+                <Text style={styles.finalAmount}>
+                  {finalAmount.toLocaleString(numLocale)} {t('currency')}
+                </Text>
               </View>
             </View>
 
@@ -197,8 +211,8 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
               onPress={() => navigation.navigate('CheckoutScreen')}
               activeOpacity={0.8}
             >
-              <Text style={styles.checkoutBtnText} numberOfLines={1}>{t('cart_proceed')}</Text>
-              <ArrowRight size={18} color="#fff" />
+              <Text style={styles.checkoutBtnText}>{t('cart_proceed')}</Text>
+              <ArrowRight size={16} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </>
@@ -213,138 +227,153 @@ const styles = StyleSheet.create({
     backgroundColor: colors.background,
   },
   clientStrip: {
-    backgroundColor: '#fff',
-    paddingHorizontal: 14,
-    paddingVertical: 10,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
   clientLabel: {
-    fontSize: 9,
-    fontWeight: '800',
+    fontSize: 10,
     color: colors.textSecondary,
   },
   clientName: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.text,
   },
   clearBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    padding: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: colors.dangerLight,
   },
   clearBtnText: {
     fontSize: 11,
-    fontWeight: '700',
     color: colors.danger,
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 30,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  emptyDesc: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  toCatalogBtn: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 6,
+  },
+  toCatalogText: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '600',
   },
   listContent: {
-    padding: 10,
-    gap: 6,
+    padding: 12,
+    gap: 8,
   },
   itemRow: {
-    backgroundColor: '#fff',
-    borderRadius: 6,
-    padding: 10,
     flexDirection: 'row',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
     borderWidth: 1,
     borderColor: colors.border,
+    padding: 10,
     gap: 8,
   },
   indexBadge: {
     width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: colors.surfaceSecondary,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   indexText: {
-    fontSize: 11,
-    color: colors.textMuted,
-    fontWeight: '700',
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
   itemInfo: {
     flex: 1,
   },
   productName: {
-    fontSize: 12,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '600',
     color: colors.text,
+    marginBottom: 2,
   },
   priceDetails: {
-    fontSize: 10,
+    fontSize: 11,
     color: colors.textSecondary,
-    marginTop: 2,
   },
   stepperBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: colors.border,
+    height: 30,
   },
   stepperBtn: {
-    padding: 6,
+    width: 28,
+    height: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperBtnAdd: {
+    backgroundColor: colors.primary,
+    borderTopRightRadius: 5,
+    borderBottomRightRadius: 5,
   },
   qtyText: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '600',
     color: colors.text,
-    minWidth: 24,
-    textAlign: 'center',
+    paddingHorizontal: 6,
   },
   rowRight: {
     alignItems: 'flex-end',
-    gap: 4,
     minWidth: 70,
   },
   rowTotal: {
     fontSize: 12,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.text,
+    marginBottom: 4,
   },
   deleteBtn: {
-    padding: 2,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-    gap: 8,
-  },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  emptyDesc: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 8,
-  },
-  toCatalogBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 6,
-  },
-  toCatalogText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 13,
+    padding: 3,
   },
   discountSection: {
-    backgroundColor: '#fff',
-    padding: 10,
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: colors.border,
+    borderTopColor: colors.border,
   },
   discountHeader: {
     flexDirection: 'row',
@@ -354,8 +383,9 @@ const styles = StyleSheet.create({
   },
   discountTitle: {
     fontSize: 11,
-    fontWeight: '700',
-    color: colors.text,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
   },
   discountPillsRow: {
     flexDirection: 'row',
@@ -365,73 +395,80 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 6,
     borderRadius: 6,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: 'center',
     borderWidth: 1,
     borderColor: colors.border,
-    alignItems: 'center',
   },
   discPillActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primaryBorder,
   },
   discPillText: {
     fontSize: 12,
-    fontWeight: '700',
+    fontWeight: '500',
     color: colors.textSecondary,
   },
   discPillTextActive: {
-    color: '#fff',
+    color: colors.primary,
+    fontWeight: '700',
   },
   footerContainer: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     padding: 12,
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
   totalsTable: {
-    gap: 4,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginBottom: 4,
   },
   totalLabel: {
-    fontSize: 11,
+    fontSize: 12,
     color: colors.textSecondary,
   },
   totalVal: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '500',
     color: colors.text,
   },
-  grandTotalRow: {
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
+  divider: {
+    height: 1,
+    backgroundColor: colors.borderSubtle,
+    marginVertical: 6,
   },
-  grandTotalLabel: {
+  totalRowFinal: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 2,
+  },
+  finalLabel: {
     fontSize: 13,
-    fontWeight: '800',
+    fontWeight: '700',
     color: colors.text,
   },
-  grandTotalVal: {
-    fontSize: 15,
-    fontWeight: '900',
+  finalAmount: {
+    fontSize: 16,
+    fontWeight: '700',
     color: colors.primary,
   },
   checkoutBtn: {
     backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    paddingVertical: 12,
-    borderRadius: 6,
   },
   checkoutBtnText: {
-    color: '#fff',
-    fontWeight: '800',
-    fontSize: 13,
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '600',
   },
 });

@@ -108,14 +108,14 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
     const isLowStock = item.stockDona <= 20;
 
     return (
-      <View style={[styles.productCard, cartQuantity > 0 && styles.productCardInCart]}>
-        {/* Top Info Header */}
+      <View style={[styles.productCard, cartQuantity > 0 && styles.productCardActive]}>
+        {/* Top Header: Code & Stock */}
         <View style={styles.cardHeader}>
           <View style={styles.codePill}>
             <Text style={styles.codeText}>#{item.code}</Text>
           </View>
-          <View style={[styles.stockPill, isLowStock ? styles.stockPillLow : styles.stockPillGood]}>
-            <Text style={[styles.stockText, isLowStock ? styles.stockTextLow : styles.stockTextGood]}>
+          <View style={[styles.stockPill, isLowStock ? styles.stockPillLow : styles.stockPillNormal]}>
+            <Text style={[styles.stockText, isLowStock ? styles.stockTextLow : styles.stockTextNormal]}>
               {t('catalog_in_stock')}: {item.stockDona} {t('pcs')}
             </Text>
           </View>
@@ -123,7 +123,7 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
 
         <Text style={styles.productName}>{item.name}</Text>
 
-        {/* Packaging Unit Switcher with Prices */}
+        {/* Packaging Unit Switcher */}
         <View style={styles.unitSelectorRow}>
           {units.map((u) => {
             const isSelected = currentUnit === u.key;
@@ -142,7 +142,7 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
           })}
         </View>
 
-        {/* Action Bottom Row: Unit Price & Stepper */}
+        {/* Price & Stepper Row */}
         <View style={styles.cardActionRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.currentPriceText}>
@@ -161,19 +161,23 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
               style={[styles.stepperBtn, cartQuantity === 0 && styles.stepperBtnDisabled]}
               onPress={() => handleSubtractOne(item.id, currentUnit)}
               disabled={cartQuantity === 0}
+              activeOpacity={0.7}
             >
-              <Minus size={16} color={cartQuantity > 0 ? colors.text : colors.textMuted} />
+              <Minus size={14} color={cartQuantity === 0 ? colors.textMuted : colors.text} />
             </TouchableOpacity>
 
-            <View style={styles.qtyBox}>
-              <Text style={styles.qtyNumber}>{cartQuantity}</Text>
+            <View style={styles.qtyDisplay}>
+              <Text style={[styles.qtyText, cartQuantity > 0 && styles.qtyTextActive]}>
+                {cartQuantity}
+              </Text>
             </View>
 
             <TouchableOpacity
-              style={[styles.stepperBtn, styles.stepperBtnPlus]}
+              style={[styles.stepperBtn, styles.stepperBtnAdd]}
               onPress={() => handleAddOne(item, currentUnit)}
+              activeOpacity={0.7}
             >
-              <Plus size={16} color="#fff" />
+              <Plus size={14} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
         </View>
@@ -183,95 +187,105 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      {/* Selected Client Bar (Mobi-S Style) */}
-      <View style={styles.clientTopBar}>
-        <View style={styles.clientLeft}>
-          <Store size={16} color="#fff" />
-          <View>
-            <Text style={styles.clientLabel}>{t('checkout_client')}</Text>
-            <Text style={styles.clientName}>
-              {shop ? `${shop.name} (${shop.ownerName})` : '—'}
-            </Text>
-          </View>
+      {/* Active Client Strip */}
+      <View style={styles.clientStrip}>
+        <Store size={14} color={colors.primary} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.clientStripLabel}>{t('checkout_client')}:</Text>
+          <Text style={styles.clientStripName} numberOfLines={1}>
+            {shop ? shop.name : (lang === 'ru' ? 'Клиент не выбран' : 'Mijoz tanlanmagan')}
+          </Text>
         </View>
         <TouchableOpacity
-          style={styles.switchClientBtn}
           onPress={() => navigation.navigate('ShopsTab')}
+          activeOpacity={0.7}
         >
-          <Text style={styles.switchClientText}>{shop ? t('close') : t('confirm')}</Text>
+          <Text style={styles.switchShopText}>
+            {shop ? (lang === 'ru' ? 'Сменить' : 'Almashtirish') : (lang === 'ru' ? 'Выбрать' : 'Tanlash')}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* Search Input Bar */}
+      {/* Search Input */}
       <View style={styles.searchSection}>
-        <View style={styles.searchBox}>
-          <Search size={16} color={colors.textSecondary} />
+        <View style={styles.searchBar}>
+          <Search size={16} color={colors.textMuted} />
           <TextInput
             style={styles.searchInput}
-            placeholder={t('catalog_search_placeholder')}
+            placeholder={t('search') + '...'}
             placeholderTextColor={colors.textMuted}
             value={search}
             onChangeText={setSearch}
           />
           {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')} style={styles.clearSearchBtn}>
-              <X size={15} color={colors.textMuted} />
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <X size={16} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
       </View>
 
-      {/* Categories Horizontal Tabs */}
-      <View style={styles.categoriesSection}>
+      {/* Category Chips Scroll */}
+      <View style={styles.categoriesWrapper}>
         <FlatList
           horizontal
           showsHorizontalScrollIndicator={false}
           data={categories}
           keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.categoryScroll}
           renderItem={({ item }) => {
             const isSelected = selectedCat === item.id;
             return (
               <TouchableOpacity
-                style={[styles.catTab, isSelected && styles.catTabActive]}
+                style={[styles.catChip, isSelected && styles.catChipActive]}
                 onPress={() => setSelectedCat(item.id)}
+                activeOpacity={0.7}
               >
-                <Text style={[styles.catTabText, isSelected && styles.catTabTextActive]}>
+                <Text style={[styles.catChipText, isSelected && styles.catChipTextActive]}>
                   {item.name}
                 </Text>
               </TouchableOpacity>
             );
           }}
-          contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}
         />
       </View>
 
-      {/* Products List */}
+      {/* Product List */}
       <FlatList
         data={products}
         keyExtractor={(item) => item.id}
         renderItem={renderProductRow}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, totalItemsCount > 0 && { paddingBottom: 80 }]}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyText}>{t('search')} — {t('error')}</Text>
+          </View>
+        }
       />
 
       {/* Floating Bottom Cart Bar */}
       {totalItemsCount > 0 && (
-        <View style={styles.bottomCartBar}>
-          <View style={styles.cartBarInfo}>
-            <Text style={styles.cartBarCount}>
-              {t('catalog_cart_total')}: {totalItemsCount} {t('items_count')}
-            </Text>
-            <Text style={styles.cartBarAmount}>
-              {totalAmount.toLocaleString(numLocale)} {t('currency')}
-            </Text>
+        <View style={styles.floatingCartBar}>
+          <View style={styles.cartInfo}>
+            <View style={styles.cartBadge}>
+              <ShoppingCart size={14} color={colors.primary} />
+              <Text style={styles.cartBadgeText}>{totalItemsCount}</Text>
+            </View>
+            <View>
+              <Text style={styles.cartLabel}>{t('checkout_total_final')}</Text>
+              <Text style={styles.cartTotal}>
+                {totalAmount.toLocaleString(numLocale)} {t('currency')}
+              </Text>
+            </View>
           </View>
+
           <TouchableOpacity
             style={styles.goToCartBtn}
             onPress={() => navigation.navigate('CartScreen')}
-            activeOpacity={0.85}
+            activeOpacity={0.8}
           >
-            <ShoppingCart size={16} color="#fff" />
-            <Text style={styles.goToCartText} numberOfLines={1}>{t('cart_proceed')}</Text>
-            <ArrowRight size={14} color="#fff" />
+            <Text style={styles.goToCartText}>{t('nav_cart')}</Text>
+            <ArrowRight size={14} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       )}
@@ -284,156 +298,139 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
-  clientTopBar: {
-    backgroundColor: colors.primaryDark,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  clientLeft: {
+  clientStrip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    flex: 1,
-  },
-  clientLabel: {
-    fontSize: 9,
-    color: colors.primaryLight,
-    fontWeight: '800',
-  },
-  clientName: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  switchClientBtn: {
-    backgroundColor: 'rgba(255,255,255,0.18)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  switchClientText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '700',
-  },
-  searchSection: {
-    padding: 10,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  searchBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 6,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 12,
-    color: colors.text,
-    padding: 0,
-  },
-  categoriesSection: {
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
     paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.border,
   },
-  catTab: {
-    paddingHorizontal: 12,
-    paddingVertical: 5,
-    borderRadius: 6,
-    backgroundColor: colors.background,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  catTabActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  catTabText: {
-    fontSize: 11,
-    fontWeight: '700',
+  clientStripLabel: {
+    fontSize: 10,
     color: colors.textSecondary,
   },
-  catTabTextActive: {
-    color: '#fff',
+  clientStripName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
   },
-  clearSearchBtn: {
-    padding: 4,
+  switchShopText: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: colors.primary,
   },
-  listContent: {
-    padding: 10,
-    gap: 10,
-    paddingBottom: 85,
+  searchSection: {
+    backgroundColor: '#FFFFFF',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
   },
-  productCard: {
-    backgroundColor: '#fff',
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 8,
-    padding: 12,
+    paddingHorizontal: 10,
+    height: 38,
+    gap: 8,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  productCardInCart: {
-    borderLeftWidth: 4,
-    borderLeftColor: colors.primary,
-    borderColor: '#93C5FD',
-    backgroundColor: '#F8FAFC',
+  searchInput: {
+    flex: 1,
+    fontSize: 13,
+    color: colors.text,
+    paddingVertical: 0,
+  },
+  categoriesWrapper: {
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
+  },
+  categoryScroll: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    gap: 6,
+  },
+  catChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
+  },
+  catChipActive: {
+    backgroundColor: colors.primaryLight,
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+  },
+  catChipText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
+  },
+  catChipTextActive: {
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  listContent: {
+    padding: 12,
+    gap: 10,
+  },
+  productCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 12,
+  },
+  productCardActive: {
+    borderColor: colors.primaryBorder,
   },
   cardHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 6,
+    alignItems: 'center',
+    marginBottom: 4,
   },
   codePill: {
-    backgroundColor: '#F1F5F9',
+    backgroundColor: colors.surfaceSecondary,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   codeText: {
     fontSize: 10,
-    fontWeight: '700',
-    color: '#64748B',
-    fontFamily: 'monospace',
+    fontWeight: '600',
+    color: colors.textSecondary,
   },
   stockPill: {
-    paddingHorizontal: 7,
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
-  stockPillGood: {
-    backgroundColor: '#DCFCE7',
+  stockPillNormal: {
+    backgroundColor: colors.successLight,
   },
   stockPillLow: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: colors.warningLight,
   },
   stockText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '600',
   },
-  stockTextGood: {
-    color: '#15803D',
+  stockTextNormal: {
+    color: colors.success,
   },
   stockTextLow: {
-    color: '#B45309',
+    color: colors.warning,
   },
   productName: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: '#0F172A',
+    fontSize: 14,
+    fontWeight: '600',
+    color: colors.text,
     marginBottom: 8,
-    lineHeight: 18,
   },
   unitSelectorRow: {
     flexDirection: 'row',
@@ -441,123 +438,157 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   unitChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 5,
-    backgroundColor: '#F1F5F9',
+    flex: 1,
+    paddingVertical: 5,
+    borderRadius: 6,
+    backgroundColor: colors.surfaceSecondary,
+    alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: colors.border,
   },
   unitChipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    backgroundColor: colors.primaryLight,
+    borderColor: colors.primaryBorder,
   },
   unitChipText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#475569',
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
   },
   unitChipTextActive: {
-    color: '#fff',
+    color: colors.primary,
+    fontWeight: '600',
   },
   cardActionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    alignItems: 'center',
     paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: colors.borderSubtle,
   },
   currentPriceText: {
-    fontSize: 13,
-    fontWeight: '900',
-    color: colors.primaryDark,
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
   },
   currencySub: {
     fontSize: 10,
-    fontWeight: '600',
-    color: '#64748B',
+    fontWeight: '400',
+    color: colors.textSecondary,
   },
   itemSubtotalText: {
     fontSize: 11,
-    fontWeight: '800',
-    color: '#047857',
-    marginTop: 2,
+    color: colors.primary,
+    fontWeight: '500',
+    marginTop: 1,
   },
   stepperContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F8FAFC',
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: 6,
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    overflow: 'hidden',
+    borderColor: colors.border,
+    height: 32,
   },
   stepperBtn: {
-    width: 34,
-    height: 34,
+    width: 32,
+    height: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
   },
   stepperBtnDisabled: {
-    opacity: 0.35,
+    opacity: 0.4,
   },
-  stepperBtnPlus: {
+  stepperBtnAdd: {
     backgroundColor: colors.primary,
+    borderTopRightRadius: 5,
+    borderBottomRightRadius: 5,
   },
-  qtyBox: {
-    minWidth: 32,
+  qtyDisplay: {
+    minWidth: 28,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
-  qtyNumber: {
-    fontSize: 14,
-    fontWeight: '900',
-    color: '#0F172A',
+  qtyText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: colors.textSecondary,
   },
-  bottomCartBar: {
+  qtyTextActive: {
+    color: colors.primary,
+    fontWeight: '700',
+  },
+  emptyContainer: {
+    padding: 30,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 13,
+    color: colors.textMuted,
+  },
+  floatingCartBar: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: '#0F172A',
+    bottom: 12,
+    left: 12,
+    right: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 10,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    elevation: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -3 },
-    shadowOpacity: 0.18,
-    shadowRadius: 6,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.primaryBorder,
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  cartBarInfo: {},
-  cartBarCount: {
+  cartInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  cartBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: colors.primaryLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  cartBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.primary,
+  },
+  cartLabel: {
     fontSize: 10,
-    color: '#94A3B8',
-    fontWeight: '600',
+    color: colors.textSecondary,
   },
-  cartBarAmount: {
-    fontSize: 15,
-    fontWeight: '900',
-    color: '#38BDF8',
+  cartTotal: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: colors.text,
   },
   goToCartBtn: {
     backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-    borderRadius: 6,
   },
   goToCartText: {
-    color: '#fff',
-    fontWeight: '800',
+    color: '#FFFFFF',
     fontSize: 12,
+    fontWeight: '600',
   },
 });
-
