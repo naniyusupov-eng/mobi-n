@@ -89,103 +89,103 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3.5">
       {/* Top Banner & Filters */}
-      <div className="bg-white p-3.5 rounded-lg border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-3 w-full sm:w-auto">
-          <div className="relative w-full sm:w-72">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+      <div className="bg-white p-2.5 rounded-lg border border-slate-200/70 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+        <div className="flex items-center gap-2.5 w-full sm:w-auto">
+          <div className="relative w-full sm:w-64">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400 stroke-[1.6]" />
             <input
               type="text"
               placeholder={t('search_shops_placeholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50/70 border border-slate-200/70 rounded-md text-xs font-normal text-slate-800 placeholder:text-slate-400 outline-none focus:border-slate-400 transition"
             />
           </div>
 
           <button
             onClick={() => setDebtOnly(!debtOnly)}
-            className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 shrink-0 ${
+            className={`px-2.5 py-1.5 rounded-md text-xs font-normal transition flex items-center gap-1.5 shrink-0 border ${
               debtOnly
-                ? 'bg-rose-600 text-white shadow-xs'
-                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                ? 'bg-slate-900 text-white border-slate-900'
+                : 'bg-white text-slate-600 border-slate-200/70 hover:bg-slate-50'
             }`}
           >
-            <AlertCircle className="w-3.5 h-3.5" />
-            {t('filter_debt_only')}
+            <AlertCircle className="w-3.5 h-3.5 stroke-[1.6]" />
+            <span>{t('filter_debt_only')}</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 self-end sm:self-auto">
           <div className="text-right hidden md:block">
-            <div className="text-[10px] uppercase font-bold text-slate-400">{t('total_debt_ledger')}</div>
-            <div className="font-display text-sm font-black text-rose-600 tabular-nums">
+            <div className="text-[10px] text-slate-400 font-normal">{t('total_debt_ledger')}</div>
+            <div className="text-xs font-medium text-slate-900 tabular-nums">
               {totalDebt.toLocaleString(numLocale)} {t('som')}
             </div>
           </div>
           <button
             onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-2 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-md shadow-xs transition shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-md transition shrink-0"
           >
-            <Plus className="w-4 h-4" />
-            {t('btn_add_shop')}
+            <Plus className="w-3.5 h-3.5 stroke-[1.8]" />
+            <span>{t('btn_add_shop')}</span>
           </button>
         </div>
       </div>
 
       {/* Shops Table */}
-      <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-lg border border-slate-200/70 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-bold">
-                <th className="py-2.5 px-4">{t('col_shop_name')}</th>
-                <th className="py-2.5 px-4">{t('col_owner')}</th>
-                <th className="py-2.5 px-4">{t('col_phone')}</th>
-                <th className="py-2.5 px-4">{t('col_address')}</th>
-                <th className="py-2.5 px-4 text-center">{t('col_route_day')}</th>
-                <th className="py-2.5 px-4 text-right">{t('col_debt')}</th>
-                <th className="py-2.5 px-4 text-center">{t('btn_accept_payment')}</th>
+              <tr className="bg-slate-50/60 border-b border-slate-100 text-slate-400 font-medium text-[11px]">
+                <th className="py-2.5 px-3.5">{t('col_shop_name')}</th>
+                <th className="py-2.5 px-3.5">{t('col_owner')}</th>
+                <th className="py-2.5 px-3.5">{t('col_phone')}</th>
+                <th className="py-2.5 px-3.5">{t('col_address')}</th>
+                <th className="py-2.5 px-3.5 text-center">{t('col_route_day')}</th>
+                <th className="py-2.5 px-3.5 text-right">{t('col_debt')}</th>
+                <th className="py-2.5 px-3.5 text-center">{t('btn_accept_payment')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredShops.map((shop) => (
-                <tr key={shop.id} className="hover:bg-slate-50/80 transition">
-                  <td className="py-2.5 px-4">
-                    <div className="font-extrabold text-slate-900">{shop.name}</div>
+                <tr key={shop.id} className="hover:bg-slate-50/50 transition">
+                  <td className="py-2.5 px-3.5">
+                    <div className="font-medium text-slate-900">{shop.name}</div>
                   </td>
-                  <td className="py-2.5 px-4 font-semibold text-slate-700">{shop.ownerName}</td>
-                  <td className="py-2.5 px-4 text-slate-600 font-medium tabular-nums">{shop.phone}</td>
-                  <td className="py-2.5 px-4 text-slate-500">{shop.address}</td>
-                  <td className="py-2.5 px-4 text-center">
-                    <span className="px-2 py-0.5 bg-blue-50 text-blue-700 rounded font-bold text-[11px] border border-blue-200/50">
+                  <td className="py-2.5 px-3.5 font-normal text-slate-600">{shop.ownerName}</td>
+                  <td className="py-2.5 px-3.5 text-slate-500 font-normal tabular-nums">{shop.phone}</td>
+                  <td className="py-2.5 px-3.5 text-slate-400 font-normal">{shop.address}</td>
+                  <td className="py-2.5 px-3.5 text-center">
+                    <span className="px-2 py-0.5 bg-slate-100 text-slate-600 rounded-full font-normal text-[10px]">
                       {getDayName(shop.visitDay)}
                     </span>
                   </td>
-                  <td className="py-2.5 px-4 text-right">
+                  <td className="py-2.5 px-3.5 text-right font-medium tabular-nums">
                     {shop.debtBalance > 0 ? (
-                      <span className="font-display font-black text-rose-600 text-sm tabular-nums">
+                      <span className="text-rose-600">
                         {shop.debtBalance.toLocaleString(numLocale)} {t('som')}
                       </span>
                     ) : (
-                      <span className="font-bold text-emerald-600 text-xs">{t('no_debt')}</span>
+                      <span className="text-slate-400 font-normal text-xs">{t('no_debt')}</span>
                     )}
                   </td>
-                  <td className="py-2.5 px-4 text-center">
+                  <td className="py-2.5 px-3.5 text-center">
                     {shop.debtBalance > 0 ? (
                       <button
                         onClick={() => {
                           setPaymentModalShop(shop);
                           setPayAmount(String(shop.debtBalance));
                         }}
-                        className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold rounded text-xs transition inline-flex items-center gap-1 border border-emerald-200/60"
+                        className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 font-normal rounded text-xs transition inline-flex items-center gap-1 border border-slate-200/80"
                       >
-                        <CreditCard className="w-3.5 h-3.5" />
-                        {t('btn_accept_payment')}
+                        <CreditCard className="w-3.5 h-3.5 stroke-[1.6]" />
+                        <span>{t('btn_accept_payment')}</span>
                       </button>
                     ) : (
-                      <span className="text-slate-300 font-bold">—</span>
+                      <span className="text-slate-300 font-normal">—</span>
                     )}
                   </td>
                 </tr>
@@ -197,41 +197,41 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
 
       {/* Payment Modal */}
       {paymentModalShop && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-in fade-in duration-200">
-            <h3 className="font-display text-base font-black text-slate-900 mb-1">{t('modal_payment_title')}</h3>
-            <p className="text-xs text-slate-500 mb-4">
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg border border-slate-200/80 shadow-lg max-w-sm w-full p-5">
+            <h3 className="text-sm font-semibold text-slate-900 mb-0.5">{t('modal_payment_title')}</h3>
+            <p className="text-xs text-slate-400 font-normal mb-3.5">
               {paymentModalShop.name} • {t('current_debt')}{' '}
-              <strong className="text-rose-600 font-display tabular-nums">
+              <span className="text-rose-600 font-medium tabular-nums">
                 {paymentModalShop.debtBalance.toLocaleString(numLocale)} {t('som')}
-              </strong>
+              </span>
             </p>
 
-            <form onSubmit={handleConfirmPayment} className="space-y-4">
+            <form onSubmit={handleConfirmPayment} className="space-y-3.5">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-normal text-slate-600 mb-1">
                   {t('payment_amount')}
                 </label>
                 <input
                   type="number"
                   value={payAmount}
                   onChange={(e) => setPayAmount(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-base font-black text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 tabular-nums"
+                  className="w-full px-3 py-1.5 bg-slate-50/70 border border-slate-200/80 rounded-md text-sm font-normal text-slate-900 outline-none focus:border-slate-400 tabular-nums"
                   required
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
+              <div className="flex justify-end gap-2 pt-1">
                 <button
                   type="button"
                   onClick={() => setPaymentModalShop(null)}
-                  className="px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-md"
+                  className="px-3 py-1.5 text-xs font-normal text-slate-500 hover:text-slate-800 rounded-md"
                 >
                   {t('btn_cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-md shadow-xs"
+                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-md transition"
                 >
                   {t('btn_save_payment')}
                 </button>
@@ -243,14 +243,14 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
 
       {/* Add Shop Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full p-6 animate-in fade-in duration-200">
-            <h3 className="font-display text-base font-black text-slate-900 mb-1">{t('modal_add_shop_title')}</h3>
-            <p className="text-xs text-slate-500 mb-5">{t('shops_sub')}</p>
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg border border-slate-200/80 shadow-lg max-w-md w-full p-5">
+            <h3 className="text-sm font-semibold text-slate-900 mb-0.5">{t('modal_add_shop_title')}</h3>
+            <p className="text-xs text-slate-400 font-normal mb-4">{t('shops_sub')}</p>
 
-            <form onSubmit={handleCreateShop} className="space-y-4">
+            <form onSubmit={handleCreateShop} className="space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-normal text-slate-600 mb-1">
                   {t('col_shop_name')} *
                 </label>
                 <input
@@ -258,13 +258,13 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
                   placeholder="Fayz Supermarket"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-semibold"
+                  className="w-full px-3 py-1.5 bg-slate-50/70 border border-slate-200/80 rounded-md text-xs font-normal outline-none focus:border-slate-400"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-normal text-slate-600 mb-1">
                   {t('col_owner')} *
                 </label>
                 <input
@@ -272,13 +272,13 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
                   placeholder="Sobir aka"
                   value={ownerName}
                   onChange={(e) => setOwnerName(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-semibold"
+                  className="w-full px-3 py-1.5 bg-slate-50/70 border border-slate-200/80 rounded-md text-xs font-normal outline-none focus:border-slate-400"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-normal text-slate-600 mb-1">
                   {t('col_phone')} *
                 </label>
                 <input
@@ -286,13 +286,13 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
                   placeholder="+998 90 000 00 00"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-semibold"
+                  className="w-full px-3 py-1.5 bg-slate-50/70 border border-slate-200/80 rounded-md text-xs font-normal outline-none focus:border-slate-400"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-normal text-slate-600 mb-1">
                   {t('col_address')} *
                 </label>
                 <input
@@ -300,19 +300,19 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
                   placeholder="Chilonzor 18-mavze, 4-uy"
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-semibold"
+                  className="w-full px-3 py-1.5 bg-slate-50/70 border border-slate-200/80 rounded-md text-xs font-normal outline-none focus:border-slate-400"
                   required
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
+                <label className="block text-xs font-normal text-slate-600 mb-1">
                   {t('col_route_day')}
                 </label>
                 <select
                   value={visitDay}
                   onChange={(e) => setVisitDay(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-md text-xs font-semibold"
+                  className="w-full px-2.5 py-1.5 bg-slate-50/70 border border-slate-200/80 rounded-md text-xs font-normal outline-none"
                 >
                   {daysList.map((d) => (
                     <option key={d.key} value={d.key}>
@@ -326,13 +326,13 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-3.5 py-1.5 text-xs font-bold text-slate-600 hover:bg-slate-100 rounded-md"
+                  className="px-3 py-1.5 text-xs font-normal text-slate-500 hover:text-slate-800 rounded-md"
                 >
                   {t('btn_cancel')}
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-md shadow-xs"
+                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-md transition"
                 >
                   {t('btn_save_shop')}
                 </button>

@@ -25,107 +25,96 @@ export const Header: React.FC<HeaderProps> = ({
   const getLocaleDate = () => {
     const locale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
     return new Date().toLocaleDateString(locale, {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
+      weekday: 'short',
+      month: 'short',
       day: 'numeric',
     });
   };
 
-  const languages: { id: Language; label: string; flag: string }[] = [
-    { id: 'uz', label: "Oʻzbek", flag: '🇺🇿' },
-    { id: 'ru', label: 'Русский', flag: '🇷🇺' },
-    { id: 'uz_cyrl', label: 'Ўзбекча', flag: '🇺🇿' },
+  const languages: { id: Language; label: string }[] = [
+    { id: 'uz', label: 'UZ' },
+    { id: 'ru', label: 'RU' },
+    { id: 'uz_cyrl', label: 'ЎЗ' },
   ];
 
   return (
-    <header className="h-16 bg-white border-b border-slate-200 px-6 sm:px-8 flex items-center justify-between shrink-0 no-print z-10 shadow-xs">
-      <div>
-        <h2 className="font-display text-lg sm:text-xl font-black text-slate-900 leading-tight tracking-tight">
+    <header className="h-14 bg-white border-b border-slate-200/70 px-6 flex items-center justify-between shrink-0 no-print z-10 select-none">
+      <div className="flex items-baseline gap-3">
+        <h2 className="text-sm font-semibold text-slate-900 tracking-tight">
           {title}
         </h2>
-        {subtitle && <p className="text-xs text-slate-500 font-medium hidden sm:block mt-0.5">{subtitle}</p>}
+        {subtitle && (
+          <p className="text-xs text-slate-400 font-normal hidden md:inline">
+            {subtitle}
+          </p>
+        )}
       </div>
 
-      <div className="flex items-center gap-3 sm:gap-4">
-        {/* Live Server Sync Status Badge */}
+      <div className="flex items-center gap-4">
+        {/* Live Server Sync Indicator */}
         <div
           title={isServerConnected ? "Sync Server: Ulangan (192.168.1.47:3000)" : "Sync Server: Bogʻlanilmagan"}
-          className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border transition ${
-            isServerConnected
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-              : 'bg-amber-50 text-amber-700 border-amber-200'
-          }`}
+          className="flex items-center gap-1.5 text-xs text-slate-500 font-normal"
         >
-          <span className={`w-2 h-2 rounded-full ${isServerConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
-          <span className="hidden md:inline">
-            {isServerConnected ? 'Server: Ulangan (3000)' : 'Server: Kutishda'}
+          <span className={`w-1.5 h-1.5 rounded-full ${isServerConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+          <span className="hidden sm:inline text-slate-500">
+            {isServerConnected ? 'Sinxron' : 'Kutishda'}
           </span>
         </div>
 
-        {/* Reset All to 0 Button */}
-        {onResetData && (
-          <button
-            onClick={onResetData}
-            title="Barcha zakaz va qarzlarni 0 qilish"
-            className="flex items-center gap-1 text-xs text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1.5 rounded-md font-semibold transition"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            <span className="hidden xl:inline">0 qilish</span>
-          </button>
-        )}
-
-        {/* Quick Stats Pill */}
-        <div className="hidden xl:flex items-center gap-3 bg-slate-50 border border-slate-200 px-3.5 py-1.5 rounded-md text-xs font-semibold">
-          <div>
-            <span className="text-slate-400">{t('today_sales')} </span>
-            <span className="text-blue-700 font-extrabold tabular-nums">
-              {totalTodaySales.toLocaleString(lang === 'ru' ? 'ru-RU' : 'uz-UZ')} {t('som')}
-            </span>
-          </div>
-          <div className="w-px h-3.5 bg-slate-200" />
-          <div>
-            <span className="text-slate-400">{t('active_agents')} </span>
-            <span className="text-emerald-600 font-black tabular-nums">{activeAgentsCount}</span>
-          </div>
+        {/* Quick Sales Pill */}
+        <div className="hidden xl:flex items-center gap-2 text-xs text-slate-500 font-normal">
+          <span>{t('today_sales')}:</span>
+          <span className="text-slate-900 font-medium tabular-nums">
+            {totalTodaySales.toLocaleString(lang === 'ru' ? 'ru-RU' : 'uz-UZ')} {t('som')}
+          </span>
         </div>
 
         {/* Date Display */}
-        <div className="hidden lg:flex items-center gap-2 text-xs text-slate-600 font-medium bg-slate-50 px-3 py-1.5 rounded-md border border-slate-200">
-          <Calendar className="w-3.5 h-3.5 text-slate-400" />
+        <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-400 font-normal">
+          <Calendar className="w-3.5 h-3.5 stroke-[1.6]" />
           <span className="capitalize">{getLocaleDate()}</span>
         </div>
 
-        {/* Language Switcher Group */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-md border border-slate-200">
+        {/* Language Switcher */}
+        <div className="flex items-center gap-0.5 p-0.5 bg-slate-100/80 rounded-md">
           {languages.map((l) => {
             const isSelected = lang === l.id;
             return (
               <button
                 key={l.id}
                 onClick={() => setLang(l.id)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded text-xs font-bold transition ${
+                className={`px-2 py-0.5 rounded text-[11px] transition ${
                   isSelected
-                    ? 'bg-white text-blue-700 shadow-xs'
-                    : 'text-slate-500 hover:text-slate-800'
+                    ? 'bg-white text-slate-900 font-medium shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800 font-normal'
                 }`}
               >
-                <span>{l.flag}</span>
-                <span className="hidden md:inline">{l.label}</span>
+                {l.label}
               </button>
             );
           })}
         </div>
 
-        {/* Admin Profile */}
-        <div className="flex items-center gap-2.5 pl-2 sm:pl-3 border-l border-slate-200">
-          <div className="w-8 h-8 rounded-md bg-blue-700 text-white font-black text-xs flex items-center justify-center shadow-xs">
-            ADM
+        {/* Reset Button */}
+        {onResetData && (
+          <button
+            onClick={onResetData}
+            title="Barcha ma'lumotlarni 0 qilish"
+            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 rounded-md transition"
+          >
+            <Trash2 className="w-3.5 h-3.5 stroke-[1.6]" />
+          </button>
+        )}
+
+        {/* Admin Avatar */}
+        <div className="flex items-center gap-2 pl-3 border-l border-slate-200/70">
+          <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[10px] font-medium flex items-center justify-center border border-slate-200">
+            A
           </div>
-          <div className="hidden sm:block text-left">
-            <div className="text-xs font-extrabold text-slate-800 leading-none">{t('admin_role')}</div>
-            <span className="text-[10px] text-slate-400 font-semibold">{t('office_name')}</span>
-          </div>
+          <span className="text-xs text-slate-600 font-normal hidden sm:inline">
+            {t('admin_role')}
+          </span>
         </div>
       </div>
     </header>

@@ -34,25 +34,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className="w-64 bg-[#090d16] text-slate-200 flex flex-col shrink-0 border-r border-slate-800/80 no-print">
-      {/* Brand Header with Logo */}
-      <div className="p-4 border-b border-slate-800/90 flex items-center gap-3 bg-[#05080f]">
-        <div className="w-10 h-10 rounded-md overflow-hidden border border-slate-700/80 shrink-0 bg-white flex items-center justify-center p-0.5 shadow-xs">
-          <img src="/logo.jpg" alt="Mobi_R Logo" className="w-full h-full object-cover rounded" />
+    <aside className="w-60 bg-white text-slate-700 flex flex-col shrink-0 border-r border-slate-200/70 no-print select-none">
+      {/* Brand Header */}
+      <div className="h-14 px-4 border-b border-slate-100 flex items-center gap-2.5">
+        <div className="w-7 h-7 rounded-md overflow-hidden border border-slate-200 shrink-0 bg-white flex items-center justify-center p-0.5">
+          <img src="/logo.jpg" alt="Mobi_R" className="w-full h-full object-cover rounded-xs" />
         </div>
-        <div>
-          <h1 className="font-display font-black text-sm tracking-wider text-white leading-none">
-            MOBI_R
+        <div className="min-w-0">
+          <h1 className="text-xs font-semibold text-slate-900 tracking-tight leading-none truncate">
+            Mobi_R
           </h1>
-          <span className="text-[10px] font-extrabold text-amber-400 tracking-widest uppercase mt-1 block">
-            QANDOLAT TRADE
+          <span className="text-[10px] text-slate-400 font-normal block mt-0.5 truncate">
+            Savdo Boshqaruvi
           </span>
         </div>
       </div>
 
       {/* Navigation Links */}
-      <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-        <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider px-3 py-1 mb-1">
+      <nav className="flex-1 p-2.5 space-y-0.5 overflow-y-auto">
+        <div className="text-[10px] text-slate-400 uppercase tracking-wider px-2.5 py-1.5 font-normal">
           {t('nav_section')}
         </div>
         {menuItems.map((item) => {
@@ -62,18 +62,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <button
               key={item.id}
               onClick={() => onPageChange(item.id)}
-              className={`w-full flex items-center justify-between px-3 py-2 rounded-md font-semibold text-xs tracking-wide transition ${
+              className={`w-full flex items-center justify-between px-2.5 py-2 rounded-md text-xs transition ${
                 isActive
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                  ? 'bg-slate-100 text-slate-900 font-medium'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-normal'
               }`}
             >
               <div className="flex items-center gap-2.5">
-                <Icon className={`w-4 h-4 ${isActive ? 'text-white' : 'text-slate-400'}`} />
+                <Icon className={`w-4 h-4 stroke-[1.6] ${isActive ? 'text-slate-900' : 'text-slate-400'}`} />
                 <span>{item.label}</span>
               </div>
               {Boolean(item.badge) && (
-                <span className="bg-amber-500 text-slate-950 font-black text-[10px] px-1.5 py-0.2 rounded">
+                <span className="bg-slate-200/80 text-slate-700 text-[10px] font-normal px-1.5 py-0.5 rounded-full tabular-nums">
                   {item.badge}
                 </span>
               )}
@@ -83,15 +83,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       </nav>
 
       {/* Footer System Status */}
-      <div className="p-3.5 border-t border-slate-800/90 bg-[#060a12] text-xs text-slate-400">
-        <div className="flex items-center justify-between font-medium">
-          <span className="text-[11px] text-slate-400">{t('system_status')}</span>
-          <span className="flex items-center gap-1.5 text-emerald-400 font-bold text-[11px]">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+      <div className="p-3 border-t border-slate-100 text-xs text-slate-400">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] text-slate-400 font-normal">{t('system_status')}</span>
+          <span className="flex items-center gap-1.5 text-slate-600 font-normal text-[11px]">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             {t('server_active')}
           </span>
         </div>
-        <div className="text-[10px] text-slate-500 mt-1 font-mono">{t('version')}</div>
+        <div className="text-[10px] text-slate-400 mt-1 font-mono font-normal">{t('version')}</div>
       </div>
     </aside>
   );

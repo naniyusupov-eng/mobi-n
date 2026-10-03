@@ -79,37 +79,37 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
   return (
     <div className="space-y-3.5">
       {/* Search & Filter Toolbar */}
-      <div className="bg-white p-3 rounded-lg border border-slate-200/90 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
+      <div className="bg-white p-2.5 rounded-lg border border-slate-200/70 flex flex-col sm:flex-row items-center justify-between gap-2.5">
         {/* Search */}
-        <div className="relative w-full sm:w-80">
-          <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+        <div className="relative w-full sm:w-72">
+          <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400 stroke-[1.6]" />
           <input
             type="text"
             placeholder={t('search_orders_placeholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-9 pr-3.5 py-1.5 bg-slate-50 border border-slate-200 rounded-md text-xs font-semibold text-slate-800 placeholder:text-slate-400 outline-none focus:ring-1 focus:ring-blue-500"
+            className="w-full pl-8 pr-3 py-1.5 bg-slate-50/70 border border-slate-200/70 rounded-md text-xs font-normal text-slate-800 placeholder:text-slate-400 outline-none focus:border-slate-400 transition"
           />
         </div>
 
         {/* Status Pills with Counters */}
-        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
+        <div className="flex items-center gap-1 w-full sm:w-auto overflow-x-auto">
           {filterTabs.map((tab) => {
             const isActive = statusFilter === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setStatusFilter(tab.id)}
-                className={`px-3 py-1.5 rounded-md text-xs font-bold transition flex items-center gap-1.5 ${
+                className={`px-2.5 py-1 rounded-md text-xs transition flex items-center gap-1.5 ${
                   isActive
-                    ? 'bg-blue-600 text-white shadow-2xs'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    ? 'bg-slate-900 text-white font-medium shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-normal'
                 }`}
               >
                 <span>{tab.label}</span>
                 <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
-                    isActive ? 'bg-blue-700 text-white' : 'bg-slate-200 text-slate-600'
+                  className={`text-[10px] tabular-nums ${
+                    isActive ? 'text-slate-300 font-normal' : 'text-slate-400 font-normal'
                   }`}
                 >
                   {tab.count}
@@ -122,47 +122,47 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
 
       {/* Summary Metrics Bar */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase">{t('total_orders_count')}</span>
-          <span className="font-display text-base font-black text-slate-900 tabular-nums">{filteredOrders.length}</span>
+        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/70 flex items-center justify-between">
+          <span className="text-xs font-normal text-slate-500">{t('total_orders_count')}</span>
+          <span className="text-base font-semibold text-slate-900 tabular-nums">{filteredOrders.length}</span>
         </div>
-        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase">{t('displayed_sum')}</span>
-          <span className="font-display text-base font-black text-blue-600 tabular-nums">
-            {totalSum.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-500">{t('som')}</span>
+        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/70 flex items-center justify-between">
+          <span className="text-xs font-normal text-slate-500">{t('displayed_sum')}</span>
+          <span className="text-base font-semibold text-slate-900 tabular-nums">
+            {totalSum.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
           </span>
         </div>
-        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/80 shadow-2xs flex items-center justify-between">
-          <span className="text-[11px] font-semibold text-slate-500 uppercase">{t('col_avg_check')}</span>
-          <span className="font-display text-base font-black text-emerald-600 tabular-nums">
-            {avgCheck.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-500">{t('som')}</span>
+        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/70 flex items-center justify-between">
+          <span className="text-xs font-normal text-slate-500">{t('col_avg_check')}</span>
+          <span className="text-base font-semibold text-slate-900 tabular-nums">
+            {avgCheck.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
           </span>
         </div>
       </div>
 
       {/* Orders Table Card */}
-      <div className="bg-white rounded-lg border border-slate-200 shadow-xs overflow-hidden">
+      <div className="bg-white rounded-lg border border-slate-200/70 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50/90 border-b border-slate-200 text-slate-500 uppercase tracking-wider font-bold">
-                <th className="py-2.5 px-4">{t('col_order_id')}</th>
-                <th className="py-2.5 px-4">{t('col_date')}</th>
-                <th className="py-2.5 px-4">{t('col_client')}</th>
-                <th className="py-2.5 px-4">{t('col_agent')}</th>
-                <th className="py-2.5 px-4">{t('col_payment_type')}</th>
-                <th className="py-2.5 px-4 text-right">{t('col_sum')}</th>
-                <th className="py-2.5 px-4 text-center">{t('col_status')}</th>
-                <th className="py-2.5 px-4 text-right">{t('col_actions')}</th>
+              <tr className="bg-slate-50/60 border-b border-slate-100 text-slate-400 font-medium text-[11px]">
+                <th className="py-2.5 px-3.5">{t('col_order_id')}</th>
+                <th className="py-2.5 px-3.5">{t('col_date')}</th>
+                <th className="py-2.5 px-3.5">{t('col_client')}</th>
+                <th className="py-2.5 px-3.5">{t('col_agent')}</th>
+                <th className="py-2.5 px-3.5">{t('col_payment_type')}</th>
+                <th className="py-2.5 px-3.5 text-right">{t('col_sum')}</th>
+                <th className="py-2.5 px-3.5 text-center">{t('col_status')}</th>
+                <th className="py-2.5 px-3.5 text-right">{t('col_actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-slate-50/80 transition">
-                  <td className="py-2.5 px-4 font-mono font-bold text-blue-700">
+                <tr key={order.id} className="hover:bg-slate-50/50 transition">
+                  <td className="py-2.5 px-3.5 font-mono text-[11px] font-normal text-slate-500">
                     #{order.id.slice(-6).toUpperCase()}
                   </td>
-                  <td className="py-2.5 px-4 text-slate-500 font-medium">
+                  <td className="py-2.5 px-3.5 text-slate-500 font-normal">
                     <div>
                       {new Date(order.createdAt).toLocaleDateString(numLocale, {
                         day: '2-digit',
@@ -172,50 +172,50 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
                       })}
                     </div>
                     {order.deliveryDate && (
-                      <div className="text-[10px] text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded font-bold mt-0.5 inline-block border border-emerald-200">
+                      <div className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded font-normal mt-0.5 inline-block">
                         📅 {order.deliveryDate}
                       </div>
                     )}
                   </td>
-                  <td className="py-2.5 px-4">
-                    <div className="font-extrabold text-slate-900">{order.shopName}</div>
-                    <div className="text-[11px] text-slate-400">{order.shopAddress}</div>
+                  <td className="py-2.5 px-3.5">
+                    <div className="font-medium text-slate-900">{order.shopName}</div>
+                    <div className="text-[11px] text-slate-400 font-normal">{order.shopAddress}</div>
                   </td>
-                  <td className="py-2.5 px-4 font-semibold text-slate-700">{order.agentName}</td>
-                  <td className="py-2.5 px-4">
+                  <td className="py-2.5 px-3.5 font-normal text-slate-600">{order.agentName}</td>
+                  <td className="py-2.5 px-3.5">
                     <span
-                      className={`font-bold ${
-                        order.paymentMethod === 'nasiya' ? 'text-rose-600' : 'text-emerald-600'
+                      className={`font-normal ${
+                        order.paymentMethod === 'nasiya' ? 'text-rose-600' : 'text-slate-600'
                       }`}
                     >
                       {getPaymentLabel(order.paymentMethod)}
                     </span>
                   </td>
-                  <td className="py-2.5 px-4 text-right font-display font-bold text-slate-900 text-sm tabular-nums">
+                  <td className="py-2.5 px-3.5 text-right font-medium text-slate-900 tabular-nums">
                     {order.finalAmount.toLocaleString(numLocale)} {t('som')}
                   </td>
-                  <td className="py-2.5 px-4 text-center">
+                  <td className="py-2.5 px-3.5 text-center">
                     <span
-                      className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${
+                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-normal ${
                         order.status === 'new'
-                          ? 'bg-amber-50 text-amber-800 border-amber-200'
+                          ? 'bg-amber-50 text-amber-700'
                           : order.status === 'confirmed'
-                          ? 'bg-blue-50 text-blue-800 border-blue-200'
+                          ? 'bg-blue-50 text-blue-700'
                           : order.status === 'delivered'
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
-                          : 'bg-rose-50 text-rose-800 border-rose-200'
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-rose-50 text-rose-700'
                       }`}
                     >
                       {getStatusLabel(order.status)}
                     </span>
                   </td>
-                  <td className="py-2.5 px-4 text-right">
+                  <td className="py-2.5 px-3.5 text-right">
                     <button
                       onClick={() => onViewOrder(order)}
-                      className="px-2.5 py-1 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded font-bold text-xs transition inline-flex items-center gap-1 border border-slate-200"
+                      className="px-2 py-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded font-normal text-xs transition inline-flex items-center gap-1 border border-slate-200/80"
                     >
-                      <Eye className="w-3.5 h-3.5" />
-                      {t('btn_view_invoice')}
+                      <Eye className="w-3.5 h-3.5 stroke-[1.6]" />
+                      <span>{t('btn_view_invoice')}</span>
                     </button>
                   </td>
                 </tr>
@@ -225,13 +225,13 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
         </div>
 
         {/* Footer Summary */}
-        <div className="p-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs">
-          <div className="text-slate-500 font-medium">
-            {t('total_orders_count')} <strong className="tabular-nums text-slate-800">{filteredOrders.length}</strong>
+        <div className="px-4 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-normal">
+          <div className="text-slate-400">
+            {t('total_orders_count')}: <span className="tabular-nums text-slate-700 font-medium">{filteredOrders.length}</span>
           </div>
           <div className="text-right">
-            <span className="text-slate-500 font-semibold mr-2">{t('displayed_sum')}</span>
-            <span className="text-sm font-display font-black text-slate-900 tabular-nums">
+            <span className="text-slate-400 mr-1.5">{t('displayed_sum')}:</span>
+            <span className="font-medium text-slate-900 tabular-nums">
               {totalSum.toLocaleString(numLocale)} {t('som')}
             </span>
           </div>
