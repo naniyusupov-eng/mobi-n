@@ -50,22 +50,22 @@ export const Header: React.FC<HeaderProps> = ({
         )}
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {/* Live Server Sync Indicator */}
         <div
           title={isServerConnected ? "Sync Server: Ulangan (192.168.1.47:3000)" : "Sync Server: Bogʻlanilmagan"}
-          className="flex items-center gap-1.5 text-xs text-slate-500 font-normal"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-normal border transition bg-sky-50/80 border-sky-200/70 text-sky-800"
         >
-          <span className={`w-1.5 h-1.5 rounded-full ${isServerConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
-          <span className="hidden sm:inline text-slate-500">
-            {isServerConnected ? 'Sinxron' : 'Kutishda'}
+          <span className={`w-1.5 h-1.5 rounded-full ${isServerConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}`} />
+          <span className="hidden sm:inline">
+            {isServerConnected ? 'Server: Ulangan' : 'Kutishda'}
           </span>
         </div>
 
         {/* Quick Sales Pill */}
-        <div className="hidden xl:flex items-center gap-2 text-xs text-slate-500 font-normal">
-          <span>{t('today_sales')}:</span>
-          <span className="text-slate-900 font-medium tabular-nums">
+        <div className="hidden xl:flex items-center gap-2 px-2.5 py-1 bg-slate-50/80 border border-slate-200/60 rounded-md text-xs text-slate-600 font-normal">
+          <span className="text-slate-400">{t('today_sales')}:</span>
+          <span className="text-sky-700 font-medium tabular-nums">
             {totalTodaySales.toLocaleString(lang === 'ru' ? 'ru-RU' : 'uz-UZ')} {t('som')}
           </span>
         </div>
@@ -77,7 +77,7 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
 
         {/* Language Switcher */}
-        <div className="flex items-center gap-0.5 p-0.5 bg-slate-100/80 rounded-md">
+        <div className="flex items-center gap-0.5 p-0.5 bg-slate-100 rounded-md border border-slate-200/60">
           {languages.map((l) => {
             const isSelected = lang === l.id;
             return (
@@ -86,7 +86,7 @@ export const Header: React.FC<HeaderProps> = ({
                 onClick={() => setLang(l.id)}
                 className={`px-2 py-0.5 rounded text-[11px] transition ${
                   isSelected
-                    ? 'bg-white text-slate-900 font-medium shadow-2xs'
+                    ? 'bg-sky-600 text-white font-medium shadow-2xs'
                     : 'text-slate-500 hover:text-slate-800 font-normal'
                 }`}
               >
@@ -109,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Admin Avatar */}
         <div className="flex items-center gap-2 pl-3 border-l border-slate-200/70">
-          <div className="w-6 h-6 rounded-full bg-slate-100 text-slate-600 text-[10px] font-medium flex items-center justify-center border border-slate-200">
+          <div className="w-6 h-6 rounded-full bg-sky-50 text-sky-700 text-[10px] font-medium flex items-center justify-center border border-sky-200/70">
             A
           </div>
           <span className="text-xs text-slate-600 font-normal hidden sm:inline">

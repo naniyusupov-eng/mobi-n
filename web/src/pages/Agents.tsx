@@ -42,18 +42,56 @@ export const Agents: React.FC<AgentsProps> = ({ agents, onOpenQRBadge, onAddAgen
     onOpenQRBadge(newAgent);
   };
 
+  const totalAgentsSales = agents.reduce((sum, a) => sum + a.totalSales, 0);
+  const totalAgentsOrders = agents.reduce((sum, a) => sum + a.ordersCount, 0);
+
   return (
     <div className="space-y-4">
-      {/* Top Banner & Add Button */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {/* 1. Top Summary Cards (New Layout Placement) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="text-xs font-normal text-slate-500 block">Jami savdo agentlari</span>
+            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">{agents.length} nafar</span>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
+            <span className="text-xs font-semibold">AGT</span>
+          </div>
+        </div>
+
+        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="text-xs font-normal text-slate-500 block">Agentlar qabul qilgan zakazlar</span>
+            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">{totalAgentsOrders} ta</span>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
+            <span className="text-xs font-semibold">ORD</span>
+          </div>
+        </div>
+
+        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="text-xs font-normal text-slate-500 block">Jami tushum (savdo)</span>
+            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">
+              {(totalAgentsSales / 1000000).toFixed(1)} mln <span className="text-xs font-normal text-slate-400">{t('som')}</span>
+            </span>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
+            <span className="text-xs font-semibold">UZS</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Top Header & Add Button */}
+      <div className="bg-white p-3 rounded-lg border border-slate-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900">{t('agents_title')}</h3>
-          <p className="text-xs text-slate-400 font-normal">{t('agents_sub')}</p>
+          <h3 className="text-xs font-semibold text-slate-900">{t('agents_title')}</h3>
+          <p className="text-[11px] text-slate-400 font-normal">{t('agents_sub')}</p>
         </div>
 
         <button
           onClick={() => setShowAddModal(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-md transition self-start sm:self-auto"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs rounded-md transition self-start sm:self-auto shadow-2xs"
         >
           <Plus className="w-3.5 h-3.5 stroke-[1.8]" />
           <span>{t('btn_add_agent')}</span>
@@ -65,22 +103,22 @@ export const Agents: React.FC<AgentsProps> = ({ agents, onOpenQRBadge, onAddAgen
         {agents.map((agent) => (
           <div
             key={agent.id}
-            className="bg-white rounded-lg border border-slate-200/70 p-4 flex flex-col justify-between transition hover:border-slate-300"
+            className="bg-white rounded-lg border border-slate-200/70 hover:border-sky-300 p-4 flex flex-col justify-between transition shadow-2xs"
           >
             <div>
               {/* Header */}
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200/60 overflow-hidden flex items-center justify-center shrink-0">
+                  <div className="w-8 h-8 rounded-full bg-sky-50 text-sky-700 border border-sky-100 overflow-hidden flex items-center justify-center shrink-0">
                     {agent.avatarUrl ? (
                       <img src={agent.avatarUrl} alt={agent.name} className="w-full h-full object-cover" />
                     ) : (
-                      <span className="text-xs font-medium text-slate-600">{agent.name.charAt(0)}</span>
+                      <span className="text-xs font-medium">{agent.name.charAt(0)}</span>
                     )}
                   </div>
                   <div>
                     <h4 className="text-xs font-medium text-slate-900">{agent.name}</h4>
-                    <span className="text-[10px] font-mono text-slate-400 font-normal block">
+                    <span className="text-[10px] font-mono text-sky-700 bg-sky-50/70 border border-sky-100 px-1 py-0.2 rounded font-normal inline-block mt-0.5">
                       {agent.code}
                     </span>
                   </div>
@@ -102,7 +140,7 @@ export const Agents: React.FC<AgentsProps> = ({ agents, onOpenQRBadge, onAddAgen
               </div>
 
               {/* Performance Mini Bar */}
-              <div className="mt-3 grid grid-cols-2 gap-2 p-2 bg-slate-50/70 rounded-md text-center border border-slate-100">
+              <div className="mt-3 grid grid-cols-2 gap-2 p-2 bg-sky-50/40 rounded-md text-center border border-sky-100/70">
                 <div>
                   <span className="text-[10px] text-slate-400 font-normal block">
                     {t('agent_orders')}
@@ -113,7 +151,7 @@ export const Agents: React.FC<AgentsProps> = ({ agents, onOpenQRBadge, onAddAgen
                   <span className="text-[10px] text-slate-400 font-normal block">
                     {t('agent_sales')}
                   </span>
-                  <span className="text-xs font-medium text-slate-800 tabular-nums">
+                  <span className="text-xs font-medium text-sky-800 tabular-nums">
                     {(agent.totalSales / 1000000).toFixed(1)} {t('mln')}
                   </span>
                 </div>
@@ -124,9 +162,9 @@ export const Agents: React.FC<AgentsProps> = ({ agents, onOpenQRBadge, onAddAgen
             <div className="mt-3 pt-2.5 border-t border-slate-100">
               <button
                 onClick={() => onOpenQRBadge(agent)}
-                className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-white hover:bg-slate-50 text-slate-700 hover:text-slate-900 rounded-md text-xs font-normal border border-slate-200/80 transition"
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 bg-slate-50 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-200 text-slate-700 rounded-md text-xs font-normal border border-slate-200/80 transition"
               >
-                <QrCode className="w-3.5 h-3.5 text-slate-400 stroke-[1.6]" />
+                <QrCode className="w-3.5 h-3.5 text-sky-600 stroke-[1.6]" />
                 <span>{t('btn_print_qr')}</span>
               </button>
             </div>

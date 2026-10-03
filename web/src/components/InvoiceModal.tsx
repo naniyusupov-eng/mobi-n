@@ -32,14 +32,14 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, onClose, onSt
         {/* Modal Toolbar */}
         <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200/70 no-print">
           <div className="flex items-center gap-2.5">
-            <h3 className="text-xs font-semibold text-slate-800">
-              {t('col_order_id')} #{order.id.slice(-6).toUpperCase()}
-            </h3>
+            <span className="text-[11px] font-mono text-sky-700 bg-sky-50 border border-sky-200/70 px-2 py-0.5 rounded font-normal">
+              #{order.id.slice(-6).toUpperCase()}
+            </span>
             {/* Status Selector */}
             <select
               value={order.status}
               onChange={(e) => onStatusChange(order.id, e.target.value as OrderStatus)}
-              className="text-xs font-normal px-2 py-0.5 rounded border border-slate-200 bg-slate-50/70 text-slate-700 cursor-pointer outline-none"
+              className="text-xs font-normal px-2 py-0.5 rounded border border-slate-200 bg-slate-50/70 text-slate-700 cursor-pointer outline-none hover:border-sky-300 focus:border-sky-400 transition"
             >
               <option value="new">{t('status_new')}</option>
               <option value="confirmed">{t('status_confirmed')}</option>
@@ -51,7 +51,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, onClose, onSt
           <div className="flex items-center gap-2">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-slate-900 hover:bg-slate-800 rounded-md transition"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-sky-600 hover:bg-sky-700 rounded-md transition shadow-2xs"
             >
               <Printer className="w-3.5 h-3.5 stroke-[1.6]" />
               <span>{t('btn_print_a4')}</span>

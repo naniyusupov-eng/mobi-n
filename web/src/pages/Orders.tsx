@@ -3,6 +3,9 @@ import { Order, OrderStatus } from '../types';
 import {
   Search,
   Eye,
+  ShoppingBag,
+  Banknote,
+  Calculator,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -78,38 +81,75 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
 
   return (
     <div className="space-y-3.5">
-      {/* Search & Filter Toolbar */}
-      <div className="bg-white p-2.5 rounded-lg border border-slate-200/70 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+      {/* 1. Summary Metrics Bar (Moved to Top for Macro Overview) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="text-xs font-normal text-slate-500 block">{t('total_orders_count')}</span>
+            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">{filteredOrders.length}</span>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
+            <ShoppingBag className="w-4 h-4 stroke-[1.8]" />
+          </div>
+        </div>
+
+        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="text-xs font-normal text-slate-500 block">{t('displayed_sum')}</span>
+            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">
+              {totalSum.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
+            </span>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
+            <Banknote className="w-4 h-4 stroke-[1.8]" />
+          </div>
+        </div>
+
+        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="text-xs font-normal text-slate-500 block">{t('col_avg_check')}</span>
+            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">
+              {avgCheck.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
+            </span>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
+            <Calculator className="w-4 h-4 stroke-[1.8]" />
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Search & Filter Toolbar */}
+      <div className="bg-white p-2.5 rounded-lg border border-slate-200/70 flex flex-col sm:flex-row items-center justify-between gap-2.5 shadow-2xs">
         {/* Search */}
-        <div className="relative w-full sm:w-72">
+        <div className="relative w-full sm:w-80">
           <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400 stroke-[1.6]" />
           <input
             type="text"
             placeholder={t('search_orders_placeholder')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-slate-50/70 border border-slate-200/70 rounded-md text-xs font-normal text-slate-800 placeholder:text-slate-400 outline-none focus:border-slate-400 transition"
+            className="w-full pl-8 pr-3 py-1.5 bg-slate-50/70 border border-slate-200/70 rounded-md text-xs font-normal text-slate-800 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:bg-white focus:ring-1 focus:ring-sky-100 transition"
           />
         </div>
 
         {/* Status Pills with Counters */}
-        <div className="flex items-center gap-1 w-full sm:w-auto overflow-x-auto">
+        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
           {filterTabs.map((tab) => {
             const isActive = statusFilter === tab.id;
             return (
               <button
                 key={tab.id}
                 onClick={() => setStatusFilter(tab.id)}
-                className={`px-2.5 py-1 rounded-md text-xs transition flex items-center gap-1.5 ${
+                className={`px-3 py-1 rounded-md text-xs transition flex items-center gap-1.5 ${
                   isActive
-                    ? 'bg-slate-900 text-white font-medium shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50 font-normal'
+                    ? 'bg-sky-50 text-sky-900 border border-sky-300 font-medium'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-normal border border-transparent'
                 }`}
               >
                 <span>{tab.label}</span>
                 <span
-                  className={`text-[10px] tabular-nums ${
-                    isActive ? 'text-slate-300 font-normal' : 'text-slate-400 font-normal'
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full tabular-nums ${
+                    isActive ? 'bg-sky-100 text-sky-800 font-medium' : 'bg-slate-100 text-slate-500 font-normal'
                   }`}
                 >
                   {tab.count}
@@ -120,32 +160,12 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
         </div>
       </div>
 
-      {/* Summary Metrics Bar */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/70 flex items-center justify-between">
-          <span className="text-xs font-normal text-slate-500">{t('total_orders_count')}</span>
-          <span className="text-base font-semibold text-slate-900 tabular-nums">{filteredOrders.length}</span>
-        </div>
-        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/70 flex items-center justify-between">
-          <span className="text-xs font-normal text-slate-500">{t('displayed_sum')}</span>
-          <span className="text-base font-semibold text-slate-900 tabular-nums">
-            {totalSum.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
-          </span>
-        </div>
-        <div className="bg-white px-3.5 py-2.5 rounded-lg border border-slate-200/70 flex items-center justify-between">
-          <span className="text-xs font-normal text-slate-500">{t('col_avg_check')}</span>
-          <span className="text-base font-semibold text-slate-900 tabular-nums">
-            {avgCheck.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
-          </span>
-        </div>
-      </div>
-
       {/* Orders Table Card */}
-      <div className="bg-white rounded-lg border border-slate-200/70 overflow-hidden">
+      <div className="bg-white rounded-lg border border-slate-200/70 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50/60 border-b border-slate-100 text-slate-400 font-medium text-[11px]">
+              <tr className="bg-slate-50/70 border-b border-slate-100 text-slate-400 font-medium text-[11px]">
                 <th className="py-2.5 px-3.5">{t('col_order_id')}</th>
                 <th className="py-2.5 px-3.5">{t('col_date')}</th>
                 <th className="py-2.5 px-3.5">{t('col_client')}</th>
@@ -158,9 +178,11 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-slate-50/50 transition">
-                  <td className="py-2.5 px-3.5 font-mono text-[11px] font-normal text-slate-500">
-                    #{order.id.slice(-6).toUpperCase()}
+                <tr key={order.id} className="hover:bg-sky-50/20 transition">
+                  <td className="py-2.5 px-3.5">
+                    <span className="font-mono text-[10px] font-normal text-sky-700 bg-sky-50 border border-sky-200/70 px-1.5 py-0.5 rounded">
+                      #{order.id.slice(-6).toUpperCase()}
+                    </span>
                   </td>
                   <td className="py-2.5 px-3.5 text-slate-500 font-normal">
                     <div>
@@ -172,7 +194,7 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
                       })}
                     </div>
                     {order.deliveryDate && (
-                      <div className="text-[10px] text-emerald-600 bg-emerald-50 px-1.5 py-0.2 rounded font-normal mt-0.5 inline-block">
+                      <div className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.2 rounded font-normal mt-0.5 inline-block border border-sky-100">
                         📅 {order.deliveryDate}
                       </div>
                     )}
@@ -198,12 +220,12 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
                     <span
                       className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-normal ${
                         order.status === 'new'
-                          ? 'bg-amber-50 text-amber-700'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
                           : order.status === 'confirmed'
-                          ? 'bg-blue-50 text-blue-700'
+                          ? 'bg-sky-50 text-sky-700 border border-sky-200/60'
                           : order.status === 'delivered'
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-rose-50 text-rose-700'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200/60'
                       }`}
                     >
                       {getStatusLabel(order.status)}
@@ -212,7 +234,7 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
                   <td className="py-2.5 px-3.5 text-right">
                     <button
                       onClick={() => onViewOrder(order)}
-                      className="px-2 py-1 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded font-normal text-xs transition inline-flex items-center gap-1 border border-slate-200/80"
+                      className="px-2.5 py-1 text-sky-800 hover:text-sky-950 bg-sky-50 hover:bg-sky-100 rounded font-medium text-xs transition inline-flex items-center gap-1 border border-sky-200/70"
                     >
                       <Eye className="w-3.5 h-3.5 stroke-[1.6]" />
                       <span>{t('btn_view_invoice')}</span>

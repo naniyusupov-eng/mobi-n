@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { Shop } from '../types';
-import { Plus, Search, AlertCircle, CreditCard } from 'lucide-react';
+import { Plus, Search, AlertCircle, CreditCard, Store, Users } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 interface ShopsProps {
@@ -53,6 +53,7 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
   }, [shops, search, debtOnly]);
 
   const totalDebt = shops.reduce((sum, s) => sum + s.debtBalance, 0);
+  const debtShopsCount = shops.filter((s) => s.debtBalance > 0).length;
   const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
 
   const handleCreateShop = (e: React.FormEvent) => {
@@ -90,56 +91,83 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
 
   return (
     <div className="space-y-3.5">
-      {/* Top Banner & Filters */}
-      <div className="bg-white p-2.5 rounded-lg border border-slate-200/70 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+      {/* 1. Top Summary Cards (New Layout Placement) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="text-xs font-normal text-slate-500 block">Jami do'konlar</span>
+            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">{shops.length} ta</span>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
+            <Store className="w-4 h-4 stroke-[1.8]" />
+          </div>
+        </div>
+
+        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-amber-300 transition flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="text-xs font-normal text-slate-500 block">Qarzdor do'konlar</span>
+            <span className="text-xl font-semibold text-amber-700 tabular-nums mt-0.5 block">{debtShopsCount} ta</span>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center">
+            <AlertCircle className="w-4 h-4 stroke-[1.8]" />
+          </div>
+        </div>
+
+        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="text-xs font-normal text-slate-500 block">{t('total_debt_ledger')}</span>
+            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">
+              {totalDebt.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
+            </span>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
+            <CreditCard className="w-4 h-4 stroke-[1.8]" />
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Top Banner & Filters */}
+      <div className="bg-white p-2.5 rounded-lg border border-slate-200/70 flex flex-col sm:flex-row items-center justify-between gap-2.5 shadow-2xs">
         <div className="flex items-center gap-2.5 w-full sm:w-auto">
-          <div className="relative w-full sm:w-64">
+          <div className="relative w-full sm:w-72">
             <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400 stroke-[1.6]" />
             <input
               type="text"
               placeholder={t('search_shops_placeholder')}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-slate-50/70 border border-slate-200/70 rounded-md text-xs font-normal text-slate-800 placeholder:text-slate-400 outline-none focus:border-slate-400 transition"
+              className="w-full pl-8 pr-3 py-1.5 bg-slate-50/70 border border-slate-200/70 rounded-md text-xs font-normal text-slate-800 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:bg-white focus:ring-1 focus:ring-sky-100 transition"
             />
           </div>
 
           <button
             onClick={() => setDebtOnly(!debtOnly)}
-            className={`px-2.5 py-1.5 rounded-md text-xs font-normal transition flex items-center gap-1.5 shrink-0 border ${
+            className={`px-3 py-1.5 rounded-md text-xs transition flex items-center gap-1.5 shrink-0 border ${
               debtOnly
-                ? 'bg-slate-900 text-white border-slate-900'
-                : 'bg-white text-slate-600 border-slate-200/70 hover:bg-slate-50'
+                ? 'bg-sky-50 text-sky-900 border-sky-300 font-medium'
+                : 'bg-white text-slate-600 border-slate-200/70 hover:bg-slate-50 font-normal'
             }`}
           >
-            <AlertCircle className="w-3.5 h-3.5 stroke-[1.6]" />
+            <AlertCircle className={`w-3.5 h-3.5 stroke-[1.6] ${debtOnly ? 'text-sky-600' : 'text-slate-400'}`} />
             <span>{t('filter_debt_only')}</span>
           </button>
         </div>
 
-        <div className="flex items-center gap-3 self-end sm:self-auto">
-          <div className="text-right hidden md:block">
-            <div className="text-[10px] text-slate-400 font-normal">{t('total_debt_ledger')}</div>
-            <div className="text-xs font-medium text-slate-900 tabular-nums">
-              {totalDebt.toLocaleString(numLocale)} {t('som')}
-            </div>
-          </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-md transition shrink-0"
-          >
-            <Plus className="w-3.5 h-3.5 stroke-[1.8]" />
-            <span>{t('btn_add_shop')}</span>
-          </button>
-        </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-medium text-xs rounded-md transition shrink-0 self-start sm:self-auto shadow-2xs"
+        >
+          <Plus className="w-3.5 h-3.5 stroke-[1.8]" />
+          <span>{t('btn_add_shop')}</span>
+        </button>
       </div>
 
       {/* Shops Table */}
-      <div className="bg-white rounded-lg border border-slate-200/70 overflow-hidden">
+      <div className="bg-white rounded-lg border border-slate-200/70 overflow-hidden shadow-2xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50/60 border-b border-slate-100 text-slate-400 font-medium text-[11px]">
+              <tr className="bg-slate-50/70 border-b border-slate-100 text-slate-400 font-medium text-[11px]">
                 <th className="py-2.5 px-3.5">{t('col_shop_name')}</th>
                 <th className="py-2.5 px-3.5">{t('col_owner')}</th>
                 <th className="py-2.5 px-3.5">{t('col_phone')}</th>
@@ -151,7 +179,7 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredShops.map((shop) => (
-                <tr key={shop.id} className="hover:bg-slate-50/50 transition">
+                <tr key={shop.id} className="hover:bg-sky-50/20 transition">
                   <td className="py-2.5 px-3.5">
                     <div className="font-medium text-slate-900">{shop.name}</div>
                   </td>
@@ -179,7 +207,7 @@ export const Shops: React.FC<ShopsProps> = ({ shops, onAddShop, onRecordPayment 
                           setPaymentModalShop(shop);
                           setPayAmount(String(shop.debtBalance));
                         }}
-                        className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-900 font-normal rounded text-xs transition inline-flex items-center gap-1 border border-slate-200/80"
+                        className="px-2.5 py-1 bg-sky-50 hover:bg-sky-100 text-sky-800 hover:text-sky-950 font-medium rounded text-xs transition inline-flex items-center gap-1 border border-sky-200/70"
                       >
                         <CreditCard className="w-3.5 h-3.5 stroke-[1.6]" />
                         <span>{t('btn_accept_payment')}</span>

@@ -30,42 +30,63 @@ export const Reports: React.FC<ReportsProps> = ({ orders, agents, products }) =>
       <div>
         <h3 className="text-xs font-semibold text-slate-900 mb-2.5">{t('rev_structure')}</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="bg-white p-3.5 rounded-lg border border-slate-200/70">
+          <div className="bg-white p-4 rounded-lg border border-slate-200/70 hover:border-sky-300 transition shadow-2xs">
             <span className="text-xs text-slate-400 font-normal">{t('rev_total')}</span>
-            <div className="text-lg font-semibold text-slate-900 mt-1 tabular-nums">
+            <div className="text-xl font-semibold text-slate-900 mt-1 tabular-nums">
               {totalRevenue.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
             </div>
-            <span className="text-[11px] text-slate-400 font-normal mt-0.5 block">
+            <div className="w-full h-1 bg-sky-50 rounded-full overflow-hidden mt-3">
+              <div className="h-full bg-sky-500 rounded-full w-full" />
+            </div>
+            <span className="text-[11px] text-slate-400 font-normal mt-1.5 block">
               {t('sales_volume_100')}
             </span>
           </div>
 
-          <div className="bg-white p-3.5 rounded-lg border border-slate-200/70">
+          <div className="bg-white p-4 rounded-lg border border-slate-200/70 hover:border-sky-300 transition shadow-2xs">
             <span className="text-xs text-slate-400 font-normal">{t('rev_cash')}</span>
-            <div className="text-lg font-semibold text-slate-900 mt-1 tabular-nums">
+            <div className="text-xl font-semibold text-slate-900 mt-1 tabular-nums">
               {cashRevenue.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
             </div>
-            <span className="text-[11px] text-slate-400 font-normal mt-0.5 block tabular-nums">
+            <div className="w-full h-1 bg-sky-50 rounded-full overflow-hidden mt-3">
+              <div
+                className="h-full bg-sky-500 rounded-full"
+                style={{ width: `${totalRevenue > 0 ? (cashRevenue / totalRevenue) * 100 : 0}%` }}
+              />
+            </div>
+            <span className="text-[11px] text-sky-700 font-normal mt-1.5 block tabular-nums">
               {totalRevenue > 0 ? ((cashRevenue / totalRevenue) * 100).toFixed(0) : 0}% {t('share')}
             </span>
           </div>
 
-          <div className="bg-white p-3.5 rounded-lg border border-slate-200/70">
+          <div className="bg-white p-4 rounded-lg border border-slate-200/70 hover:border-amber-300 transition shadow-2xs">
             <span className="text-xs text-slate-400 font-normal">{t('rev_debt')}</span>
-            <div className="text-lg font-semibold text-slate-900 mt-1 tabular-nums">
+            <div className="text-xl font-semibold text-slate-900 mt-1 tabular-nums">
               {debtRevenue.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
             </div>
-            <span className="text-[11px] text-slate-400 font-normal mt-0.5 block tabular-nums">
+            <div className="w-full h-1 bg-amber-50 rounded-full overflow-hidden mt-3">
+              <div
+                className="h-full bg-amber-500 rounded-full"
+                style={{ width: `${totalRevenue > 0 ? (debtRevenue / totalRevenue) * 100 : 0}%` }}
+              />
+            </div>
+            <span className="text-[11px] text-amber-700 font-normal mt-1.5 block tabular-nums">
               {totalRevenue > 0 ? ((debtRevenue / totalRevenue) * 100).toFixed(0) : 0}% {t('share')}
             </span>
           </div>
 
-          <div className="bg-white p-3.5 rounded-lg border border-slate-200/70">
+          <div className="bg-white p-4 rounded-lg border border-slate-200/70 hover:border-sky-300 transition shadow-2xs">
             <span className="text-xs text-slate-400 font-normal">{t('rev_bank')}</span>
-            <div className="text-lg font-semibold text-slate-900 mt-1 tabular-nums">
+            <div className="text-xl font-semibold text-slate-900 mt-1 tabular-nums">
               {bankRevenue.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
             </div>
-            <span className="text-[11px] text-slate-400 font-normal mt-0.5 block tabular-nums">
+            <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden mt-3">
+              <div
+                className="h-full bg-slate-500 rounded-full"
+                style={{ width: `${totalRevenue > 0 ? (bankRevenue / totalRevenue) * 100 : 0}%` }}
+              />
+            </div>
+            <span className="text-[11px] text-slate-500 font-normal mt-1.5 block tabular-nums">
               {totalRevenue > 0 ? ((bankRevenue / totalRevenue) * 100).toFixed(0) : 0}% {t('share')}
             </span>
           </div>
@@ -73,14 +94,14 @@ export const Reports: React.FC<ReportsProps> = ({ orders, agents, products }) =>
       </div>
 
       {/* Agents Performance Table */}
-      <div className="bg-white rounded-lg border border-slate-200/70 overflow-hidden">
+      <div className="bg-white rounded-lg border border-slate-200/70 overflow-hidden shadow-2xs">
         <div className="px-4 py-3 border-b border-slate-100">
           <h3 className="text-xs font-semibold text-slate-900">{t('agent_performance')}</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
-              <tr className="bg-slate-50/60 border-b border-slate-100 text-slate-400 font-medium text-[11px]">
+              <tr className="bg-slate-50/70 border-b border-slate-100 text-slate-400 font-medium text-[11px]">
                 <th className="py-2.5 px-3.5">{t('col_agent')}</th>
                 <th className="py-2.5 px-3.5">{t('field_agent_territory')}</th>
                 <th className="py-2.5 px-3.5 text-center">{t('agent_orders')}</th>
@@ -92,7 +113,7 @@ export const Reports: React.FC<ReportsProps> = ({ orders, agents, products }) =>
               {agents.map((agent) => {
                 const avgCheck = agent.ordersCount > 0 ? Math.round(agent.totalSales / agent.ordersCount) : 0;
                 return (
-                  <tr key={agent.id} className="hover:bg-slate-50/50 transition-colors">
+                  <tr key={agent.id} className="hover:bg-sky-50/20 transition-colors">
                     <td className="py-2.5 px-3.5 font-medium text-slate-900">{agent.name}</td>
                     <td className="py-2.5 px-3.5 text-slate-400 font-normal text-[11px]">{agent.territory}</td>
                     <td className="py-2.5 px-3.5 text-center font-normal text-slate-700 tabular-nums">
@@ -113,7 +134,7 @@ export const Reports: React.FC<ReportsProps> = ({ orders, agents, products }) =>
       </div>
 
       {/* Top Confectionery Products */}
-      <div className="bg-white rounded-lg border border-slate-200/70 p-4">
+      <div className="bg-white rounded-lg border border-slate-200/70 p-4 shadow-2xs">
         <h3 className="text-xs font-semibold text-slate-900 mb-3">
           {t('product_turnover')}
         </h3>
@@ -121,7 +142,7 @@ export const Reports: React.FC<ReportsProps> = ({ orders, agents, products }) =>
           {products.slice(0, 6).map((product) => (
             <div
               key={product.id}
-              className="p-2.5 bg-white rounded-md border border-slate-200/70 flex items-center justify-between hover:border-slate-300 transition"
+              className="p-3 bg-white rounded-md border border-slate-200/70 flex items-center justify-between hover:border-sky-300 hover:bg-sky-50/10 transition"
             >
               <div>
                 <div className="font-medium text-xs text-slate-900">{product.name}</div>
@@ -131,7 +152,7 @@ export const Reports: React.FC<ReportsProps> = ({ orders, agents, products }) =>
                 </div>
               </div>
               <div className="text-right">
-                <span className="text-xs font-medium text-slate-900 tabular-nums">{product.stockDona} {t('stock_unit')}</span>
+                <span className="text-xs font-medium text-sky-800 tabular-nums">{product.stockDona} {t('stock_unit')}</span>
                 <span className="block text-[10px] text-slate-400 font-normal">{t('warehouse_stock')}</span>
               </div>
             </div>
