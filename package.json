@@ -37,7 +37,8 @@
     "build:apk": "eas build -p android --profile preview",
     "web:dev": "npm run dev --prefix web",
     "web:build": "npm run build --prefix web",
-    "server": "node server/sync-server.cjs"
+    "server": "node server/sync-server.cjs",
+    "qr": "node server/show-qr.cjs"
   },
   "private": true
 }
