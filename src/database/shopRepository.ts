@@ -17,7 +17,7 @@ export const shopRepository = {
       params.$day = visitDay;
     }
 
-    query += ' ORDER BY name ASC';
+    query += ' ORDER BY routeDay IS NULL, routeDay ASC, num ASC, name ASC';
 
     const rows = db.getAllSync<any>(query, params);
     return rows.map((r) => ({
@@ -106,10 +106,72 @@ export const shopRepository = {
 
   collectPayment: (shopId: string, amount: number) => {
     const db = getDatabase();
-    db.runSync(
-      'UPDATE shops SET debtBalance = MAX(0, debtBalance - $amount) WHERE id = $id',
-      { $amount: amount, $id: shopId }
+    const id = `pay_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    const createdAt = new Date().toISOString();
+    db.withTransactionSync(() => {
+      db.runSync(
+        'UPDATE shops SET debtBalance = MAX(0, debtBalance - $amount) WHERE id = $id',
+        { $amount: amount, $id: shopId }
+      );
+      // Queue for the server so the debt on the website goes down too
+      db.runSync(
+        `INSERT INTO sync_queue (id, entityType, entityId, action, payloadJson, status, createdAt)
+         VALUES ($id, 'payment', $entityId, 'create', $payload, 'pending', $createdAt)`,
+        {
+          $id: `sync_${id}`,
+          $entityId: shopId,
+          $payload: JSON.stringify({ id, shopId, amount, createdAt }),
+          $createdAt: createdAt,
+        }
+      );
+    });
+  },
+
+  // Replaces the line's shops with the list downloaded from the server.
+  // Shops added on this phone that are not on a route yet are kept.
+  replaceLineShops: (lineCode: string, shops: Shop[]) => {
+    const db = getDatabase();
+    // Keep "visited today" marks across the refresh
+    const visited = new Map(
+      db
+        .getAllSync<{ id: string; lastVisitedAt: string }>('SELECT id, lastVisitedAt FROM shops WHERE lastVisitedAt IS NOT NULL')
+        .map((r) => [r.id, r.lastVisitedAt])
     );
+    db.withTransactionSync(() => {
+      db.runSync('DELETE FROM shops WHERE lineCode IS NOT NULL');
+      const insert = db.prepareSync(`
+        INSERT OR REPLACE INTO shops (
+          id, name, ownerName, phone, address, latitude, longitude, debtBalance, visitDay,
+          lastVisitedAt, createdAt, isSynced, lineCode, routeDay, num, notes
+        ) VALUES (
+          $id, $name, $ownerName, $phone, $address, $latitude, $longitude, $debtBalance, $visitDay,
+          $lastVisitedAt, $createdAt, 1, $lineCode, $routeDay, $num, $notes
+        )
+      `);
+      try {
+        for (const s of shops) {
+          insert.executeSync({
+            $id: s.id,
+            $name: s.name,
+            $ownerName: s.ownerName || '',
+            $phone: s.phone || '',
+            $address: s.address || '',
+            $latitude: s.latitude ?? null,
+            $longitude: s.longitude ?? null,
+            $debtBalance: s.debtBalance || 0,
+            $visitDay: s.visitDay,
+            $lastVisitedAt: visited.get(s.id) ?? null,
+            $createdAt: s.createdAt,
+            $lineCode: lineCode,
+            $routeDay: s.routeDay ?? null,
+            $num: s.num ?? null,
+            $notes: s.notes || null,
+          });
+        }
+      } finally {
+        insert.finalizeSync();
+      }
+    });
   },
 
   markVisited: (shopId: string) => {

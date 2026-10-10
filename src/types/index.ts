@@ -9,6 +9,7 @@ export interface Agent {
   token: string;          // NestJS JWT token
   avatarUrl?: string;
   loginAt?: string;
+  lineCode?: string;      // Liniya (e.g. "4-3"); session comes from the line QR code
 }
 
 export interface Category {
@@ -48,6 +49,10 @@ export interface Shop {
   lastVisitedAt?: string;
   createdAt: string;
   isSynced: boolean;      // Serverga yuborilganmi
+  lineCode?: string;      // Liniya (e.g. "4-3")
+  routeDay?: number;      // Hafta kuni: 1 = Dushanba ... 6 = Shanba (marshrut 4-3-1)
+  num?: number;           // Doʻkonning marshrutdagi raqami
+  notes?: string;         // e.g. "Стелаж"
 }
 
 export type PaymentMethod = 'naqd' | 'nasiya' | 'otkazma';
@@ -95,7 +100,7 @@ export interface CartItem {
 
 export interface SyncQueueItem {
   id: string;
-  entityType: 'order' | 'shop';
+  entityType: 'order' | 'shop' | 'payment';
   entityId: string;
   action: 'create' | 'update';
   payloadJson: string;

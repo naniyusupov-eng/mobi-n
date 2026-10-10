@@ -5,14 +5,15 @@ export const syncRepository = {
   getPending: (): SyncQueueItem[] => {
     const db = getDatabase();
     return db.getAllSync<SyncQueueItem>(
-      'SELECT * FROM sync_queue WHERE status = "pending" ORDER BY createdAt ASC'
+      // Failed items are retried on the next sync (e.g. the phone was offline)
+      "SELECT * FROM sync_queue WHERE status IN ('pending', 'failed') ORDER BY createdAt ASC"
     );
   },
 
   getPendingCount: (): number => {
     const db = getDatabase();
     const result = db.getFirstSync<{ count: number }>(
-      'SELECT COUNT(*) as count FROM sync_queue WHERE status = "pending"'
+      "SELECT COUNT(*) as count FROM sync_queue WHERE status IN ('pending', 'failed')"
     );
     return result?.count || 0;
   },

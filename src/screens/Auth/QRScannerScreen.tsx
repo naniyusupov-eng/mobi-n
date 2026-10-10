@@ -12,17 +12,16 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import { useAuthStore, DEMO_AGENTS } from '../../store/authStore';
+import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { MobileLanguage } from '../../i18n/mobileTranslations';
 import { colors } from '../../theme/colors';
-import { Sparkles, UserCheck, ShieldAlert, KeyRound, Globe } from 'lucide-react-native';
+import { ShieldAlert, KeyRound } from 'lucide-react-native';
 
 export const QRScannerScreen = () => {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [manualCode, setManualCode] = useState('');
-  const [showManual, setShowManual] = useState(false);
   const { loginWithQR, isLoading } = useAuthStore();
   const { lang, setLang, t } = useLanguageStore();
 
@@ -151,64 +150,31 @@ export const QRScannerScreen = () => {
           )}
         </View>
 
-        {/* Demo Fast Login Buttons (Essential for testing & when camera is unavailable) */}
-        <View style={styles.demoSection}>
-          <View style={styles.demoHeader}>
-            <Sparkles size={18} color={colors.primary} />
-            <Text style={styles.demoTitle}>{t('auth_manual_title')}</Text>
+        {/* Manual line code entry (e.g. 4-3) when the camera is unavailable */}
+        <View style={styles.manualToggleContainer}>
+          <View style={styles.toggleBtn}>
+            <KeyRound size={16} color={colors.textSecondary} />
+            <Text style={styles.toggleBtnText}>{t('auth_enter_code')}</Text>
           </View>
 
-          {DEMO_AGENTS.map((demo) => (
+          <View style={styles.manualInputBox}>
+            <TextInput
+              style={styles.input}
+              placeholder={t('auth_code_placeholder')}
+              placeholderTextColor={colors.textMuted}
+              value={manualCode}
+              onChangeText={setManualCode}
+              keyboardType="numbers-and-punctuation"
+              onSubmitEditing={() => handleManualLogin()}
+            />
             <TouchableOpacity
-              key={demo.id}
-              style={styles.demoCard}
-              onPress={() => handleManualLogin(demo.code)}
-              activeOpacity={0.7}
+              style={styles.manualSubmitBtn}
+              onPress={() => handleManualLogin()}
               disabled={isLoading}
             >
-              <View style={styles.demoIconBadge}>
-                <UserCheck size={20} color={colors.primary} />
-              </View>
-              <View style={styles.demoInfo}>
-                <Text style={styles.demoName}>{demo.name}</Text>
-                <Text style={styles.demoTerritory}>{demo.territory} • {demo.code}</Text>
-              </View>
-              <Text style={styles.demoActionText}>{t('auth_login_btn')} →</Text>
+              <Text style={styles.manualSubmitText}>{t('auth_login_btn')}</Text>
             </TouchableOpacity>
-          ))}
-        </View>
-
-        {/* Manual Code Entry Toggle */}
-        <View style={styles.manualToggleContainer}>
-          <TouchableOpacity
-            style={styles.toggleBtn}
-            onPress={() => setShowManual(!showManual)}
-          >
-            <KeyRound size={16} color={colors.textSecondary} />
-            <Text style={styles.toggleBtnText}>
-              {showManual ? t('close') : t('auth_enter_code')}
-            </Text>
-          </TouchableOpacity>
-
-          {showManual && (
-            <View style={styles.manualInputBox}>
-              <TextInput
-                style={styles.input}
-                placeholder={t('auth_code_placeholder')}
-                placeholderTextColor={colors.textMuted}
-                value={manualCode}
-                onChangeText={setManualCode}
-                autoCapitalize="characters"
-              />
-              <TouchableOpacity
-                style={styles.manualSubmitBtn}
-                onPress={() => handleManualLogin()}
-                disabled={isLoading}
-              >
-                <Text style={styles.manualSubmitText}>{t('auth_login_btn')}</Text>
-              </TouchableOpacity>
-            </View>
-          )}
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -410,58 +376,6 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 13,
     fontWeight: '600',
-    color: colors.primary,
-  },
-  demoSection: {
-    width: '100%',
-    marginTop: 20,
-  },
-  demoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 10,
-  },
-  demoTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  demoCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  demoIconBadge: {
-    width: 38,
-    height: 38,
-    borderRadius: 8,
-    backgroundColor: colors.primaryLight,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  demoInfo: {
-    flex: 1,
-  },
-  demoName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  demoTerritory: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  demoActionText: {
-    fontSize: 13,
-    fontWeight: '700',
     color: colors.primary,
   },
   manualToggleContainer: {

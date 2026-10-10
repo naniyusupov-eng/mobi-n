@@ -231,17 +231,17 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
 
     // Auth
     auth_brand: 'Mobi_R Qandolat',
-    auth_subtitle: 'Savdo agenti avtorizatsiyasi',
-    auth_scan_hint: 'Tizimga kirish uchun shaxsiy QR-kodingizni kameraga koʻrsating',
+    auth_subtitle: 'Liniyaga ulanish',
+    auth_scan_hint: 'Ishlash uchun liniya QR kodini kameraga koʻrsating',
     auth_camera_permission: 'Kamera ruxsati zarur',
     auth_grant_camera: 'Kameraga ruxsat berish',
     auth_manual_title: 'Yoki demo agent profilini tanlang:',
-    auth_enter_code: 'Agent kodini qoʻlda kiritish',
-    auth_code_placeholder: 'AGENT-QND-101',
+    auth_enter_code: 'Liniya kodini qoʻlda kiritish',
+    auth_code_placeholder: '4-3',
     auth_login_btn: 'Tizimga kirish',
     auth_error_title: 'Avtorizatsiya xatosi',
     auth_retry: 'Qayta urinish',
-    auth_enter_code_alert: 'Iltimos, agent kodi yoki QR matnini kiriting',
+    auth_enter_code_alert: 'Iltimos, liniya kodini kiriting, masalan 4-3',
 
     // Home
     home_brand: 'MOBI_R',
@@ -427,17 +427,17 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
 
     // Auth
     auth_brand: 'Моби-С Кондитер',
-    auth_subtitle: 'Авторизация торгового представителя',
-    auth_scan_hint: 'Наведите камеру на персональный QR-код для входа',
+    auth_subtitle: 'Подключение к линии',
+    auth_scan_hint: 'Наведите камеру на QR-код линии',
     auth_camera_permission: 'Требуется доступ к камере',
     auth_grant_camera: 'Разрешить доступ к камере',
     auth_manual_title: 'Или выберите демо-агента:',
-    auth_enter_code: 'Ввести код агента вручную',
-    auth_code_placeholder: 'AGENT-QND-101',
+    auth_enter_code: 'Ввести код линии вручную',
+    auth_code_placeholder: '4-3',
     auth_login_btn: 'Войти в систему',
     auth_error_title: 'Ошибка авторизации',
     auth_retry: 'Повторить попытку',
-    auth_enter_code_alert: 'Пожалуйста, введите код агента или QR-строку',
+    auth_enter_code_alert: 'Введите код линии, например 4-3',
 
     // Home
     home_brand: 'МОБИ-С',
@@ -623,17 +623,17 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
 
     // Auth
     auth_brand: 'Mobi_R Қандолат',
-    auth_subtitle: 'Савдо агенти авторизацияси',
-    auth_scan_hint: 'Тизимга кириш учун шахсий QR-кодингизни камерага кўрсатинг',
+    auth_subtitle: 'Линияга уланиш',
+    auth_scan_hint: 'Ишлаш учун линия QR кодини камерага кўрсатинг',
     auth_camera_permission: 'Камера рухсати зарур',
     auth_grant_camera: 'Камерага рухсат бериш',
     auth_manual_title: 'Ёки демо агент профилини танланг:',
-    auth_enter_code: 'Агент кодини қўлда киритиш',
-    auth_code_placeholder: 'AGENT-QND-101',
+    auth_enter_code: 'Линия кодини қўлда киритиш',
+    auth_code_placeholder: '4-3',
     auth_login_btn: 'Тизимга кириш',
     auth_error_title: 'Авторизация хатоси',
     auth_retry: 'Қайта уриниш',
-    auth_enter_code_alert: 'Илтимос, агент коди ёки QR матнини киритинг',
+    auth_enter_code_alert: 'Илтимос, линия кодини киритинг, масалан 4-3',
 
     // Home
     home_brand: 'MOBI_R',

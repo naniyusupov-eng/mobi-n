@@ -186,8 +186,12 @@ const server = http.createServer(async (req, res) => {
       let shop = null;
       if (payment && payment.shopId && payment.amount > 0) {
         shop = findShop(db, payment.shopId);
-        if (shop) {
+        // The phone retries failed uploads, so a payment with a known id is applied only once
+        if (!Array.isArray(db.paymentIds)) db.paymentIds = [];
+        const alreadyApplied = payment.id && db.paymentIds.includes(payment.id);
+        if (shop && !alreadyApplied) {
           shop.debtBalance = Math.max(0, (shop.debtBalance || 0) - payment.amount);
+          if (payment.id) db.paymentIds.push(payment.id);
           saveDatabase(db);
         }
       }

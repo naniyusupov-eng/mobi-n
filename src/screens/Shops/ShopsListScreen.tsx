@@ -14,7 +14,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useShopStore } from '../../store/shopStore';
 import { useCartStore } from '../../store/cartStore';
 import { useLanguageStore } from '../../store/languageStore';
+import { useSyncStore } from '../../store/syncStore';
 import { shopRepository } from '../../database/shopRepository';
+import { todayRouteDay } from '../../services/lineService';
 import { Shop } from '../../types';
 import { colors } from '../../theme/colors';
 import {
@@ -32,10 +34,20 @@ import {
 
 type FilterTab = 'today' | 'all' | 'debt' | 'visited';
 
+// Shop numbers from the map; a half step marks an unnumbered point between two ("30a")
+const formatShopNum = (num: number) => (Number.isInteger(num) ? String(num) : `${Math.floor(num)}a`);
+
 export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
   const { shops, loadShops, searchQuery, setSearchQuery, setCurrentShop } = useShopStore();
   const { setShop: setCartShop } = useCartStore();
   const { t, lang } = useLanguageStore();
+  const { triggerSync, isSyncing } = useSyncStore();
+
+  // Pull to refresh: push queued orders/payments, then reload the line's shops and debts
+  const handleRefresh = async () => {
+    await triggerSync();
+    loadShops();
+  };
 
   const [activeTab, setActiveTab] = useState<FilterTab>('today');
   const [selectedShopForPayment, setSelectedShopForPayment] = useState<Shop | null>(null);
@@ -47,6 +59,7 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
   }, []);
 
   const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
+  const todayDay = todayRouteDay();
 
   const filteredShops = useMemo(() => {
     return shops.filter((shop) => {
@@ -60,12 +73,8 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
       if (!matchesSearch) return false;
 
       if (activeTab === 'today') {
-        return (
-          shop.visitDay === 'Dushanba' ||
-          shop.visitDay === 'Barchasi' ||
-          shop.visitDay === t('day_mon') ||
-          shop.visitDay === t('day_all')
-        );
+        // Today's route of the line, e.g. 4-3-6 on Saturday; shops added on the phone show every day
+        return shop.routeDay == null || shop.routeDay === todayDay;
       }
       if (activeTab === 'debt') {
         return shop.debtBalance > 0;
@@ -75,7 +84,7 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
       }
       return true;
     });
-  }, [shops, searchQuery, activeTab, t]);
+  }, [shops, searchQuery, activeTab, todayDay]);
 
   const handleStartOrder = (shop: Shop) => {
     setCurrentShop(shop);
@@ -106,6 +115,8 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
     shopRepository.collectPayment(selectedShopForPayment.id, amount);
     loadShops();
     setPaymentModalVisible(false);
+    // Send it to the server right away; if offline it stays queued and is retried later
+    triggerSync().then(loadShops);
     Alert.alert(
       t('pko_modal_title'),
       `${t('pko_success')}\n${amount.toLocaleString(numLocale)} ${t('currency')}`
@@ -144,7 +155,11 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
               )}
             </View>
             <View style={styles.dayChip}>
-              <Text style={styles.dayChipText}>{item.visitDay}</Text>
+              <Text style={styles.dayChipText}>
+                {item.lineCode && item.routeDay
+                  ? `${item.lineCode}-${item.routeDay}${item.num != null ? ` • №${formatShopNum(item.num)}` : ''}`
+                  : item.visitDay}
+              </Text>
             </View>
           </View>
 
@@ -285,6 +300,8 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
         keyExtractor={(item) => item.id}
         renderItem={renderShopItem}
         contentContainerStyle={styles.listContent}
+        refreshing={isSyncing}
+        onRefresh={handleRefresh}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
             <Text style={styles.emptyText}>{t('search')} — {t('error')}</Text>

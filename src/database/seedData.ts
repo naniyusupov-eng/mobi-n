@@ -1,4 +1,4 @@
-import { Category, Product, Shop } from '../types';
+import { Category, Product } from '../types';
 
 export const SEED_CATEGORIES: Category[] = [
   { id: 'cat_all', name: 'Barchasi', iconName: 'grid' },
@@ -132,70 +132,3 @@ export const SEED_PRODUCTS: Product[] = [
   },
 ];
 
-export const SEED_SHOPS: Shop[] = [
-  {
-    id: 'shop_1',
-    name: 'Oqtepa Minimarket',
-    ownerName: 'Akmal aka',
-    phone: '+998 90 123 45 67',
-    address: 'Toshkent sh., Chilonzor 9-mavze, 14-uy',
-    latitude: 41.2858,
-    longitude: 69.2045,
-    debtBalance: 0,
-    visitDay: 'Dushanba',
-    createdAt: new Date().toISOString(),
-    isSynced: true,
-  },
-  {
-    id: 'shop_2',
-    name: 'Baraka Baqqollik Doʻkoni',
-    ownerName: 'Dilshod Raximov',
-    phone: '+998 97 765 43 21',
-    address: 'Toshkent sh., Bunyodkor koʻchasi, 45-uy',
-    latitude: 41.2789,
-    longitude: 69.2198,
-    debtBalance: 0,
-    visitDay: 'Dushanba',
-    createdAt: new Date().toISOString(),
-    isSynced: true,
-  },
-  {
-    id: 'shop_3',
-    name: 'Shirinliklar Olami',
-    ownerName: 'Feruza opa',
-    phone: '+998 93 555 12 34',
-    address: 'Toshkent sh., Yunusobod 11-mavze, 2-uy',
-    latitude: 41.3654,
-    longitude: 69.2876,
-    debtBalance: 0,
-    visitDay: 'Seshanba',
-    createdAt: new Date().toISOString(),
-    isSynced: true,
-  },
-  {
-    id: 'shop_4',
-    name: 'Ziyo Oziq-Ovqat',
-    ownerName: 'Jamshid Karimov',
-    phone: '+998 99 888 77 66',
-    address: 'Toshkent sh., Mirzo Ulugʻbek tumani, Qorasuv-1',
-    latitude: 41.3289,
-    longitude: 69.3412,
-    debtBalance: 0,
-    visitDay: 'Chorshanba',
-    createdAt: new Date().toISOString(),
-    isSynced: true,
-  },
-  {
-    id: 'shop_5',
-    name: 'Farovon Supermarket',
-    ownerName: 'Nodirbek',
-    phone: '+998 91 234 56 78',
-    address: 'Toshkent sh., Sergeli 7-mavze, Yangi Sergeli koʻchasi',
-    latitude: 41.2214,
-    longitude: 69.2234,
-    debtBalance: 0,
-    visitDay: 'Payshanba',
-    createdAt: new Date().toISOString(),
-    isSynced: true,
-  },
-];

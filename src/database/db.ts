@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import { SEED_CATEGORIES, SEED_PRODUCTS, SEED_SHOPS } from './seedData';
+import { SEED_CATEGORIES, SEED_PRODUCTS } from './seedData';
 
 let dbInstance: SQLite.SQLiteDatabase | null = null;
 
@@ -55,7 +55,11 @@ export const initDatabase = (db: SQLite.SQLiteDatabase) => {
       visitDay TEXT DEFAULT 'Barchasi',
       lastVisitedAt TEXT,
       createdAt TEXT NOT NULL,
-      isSynced INTEGER DEFAULT 0
+      isSynced INTEGER DEFAULT 0,
+      lineCode TEXT,
+      routeDay INTEGER,
+      num REAL,
+      notes TEXT
     );
 
     CREATE TABLE IF NOT EXISTS orders (
@@ -147,50 +151,17 @@ export const initDatabase = (db: SQLite.SQLiteDatabase) => {
     insertProd.finalizeSync();
   }
 
-  // Seed default shops if empty
-  const shopCount = db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM shops');
-  if (!shopCount || shopCount.count === 0) {
-    const insertShop = db.prepareSync(`
-      INSERT INTO shops (
-        id, name, ownerName, phone, address,
-        latitude, longitude, debtBalance, visitDay,
-        lastVisitedAt, createdAt, isSynced
-      ) VALUES (
-        $id, $name, $ownerName, $phone, $address,
-        $latitude, $longitude, $debtBalance, $visitDay,
-        $lastVisitedAt, $createdAt, $isSynced
-      )
-    `);
-    SEED_SHOPS.forEach((s) => {
-      insertShop.executeSync({
-        $id: s.id,
-        $name: s.name,
-        $ownerName: s.ownerName,
-        $phone: s.phone,
-        $address: s.address,
-        $latitude: s.latitude || null,
-        $longitude: s.longitude || null,
-        $debtBalance: s.debtBalance,
-        $visitDay: s.visitDay,
-        $lastVisitedAt: s.lastVisitedAt || null,
-        $createdAt: s.createdAt,
-        $isSynced: s.isSynced ? 1 : 0,
-      });
-    });
-    insertShop.finalizeSync();
+  // Older installs: add route columns to shops (CREATE TABLE IF NOT EXISTS keeps the old schema)
+  for (const column of ['lineCode TEXT', 'routeDay INTEGER', 'num REAL', 'notes TEXT']) {
+    try {
+      db.execSync(`ALTER TABLE shops ADD COLUMN ${column};`);
+    } catch {
+      // column already exists
+    }
   }
 
-  // Ensure clean slate: all shop debts set to 0 initially
-  try {
-    db.execSync(`
-      UPDATE shops SET debtBalance = 0;
-      DELETE FROM order_items;
-      DELETE FROM orders;
-      DELETE FROM sync_queue;
-    `);
-  } catch (e) {
-    console.warn('Init reset error:', e);
-  }
+  // Shops come from the server by line now; drop the old built-in demo shops
+  db.execSync("DELETE FROM shops WHERE id IN ('shop_1', 'shop_2', 'shop_3', 'shop_4', 'shop_5');");
 };
 
 export const resetAllDataToZero = () => {
