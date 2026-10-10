@@ -12,6 +12,11 @@ const DB_FILE = path.join(DATA_DIR, 'sync_db.json');
 
 const INITIAL_DATA = {
   orders: [],
+  // Liniyalar: { id, code: '4-3' } — QR kod liniyaniki, agent skanerlab ulanadi
+  lines: [],
+  // Klientlar: { id, num?, name, ownerName, phone, address, latitude?, longitude?, lineCode?, day? (1-6) }
+  // Marshrut kodi = `${lineCode}-${day}`, masalan 4-3-1 = 4-3 liniya, Dushanba
+  clients: [],
   shops: [
     {
       id: 'shop_1',
@@ -73,7 +78,10 @@ function loadDatabase() {
   }
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf8');
-    return JSON.parse(raw);
+    const db = JSON.parse(raw);
+    if (!Array.isArray(db.lines)) db.lines = [];
+    if (!Array.isArray(db.clients)) db.clients = [];
+    return db;
   } catch (e) {
     console.error('Error reading DB, resetting to initial:', e.message);
     saveDatabase(INITIAL_DATA);
@@ -225,9 +233,122 @@ const server = http.createServer(async (req, res) => {
       return jsonResponse(res, 200, { success: true, shops: db.shops });
     }
 
-    // POST /api/v1/reset (Reset everything to 0)
+    // GET /api/v1/lines
+    if (req.method === 'GET' && pathname === '/api/v1/lines') {
+      const db = loadDatabase();
+      return jsonResponse(res, 200, { success: true, lines: db.lines });
+    }
+
+    // POST /api/v1/lines (create or update a line)
+    if (req.method === 'POST' && pathname === '/api/v1/lines') {
+      const line = await parseBody(req);
+      const code = String(line.code || '').trim();
+      if (!code) return jsonResponse(res, 400, { error: 'Line code is required' });
+      const db = loadDatabase();
+      const index = db.lines.findIndex((l) => l.id === line.id || l.code === code);
+      if (index >= 0) {
+        db.lines[index] = { ...db.lines[index], ...line, code };
+      } else {
+        db.lines.push({ ...line, id: line.id || `line_${Date.now()}`, code });
+      }
+      db.lines.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, lines: db.lines });
+    }
+
+    // DELETE /api/v1/lines/:id (clients of the line become unassigned)
+    const lineMatch = pathname.match(/^\/api\/v1\/lines\/([^/]+)$/);
+    if (req.method === 'DELETE' && lineMatch) {
+      const db = loadDatabase();
+      const line = db.lines.find((l) => l.id === lineMatch[1]);
+      if (line) {
+        db.lines = db.lines.filter((l) => l.id !== line.id);
+        for (const c of db.clients) {
+          if (c.lineCode === line.code) {
+            delete c.lineCode;
+            delete c.day;
+          }
+        }
+        saveDatabase(db);
+      }
+      return jsonResponse(res, 200, { success: true, lines: db.lines, clients: db.clients });
+    }
+
+    // GET /api/v1/clients[?line=4-3][&day=1]
+    if (req.method === 'GET' && pathname === '/api/v1/clients') {
+      const db = loadDatabase();
+      const lineCode = url.searchParams.get('line');
+      const day = url.searchParams.get('day');
+      const clients = db.clients.filter(
+        (c) => (!lineCode || c.lineCode === lineCode) && (!day || String(c.day) === day)
+      );
+      return jsonResponse(res, 200, { success: true, count: clients.length, clients });
+    }
+
+    // GET /api/v1/routes/:code — clients of one route, e.g. /api/v1/routes/4-3-1 (4-3 line, Monday)
+    const routeMatch = pathname.match(/^\/api\/v1\/routes\/(.+)-([1-6])$/);
+    if (req.method === 'GET' && routeMatch) {
+      const db = loadDatabase();
+      const [, lineCode, day] = routeMatch;
+      const line = db.lines.find((l) => l.code === lineCode) || null;
+      const clients = db.clients.filter((c) => c.lineCode === lineCode && String(c.day) === day);
+      return jsonResponse(res, 200, { success: true, line, day: Number(day), count: clients.length, clients });
+    }
+
+    // POST /api/v1/clients/import — array of clients, upsert by id
+    if (req.method === 'POST' && pathname === '/api/v1/clients/import') {
+      const payload = await parseBody(req);
+      const items = Array.isArray(payload) ? payload : [payload];
+      const db = loadDatabase();
+      let added = 0;
+      items.forEach((item, i) => {
+        if (!item || !item.name) return;
+        const index = item.id ? db.clients.findIndex((c) => c.id === item.id) : -1;
+        if (index >= 0) {
+          db.clients[index] = { ...db.clients[index], ...item };
+        } else {
+          db.clients.push({ ...item, id: item.id || `client_${Date.now()}_${i}` });
+          added++;
+        }
+      });
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, added, clients: db.clients });
+    }
+
+    // POST /api/v1/clients/assign — { ids: [], lineCode: '4-3' | null, day: 1-6 | null }
+    if (req.method === 'POST' && pathname === '/api/v1/clients/assign') {
+      const { ids, lineCode, day } = await parseBody(req);
+      const db = loadDatabase();
+      const idSet = new Set(Array.isArray(ids) ? ids : []);
+      for (const c of db.clients) {
+        if (!idSet.has(c.id)) continue;
+        if (lineCode) {
+          c.lineCode = lineCode;
+          if (day) c.day = Number(day);
+        } else {
+          delete c.lineCode;
+          delete c.day;
+        }
+      }
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, clients: db.clients });
+    }
+
+    // DELETE /api/v1/clients/:id
+    const clientMatch = pathname.match(/^\/api\/v1\/clients\/([^/]+)$/);
+    if (req.method === 'DELETE' && clientMatch) {
+      const db = loadDatabase();
+      db.clients = db.clients.filter((c) => c.id !== clientMatch[1]);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, clients: db.clients });
+    }
+
+    // POST /api/v1/reset (Reset orders and debts to 0; lines and clients are kept)
     if (req.method === 'POST' && pathname === '/api/v1/reset') {
+      const current = loadDatabase();
       const cleanData = JSON.parse(JSON.stringify(INITIAL_DATA));
+      cleanData.lines = current.lines;
+      cleanData.clients = current.clients;
       saveDatabase(cleanData);
       console.log('-> Database reset to 0 by client request');
       return jsonResponse(res, 200, {

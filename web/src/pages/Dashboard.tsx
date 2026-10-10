@@ -377,11 +377,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
             <div className="grid grid-cols-2 gap-2">
               <button
-                onClick={() => onNavigate('agents')}
+                onClick={() => onNavigate('clients')}
                 className="flex items-center justify-center gap-1.5 p-2 bg-slate-50 hover:bg-sky-50 hover:text-sky-800 hover:border-sky-200 text-slate-700 rounded-md text-xs font-normal border border-slate-200/70 transition"
               >
                 <Users className="w-3.5 h-3.5 text-sky-600" />
-                <span>{t('quick_add_agent')}</span>
+                <span>{t('nav_clients')}</span>
               </button>
               <button
                 onClick={() => onNavigate('products')}

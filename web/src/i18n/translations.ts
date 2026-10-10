@@ -8,6 +8,9 @@ export interface Translations {
   nav_products: string;
   nav_shops: string;
   nav_reports: string;
+  nav_clients: string;
+  clients_title: string;
+  clients_sub: string;
   nav_section: string;
   system_status: string;
   server_active: string;
@@ -193,6 +196,9 @@ export const translations: Record<Language, Translations> = {
     nav_products: 'Tovarlar & Ombor',
     nav_shops: 'Doʻkonlar & Qarz',
     nav_reports: 'Hisobotlar',
+    nav_clients: 'Liniyalar & Klientlar',
+    clients_title: 'Liniyalar & Klientlar',
+    clients_sub: 'Liniya QR kodlari va marshrut boʻyicha doʻkonlar (masalan 4-3-1 = 4-3 liniya, Dushanba)',
     nav_section: 'Asosiy Boʻlimlar',
     system_status: 'Server holati:',
     server_active: 'Faol (NestJS)',
@@ -377,6 +383,9 @@ export const translations: Record<Language, Translations> = {
     nav_products: 'Товары & Склад',
     nav_shops: 'Клиенты & Долги',
     nav_reports: 'Отчеты',
+    nav_clients: 'Линии & Клиенты',
+    clients_title: 'Линии & Клиенты',
+    clients_sub: 'QR-коды линий и точки по маршрутам (например 4-3-1 = линия 4-3, понедельник)',
     nav_section: 'Основные разделы',
     system_status: 'Статус сервера:',
     server_active: 'Активен (NestJS)',
@@ -561,6 +570,9 @@ export const translations: Record<Language, Translations> = {
     nav_products: 'Товарлар & Омбор',
     nav_shops: 'Дўконлар & Қарз',
     nav_reports: 'Ҳисоботлар',
+    nav_clients: 'Линиялар & Клиентлар',
+    clients_title: 'Линиялар & Клиентлар',
+    clients_sub: 'Линия QR кодлари ва маршрут бўйича дўконлар (масалан 4-3-1 = 4-3 линия, Душанба)',
     nav_section: 'Асосий Бўлимлар',
     system_status: 'Сервер ҳолати:',
     server_active: 'Фаол (NestJS)',

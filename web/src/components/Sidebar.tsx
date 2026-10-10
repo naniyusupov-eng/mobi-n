@@ -2,14 +2,14 @@ import React from 'react';
 import {
   LayoutDashboard,
   ShoppingBag,
-  Users,
   Package,
   Store,
   BarChart3,
+  MapPinned,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
-export type NavPage = 'dashboard' | 'orders' | 'agents' | 'products' | 'shops' | 'reports';
+export type NavPage = 'dashboard' | 'orders' | 'products' | 'shops' | 'clients' | 'reports';
 
 interface SidebarProps {
   activePage: NavPage;
@@ -27,9 +27,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const menuItems: { id: NavPage; label: string; icon: any; badge?: number }[] = [
     { id: 'dashboard', label: t('nav_dashboard'), icon: LayoutDashboard },
     { id: 'orders', label: t('nav_orders'), icon: ShoppingBag, badge: pendingOrdersCount },
-    { id: 'agents', label: t('nav_agents'), icon: Users },
     { id: 'products', label: t('nav_products'), icon: Package },
     { id: 'shops', label: t('nav_shops'), icon: Store },
+    { id: 'clients', label: t('nav_clients'), icon: MapPinned },
     { id: 'reports', label: t('nav_reports'), icon: BarChart3 },
   ];
 

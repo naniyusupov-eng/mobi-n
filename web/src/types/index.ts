@@ -77,3 +77,26 @@ export interface Order {
   createdAt: string;
   items: OrderItem[];
 }
+
+// Liniya, masalan '4-3'. QR kod liniyaniki: istalgan agent skanerlab shu liniyaga ulanadi.
+export interface Line {
+  id: string;
+  code: string;
+}
+
+// 1 = Dushanba ... 6 = Shanba. Marshrut kodi: `${lineCode}-${day}`, masalan 4-3-1.
+export type RouteDay = 1 | 2 | 3 | 4 | 5 | 6;
+
+export interface Client {
+  id: string;
+  num?: number; // do'kon raqami (Yandex xaritadagi №)
+  name: string;
+  ownerName: string;
+  phone: string;
+  address: string;
+  latitude?: number;
+  longitude?: number;
+  lineCode?: string;
+  day?: RouteDay;
+  notes?: string;
+}

@@ -3,11 +3,10 @@ import { Sidebar, NavPage } from './components/Sidebar';
 import { Header } from './components/Header';
 import { Dashboard } from './pages/Dashboard';
 import { Orders } from './pages/Orders';
-import { Agents } from './pages/Agents';
 import { Products } from './pages/Products';
 import { Shops } from './pages/Shops';
 import { Reports } from './pages/Reports';
-import { QRBadgeModal } from './components/QRBadgeModal';
+import { Clients } from './pages/Clients';
 import { InvoiceModal } from './components/InvoiceModal';
 import { useLanguage } from './context/LanguageContext';
 import {
@@ -33,7 +32,6 @@ export default function App() {
   const [isServerConnected, setIsServerConnected] = useState(false);
 
   // Modals state
-  const [qrBadgeAgent, setQrBadgeAgent] = useState<Agent | null>(null);
   const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
 
   // Live polling from Mobi_R Sync Server (port 3000)
@@ -111,10 +109,6 @@ export default function App() {
     }
   };
 
-  const handleAddAgent = (newAgent: Agent) => {
-    setAgents((prev) => [newAgent, ...prev]);
-  };
-
   const handleAddProduct = (newProd: Product) => {
     setProducts((prev) => [newProd, ...prev]);
   };
@@ -146,12 +140,12 @@ export default function App() {
         return { title: t('dash_title'), sub: t('dash_sub') };
       case 'orders':
         return { title: t('orders_title'), sub: t('orders_sub') };
-      case 'agents':
-        return { title: t('agents_title'), sub: t('agents_sub') };
       case 'products':
         return { title: t('products_title'), sub: t('products_sub') };
       case 'shops':
         return { title: t('shops_title'), sub: t('shops_sub') };
+      case 'clients':
+        return { title: t('clients_title'), sub: t('clients_sub') };
       case 'reports':
         return { title: t('reports_title'), sub: t('reports_sub') };
     }
@@ -195,14 +189,6 @@ export default function App() {
             <Orders orders={orders} onViewOrder={setInvoiceOrder} />
           )}
 
-          {activePage === 'agents' && (
-            <Agents
-              agents={agents}
-              onOpenQRBadge={setQrBadgeAgent}
-              onAddAgent={handleAddAgent}
-            />
-          )}
-
           {activePage === 'products' && (
             <Products
               products={products}
@@ -220,6 +206,8 @@ export default function App() {
             />
           )}
 
+          {activePage === 'clients' && <Clients />}
+
           {activePage === 'reports' && (
             <Reports
               orders={orders}
@@ -232,11 +220,6 @@ export default function App() {
       </div>
 
       {/* Modals */}
-      <QRBadgeModal
-        agent={qrBadgeAgent}
-        onClose={() => setQrBadgeAgent(null)}
-      />
-
       <InvoiceModal
         order={invoiceOrder}
         onClose={() => setInvoiceOrder(null)}
