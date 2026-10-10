@@ -2,6 +2,7 @@ import React from 'react';
 import { Order, OrderStatus } from '../types';
 import { X, Printer } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { formatDate, formatDateTime } from '../utils/format';
 
 interface InvoiceModalProps {
   order: Order | null;
@@ -87,18 +88,12 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, onClose, onSt
               <div className="text-xs font-medium text-slate-800">{t('invoice_title')}</div>
               <div className="text-xs text-slate-400 font-mono font-normal">№ {order.id.slice(-8).toUpperCase()}</div>
               <div className="text-[11px] text-slate-400 font-normal mt-0.5">
-                {new Date(order.createdAt).toLocaleDateString(numLocale, {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+                {formatDateTime(order.createdAt, lang)} {new Date(order.createdAt).getFullYear()}
               </div>
             </div>
           </div>
 
-          {/* Client & Agent info card */}
+          {/* Client & payment info card */}
           <div className="grid grid-cols-2 gap-4 p-3 bg-slate-50/70 rounded-md border border-slate-200/70 text-xs mb-4">
             <div>
               <span className="text-slate-400 block font-normal mb-0.5 text-[10px]">
@@ -110,19 +105,20 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, onClose, onSt
 
             <div>
               <span className="text-slate-400 block font-normal mb-0.5 text-[10px]">
-                {t('invoice_agent')}
+                {t('col_payment_type')}
               </span>
-              <div className="font-medium text-slate-900 text-xs">{order.agentName}</div>
-              <div className="text-slate-500 font-normal text-[11px] mt-0.5">
-                {t('col_payment_type')}:{' '}
-                <span
-                  className={`font-normal ${
-                    order.paymentMethod === 'nasiya' ? 'text-rose-600' : 'text-slate-700'
-                  }`}
-                >
-                  {paymentLabel}
-                </span>
+              <div
+                className={`font-medium text-xs ${
+                  order.paymentMethod === 'nasiya' ? 'text-rose-600' : 'text-slate-900'
+                }`}
+              >
+                {paymentLabel}
               </div>
+              {order.deliveryDate && (
+                <div className="text-slate-500 font-normal text-[11px] mt-0.5">
+                  Yetkazish: {formatDate(order.deliveryDate, lang)}
+                </div>
+              )}
             </div>
           </div>
 

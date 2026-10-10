@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Client, Line } from '../types';
-import { Search, MapPin, Route, Store, QrCode, X } from 'lucide-react';
+import { Search, MapPin, Route, Store, QrCode, X, CreditCard } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { LineQRModal } from '../components/LineQRModal';
 
@@ -17,7 +17,8 @@ const DAYS = [
 
 
 export const Clients: React.FC = () => {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
   const [clients, setClients] = useState<Client[]>([]);
   const [lines, setLines] = useState<Line[]>([]);
   const [error, setError] = useState('');
@@ -26,6 +27,15 @@ export const Clients: React.FC = () => {
   const [lineFilter, setLineFilter] = useState('');
   const [dayFilter, setDayFilter] = useState<number | ''>('');
   const [qrLine, setQrLine] = useState<Line | null>(null);
+  const [debt, setDebt] = useState({ total: 0, count: 0 });
+  const [paymentClient, setPaymentClient] = useState<Client | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+
+  const loadDebts = () =>
+    fetch(`${API}/debts`)
+      .then((r) => r.json())
+      .then((d) => setDebt({ total: d.totalDebt || 0, count: d.count || 0 }))
+      .catch(() => {});
 
   useEffect(() => {
     Promise.all([
@@ -37,7 +47,8 @@ export const Clients: React.FC = () => {
         setLines(l.lines || []);
         setError('');
       })
-      .catch(() => setError('Serverga ulanib boʻlmadi (localhost:3000). Server ishga tushirilganini tekshiring.'));
+      .catch(() => setError('Maʼlumotlarni yuklab boʻlmadi. Birozdan soʻng sahifani yangilang.'));
+    loadDebts();
   }, []);
 
   // Shops are shown only for one route at a time: a line and a week day must both be chosen
@@ -46,9 +57,37 @@ export const Clients: React.FC = () => {
   const routeRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     setSearch('');
+    if (!lineFilter || !dayFilter) return;
     // The line cards take most of the screen, so bring the opened route into view
-    if (lineFilter && dayFilter) routeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    routeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Reload the route so debts synced from the mobile app are current
+    fetch(`${API}/clients?line=${encodeURIComponent(lineFilter)}&day=${dayFilter}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const fresh = new Map<string, Client>((d.clients || []).map((c: Client) => [c.id, c]));
+        setClients((prev) => prev.map((c) => fresh.get(c.id) || c));
+      })
+      .catch(() => {});
   }, [lineFilter, dayFilter]);
+
+  const handleConfirmPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amount = Number(payAmount);
+    if (!paymentClient || amount <= 0) return;
+    try {
+      const res = await fetch(`${API}/payments/sync`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shopId: paymentClient.id, amount }),
+      }).then((r) => r.json());
+      if (res.shop) setClients((prev) => prev.map((c) => (c.id === res.shop.id ? res.shop : c)));
+      loadDebts();
+      setPaymentClient(null);
+      setPayAmount('');
+    } catch {
+      setError('Toʻlovni saqlab boʻlmadi. Qaytadan urinib koʻring.');
+    }
+  };
 
   const filteredClients = useMemo(() => {
     if (!lineFilter || !dayFilter) return [];
@@ -77,7 +116,7 @@ export const Clients: React.FC = () => {
       )}
 
       {/* 1. Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
           <div>
             <span className="text-xs font-normal text-slate-500 block">Jami doʻkonlar</span>
@@ -95,6 +134,20 @@ export const Clients: React.FC = () => {
           </div>
           <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
             <Route className="w-4 h-4 stroke-[1.8]" />
+          </div>
+        </div>
+
+        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-amber-300 transition flex items-center justify-between shadow-2xs">
+          <div>
+            <span className="text-xs font-normal text-slate-500 block">
+              Umumiy qarz <span className="text-slate-400">• {debt.count} ta doʻkon</span>
+            </span>
+            <span className="text-xl font-semibold text-amber-700 tabular-nums mt-0.5 block">
+              {debt.total.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
+            </span>
+          </div>
+          <div className="w-8 h-8 rounded-md bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center">
+            <CreditCard className="w-4 h-4 stroke-[1.8]" />
           </div>
         </div>
       </div>
@@ -215,12 +268,13 @@ export const Clients: React.FC = () => {
                 <th className="py-2.5 px-3.5">Ism-familiya</th>
                 <th className="py-2.5 px-3.5">{t('col_phone')}</th>
                 <th className="py-2.5 px-3.5">{t('col_address')}</th>
+                <th className="py-2.5 px-3.5 text-right">{t('col_debt')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredClients.length === 0 && (
                 <tr>
-                  <td colSpan={5}className="py-8 text-center text-slate-400">
+                  <td colSpan={6} className="py-8 text-center text-slate-400">
                     {search ? 'Qidiruv boʻyicha doʻkon topilmadi' : 'Bu marshrutda doʻkonlar yoʻq'}
                   </td>
                 </tr>
@@ -264,6 +318,27 @@ export const Clients: React.FC = () => {
                       <span>{c.address}</span>
                     </div>
                   </td>
+                  <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
+                    {(c.debtBalance || 0) > 0 ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="font-medium text-rose-600 tabular-nums">
+                          {c.debtBalance!.toLocaleString(numLocale)} {t('som')}
+                        </span>
+                        <button
+                          onClick={() => {
+                            setPaymentClient(c);
+                            setPayAmount(String(c.debtBalance));
+                          }}
+                          title={t('btn_accept_payment')}
+                          className="p-1 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded border border-sky-200/70 transition"
+                        >
+                          <CreditCard className="w-3.5 h-3.5 stroke-[1.6]" />
+                        </button>
+                      </div>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -271,6 +346,49 @@ export const Clients: React.FC = () => {
         </div>
       </div>
       </>
+      )}
+
+      {/* Payment Modal */}
+      {paymentClient && (
+        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-lg border border-slate-200/80 shadow-lg max-w-sm w-full p-5">
+            <h3 className="text-sm font-semibold text-slate-900 mb-0.5">{t('modal_payment_title')}</h3>
+            <p className="text-xs text-slate-400 font-normal mb-3.5">
+              {paymentClient.name} • {t('current_debt')}{' '}
+              <span className="text-rose-600 font-medium tabular-nums">
+                {(paymentClient.debtBalance || 0).toLocaleString(numLocale)} {t('som')}
+              </span>
+            </p>
+            <form onSubmit={handleConfirmPayment} className="space-y-3.5">
+              <div>
+                <label className="block text-xs font-normal text-slate-600 mb-1">{t('payment_amount')}</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={payAmount}
+                  onChange={(e) => setPayAmount(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-slate-50/70 border border-slate-200/80 rounded-md text-sm font-normal text-slate-900 outline-none focus:border-slate-400 tabular-nums"
+                  required
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setPaymentClient(null)}
+                  className="px-3 py-1.5 text-xs font-normal text-slate-500 hover:text-slate-800 rounded-md"
+                >
+                  {t('btn_cancel')}
+                </button>
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-md transition"
+                >
+                  {t('btn_save_payment')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
 
       <LineQRModal line={qrLine} clientsCount={qrLine ? countFor(qrLine.code) : 0} onClose={() => setQrLine(null)} />

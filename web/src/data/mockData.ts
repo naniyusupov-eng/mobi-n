@@ -1,42 +1,4 @@
-import { Agent, Category, Product, Shop, Order } from '../types';
-
-export const INITIAL_AGENTS: Agent[] = [
-  {
-    id: 'agent_101',
-    code: 'AGENT-QND-101',
-    name: 'Alisher Vohidov',
-    phone: '+998 90 900 11 22',
-    territory: 'Chilonzor & Uchtepa',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-    ordersCount: 0,
-    totalSales: 0,
-    status: 'active',
-    createdAt: '2026-08-01',
-  },
-  {
-    id: 'agent_102',
-    code: 'AGENT-QND-102',
-    name: 'Jasurbek Oripov',
-    phone: '+998 94 450 33 44',
-    territory: 'Yunusobod & Mirzo Ulugʻbek',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-    ordersCount: 0,
-    totalSales: 0,
-    status: 'active',
-    createdAt: '2026-08-15',
-  },
-  {
-    id: 'agent_103',
-    code: 'AGENT-QND-103',
-    name: 'Shaxzod Karimov',
-    phone: '+998 97 123 77 88',
-    territory: 'Sergeli & Yangihayot',
-    ordersCount: 0,
-    totalSales: 0,
-    status: 'active',
-    createdAt: '2026-09-01',
-  },
-];
+import { Category, Product, Order } from '../types';
 
 export const INITIAL_CATEGORIES: Category[] = [
   { id: 'cat_wafers', name: 'Vaflilar' },
@@ -136,54 +98,6 @@ export const INITIAL_PRODUCTS: Product[] = [
     itemsPerBlock: 10,
     itemsPerBox: 40,
     stockDona: 510,
-  },
-];
-
-export const INITIAL_SHOPS: Shop[] = [
-  {
-    id: 'shop_1',
-    name: 'Oqtepa Minimarket',
-    ownerName: 'Akmal aka',
-    phone: '+998 90 123 45 67',
-    address: 'Chilonzor 9-mavze, 14-uy',
-    debtBalance: 0,
-    visitDay: 'Dushanba',
-  },
-  {
-    id: 'shop_2',
-    name: 'Baraka Baqqollik Doʻkoni',
-    ownerName: 'Dilshod Raximov',
-    phone: '+998 97 765 43 21',
-    address: 'Bunyodkor koʻchasi, 45-uy',
-    debtBalance: 0,
-    visitDay: 'Dushanba',
-  },
-  {
-    id: 'shop_3',
-    name: 'Shirinliklar Olami',
-    ownerName: 'Feruza opa',
-    phone: '+998 93 555 12 34',
-    address: 'Yunusobod 11-mavze, 2-uy',
-    debtBalance: 0,
-    visitDay: 'Seshanba',
-  },
-  {
-    id: 'shop_4',
-    name: 'Ziyo Oziq-Ovqat',
-    ownerName: 'Jamshid Karimov',
-    phone: '+998 99 888 77 66',
-    address: 'Mirzo Ulugʻbek tumani, Qorasuv-1',
-    debtBalance: 0,
-    visitDay: 'Chorshanba',
-  },
-  {
-    id: 'shop_5',
-    name: 'Farovon Supermarket',
-    ownerName: 'Nodirbek',
-    phone: '+998 91 234 56 78',
-    address: 'Sergeli 7-mavze, Yangi Sergeli koʻchasi',
-    debtBalance: 0,
-    visitDay: 'Payshanba',
   },
 ];
 

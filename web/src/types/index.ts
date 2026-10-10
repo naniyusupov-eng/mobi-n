@@ -1,18 +1,5 @@
 export type PackagingUnit = 'dona' | 'blok' | 'korobka' | 'kg';
 
-export interface Agent {
-  id: string;
-  code: string;
-  name: string;
-  phone: string;
-  territory: string;
-  avatarUrl?: string;
-  ordersCount: number;
-  totalSales: number;
-  status: 'active' | 'inactive';
-  createdAt: string;
-}
-
 export interface Category {
   id: string;
   name: string;
@@ -32,19 +19,6 @@ export interface Product {
   itemsPerBlock: number;
   itemsPerBox: number;
   stockDona: number;
-}
-
-export interface Shop {
-  id: string;
-  name: string;
-  ownerName: string;
-  phone: string;
-  address: string;
-  latitude?: number;
-  longitude?: number;
-  debtBalance: number;
-  visitDay: string;
-  lastOrderDate?: string;
 }
 
 export type PaymentMethod = 'naqd' | 'nasiya' | 'otkazma';
@@ -90,6 +64,7 @@ export type RouteDay = 1 | 2 | 3 | 4 | 5 | 6;
 export interface Client {
   id: string;
   num?: number; // do'kon raqami (Yandex xaritadagi №)
+  debtBalance?: number; // nasiya qarzi, so'm
   name: string;
   ownerName: string;
   phone: string;

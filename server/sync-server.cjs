@@ -14,57 +14,17 @@ const INITIAL_DATA = {
   orders: [],
   // Liniyalar: { id, code: '4-3' } — QR kod liniyaniki, agent skanerlab ulanadi
   lines: [],
-  // Klientlar: { id, num?, name, ownerName, phone, address, latitude?, longitude?, lineCode?, day? (1-6) }
+  // Klientlar: { id, num?, name, ownerName, phone, address, latitude?, longitude?, lineCode?, day? (1-6), debtBalance? }
   // Marshrut kodi = `${lineCode}-${day}`, masalan 4-3-1 = 4-3 liniya, Dushanba
   clients: [],
-  shops: [
-    {
-      id: 'shop_1',
-      name: 'Oqtepa Minimarket',
-      ownerName: 'Akmal aka',
-      phone: '+998 90 123 45 67',
-      address: 'Toshkent sh., Chilonzor 9-mavze, 14-uy',
-      debtBalance: 0,
-      visitDay: 'Dushanba',
-    },
-    {
-      id: 'shop_2',
-      name: 'Baraka Baqqollik Doʻkoni',
-      ownerName: 'Dilshod Raximov',
-      phone: '+998 97 765 43 21',
-      address: 'Toshkent sh., Bunyodkor koʻchasi, 45-uy',
-      debtBalance: 0,
-      visitDay: 'Dushanba',
-    },
-    {
-      id: 'shop_3',
-      name: 'Shirinliklar Olami',
-      ownerName: 'Feruza opa',
-      phone: '+998 93 555 12 34',
-      address: 'Toshkent sh., Yunusobod 11-mavze, 2-uy',
-      debtBalance: 0,
-      visitDay: 'Seshanba',
-    },
-    {
-      id: 'shop_4',
-      name: 'Ziyo Oziq-Ovqat',
-      ownerName: 'Jamshid Karimov',
-      phone: '+998 99 888 77 66',
-      address: 'Toshkent sh., Mirzo Ulugʻbek tumani, Qorasuv-1',
-      debtBalance: 0,
-      visitDay: 'Chorshanba',
-    },
-    {
-      id: 'shop_5',
-      name: 'Farovon Supermarket',
-      ownerName: 'Nodirbek',
-      phone: '+998 91 234 56 78',
-      address: 'Toshkent sh., Sergeli 7-mavze, Yangi Sergeli koʻchasi',
-      debtBalance: 0,
-      visitDay: 'Payshanba',
-    },
-  ],
+  // Shops added from the mobile app that are not on a route yet
+  shops: [],
 };
+
+// Orders and payments reference a shop by id: a route client or a shop added from the mobile app
+function findShop(db, id) {
+  return db.clients.find((c) => c.id === id) || db.shops.find((s) => s.id === id) || null;
+}
 
 // Ensure data folder exists
 if (!fs.existsSync(DATA_DIR)) {
@@ -185,7 +145,7 @@ const server = http.createServer(async (req, res) => {
 
           // If nasiya, increment shop debt
           if (order.shopId && (order.paymentMethod === 'nasiya' || order.paymentMethod === 'debt')) {
-            const shop = db.shops.find((s) => s.id === order.shopId);
+            const shop = findShop(db, order.shopId);
             if (shop) {
               shop.debtBalance = (shop.debtBalance || 0) + (order.finalAmount || order.totalAmount || 0);
               shop.lastOrderDate = new Date().toISOString().split('T')[0];
@@ -223,14 +183,25 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && pathname === '/api/v1/payments/sync') {
       const payment = await parseBody(req);
       const db = loadDatabase();
-      if (payment && payment.shopId && payment.amount) {
-        const shop = db.shops.find((s) => s.id === payment.shopId);
+      let shop = null;
+      if (payment && payment.shopId && payment.amount > 0) {
+        shop = findShop(db, payment.shopId);
         if (shop) {
           shop.debtBalance = Math.max(0, (shop.debtBalance || 0) - payment.amount);
           saveDatabase(db);
         }
       }
-      return jsonResponse(res, 200, { success: true, shops: db.shops });
+      return jsonResponse(res, 200, { success: true, shop });
+    }
+
+    // GET /api/v1/debts — shops that owe money, biggest debt first
+    if (req.method === 'GET' && pathname === '/api/v1/debts') {
+      const db = loadDatabase();
+      const debtors = [...db.clients, ...db.shops]
+        .filter((s) => (s.debtBalance || 0) > 0)
+        .sort((a, b) => b.debtBalance - a.debtBalance);
+      const totalDebt = debtors.reduce((sum, s) => sum + s.debtBalance, 0);
+      return jsonResponse(res, 200, { success: true, totalDebt, count: debtors.length, debtors });
     }
 
     // GET /api/v1/lines
@@ -343,20 +314,16 @@ const server = http.createServer(async (req, res) => {
       return jsonResponse(res, 200, { success: true, clients: db.clients });
     }
 
-    // POST /api/v1/reset (Reset orders and debts to 0; lines and clients are kept)
+    // POST /api/v1/reset (Delete orders and set debts to 0; lines, clients and shops are kept)
     if (req.method === 'POST' && pathname === '/api/v1/reset') {
-      const current = loadDatabase();
-      const cleanData = JSON.parse(JSON.stringify(INITIAL_DATA));
-      cleanData.lines = current.lines;
-      cleanData.clients = current.clients;
-      saveDatabase(cleanData);
+      const db = loadDatabase();
+      db.orders = [];
+      for (const s of [...db.clients, ...db.shops]) {
+        if (s.debtBalance) s.debtBalance = 0;
+      }
+      saveDatabase(db);
       console.log('-> Database reset to 0 by client request');
-      return jsonResponse(res, 200, {
-        success: true,
-        message: 'Database reset to 0 successfully',
-        orders: [],
-        shops: cleanData.shops,
-      });
+      return jsonResponse(res, 200, { success: true, message: 'Database reset to 0 successfully' });
     }
 
     // 404 Not Found

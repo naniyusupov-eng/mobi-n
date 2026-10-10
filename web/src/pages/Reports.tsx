@@ -1,15 +1,12 @@
 import React from 'react';
-import { Agent, Order, Product, Shop } from '../types';
+import { Order } from '../types';
 import { useLanguage } from '../context/LanguageContext';
 
 interface ReportsProps {
   orders: Order[];
-  agents: Agent[];
-  products: Product[];
-  shops: Shop[];
 }
 
-export const Reports: React.FC<ReportsProps> = ({ orders, agents, products }) => {
+export const Reports: React.FC<ReportsProps> = ({ orders }) => {
   const { t, lang } = useLanguage();
   const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
 
@@ -23,6 +20,18 @@ export const Reports: React.FC<ReportsProps> = ({ orders, agents, products }) =>
   const bankRevenue = orders
     .filter((o) => o.paymentMethod === 'otkazma')
     .reduce((sum, o) => sum + o.finalAmount, 0);
+
+  // Sales per product from order lines, best sellers first
+  const productSales = Object.values(
+    orders.reduce<Record<string, { name: string; total: number; orders: number }>>((acc, o) => {
+      for (const item of o.items || []) {
+        const row = (acc[item.productName] ||= { name: item.productName, total: 0, orders: 0 });
+        row.total += item.totalPrice;
+        row.orders += 1;
+      }
+      return acc;
+    }, {})
+  ).sort((a, b) => b.total - a.total);
 
   return (
     <div className="space-y-4">
@@ -93,71 +102,31 @@ export const Reports: React.FC<ReportsProps> = ({ orders, agents, products }) =>
         </div>
       </div>
 
-      {/* Agents Performance Table */}
-      <div className="bg-white rounded-lg border border-slate-200/70 overflow-hidden shadow-2xs">
-        <div className="px-4 py-3 border-b border-slate-100">
-          <h3 className="text-xs font-semibold text-slate-900">{t('agent_performance')}</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-slate-400 font-medium text-[11px]">
-                <th className="py-2.5 px-3.5">{t('col_agent')}</th>
-                <th className="py-2.5 px-3.5">{t('field_agent_territory')}</th>
-                <th className="py-2.5 px-3.5 text-center">{t('agent_orders')}</th>
-                <th className="py-2.5 px-3.5 text-right">{t('agent_sales')}</th>
-                <th className="py-2.5 px-3.5 text-right">{t('col_avg_check')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {agents.map((agent) => {
-                const avgCheck = agent.ordersCount > 0 ? Math.round(agent.totalSales / agent.ordersCount) : 0;
-                return (
-                  <tr key={agent.id} className="hover:bg-sky-50/20 transition-colors">
-                    <td className="py-2.5 px-3.5 font-medium text-slate-900">{agent.name}</td>
-                    <td className="py-2.5 px-3.5 text-slate-400 font-normal text-[11px]">{agent.territory}</td>
-                    <td className="py-2.5 px-3.5 text-center font-normal text-slate-700 tabular-nums">
-                      {agent.ordersCount}
-                    </td>
-                    <td className="py-2.5 px-3.5 text-right font-medium text-slate-900 tabular-nums">
-                      {agent.totalSales.toLocaleString(numLocale)} {t('som')}
-                    </td>
-                    <td className="py-2.5 px-3.5 text-right font-normal text-slate-500 tabular-nums">
-                      {avgCheck.toLocaleString(numLocale)} {t('som')}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
       {/* Top Confectionery Products */}
       <div className="bg-white rounded-lg border border-slate-200/70 p-4 shadow-2xs">
         <h3 className="text-xs font-semibold text-slate-900 mb-3">
           {t('product_turnover')}
         </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-          {products.slice(0, 6).map((product) => (
-            <div
-              key={product.id}
-              className="p-3 bg-white rounded-md border border-slate-200/70 flex items-center justify-between hover:border-sky-300 hover:bg-sky-50/10 transition"
-            >
-              <div>
-                <div className="font-medium text-xs text-slate-900">{product.name}</div>
-                <div className="text-[10px] text-slate-400 font-normal mt-0.5 tabular-nums">
-                  {t('col_price_blok')}: {product.priceBlok.toLocaleString(numLocale)} {t('som')} •{' '}
-                  {t('col_price_kg')}: {product.priceKg.toLocaleString(numLocale)} {t('som')}
+        {productSales.length === 0 ? (
+          <div className="py-6 text-center text-xs text-slate-400">Hali sotuvlar yoʻq</div>
+        ) : (
+          <div className="space-y-2.5">
+            {productSales.map((p) => (
+              <div key={p.name} className="space-y-1">
+                <div className="flex items-center justify-between gap-3 text-xs">
+                  <span className="font-medium text-slate-900 truncate">{p.name}</span>
+                  <span className="shrink-0 tabular-nums">
+                    <span className="font-medium text-slate-900">{p.total.toLocaleString(numLocale)} {t('som')}</span>
+                    <span className="text-[10px] text-slate-400 ml-2">{p.orders} ta buyurtmada</span>
+                  </span>
+                </div>
+                <div className="w-full h-1 bg-sky-50 rounded-full overflow-hidden">
+                  <div className="h-full bg-sky-500 rounded-full" style={{ width: `${(p.total / productSales[0].total) * 100}%` }} />
                 </div>
               </div>
-              <div className="text-right">
-                <span className="text-xs font-medium text-sky-800 tabular-nums">{product.stockDona} {t('stock_unit')}</span>
-                <span className="block text-[10px] text-slate-400 font-normal">{t('warehouse_stock')}</span>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

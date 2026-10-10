@@ -4,19 +4,19 @@ import { Header } from './components/Header';
 import { Dashboard } from './pages/Dashboard';
 import { Orders } from './pages/Orders';
 import { Products } from './pages/Products';
-import { Shops } from './pages/Shops';
 import { Reports } from './pages/Reports';
 import { Clients } from './pages/Clients';
+import { Settings } from './pages/Settings';
 import { InvoiceModal } from './components/InvoiceModal';
 import { useLanguage } from './context/LanguageContext';
 import {
   INITIAL_ORDERS,
-  INITIAL_AGENTS,
   INITIAL_PRODUCTS,
-  INITIAL_SHOPS,
   INITIAL_CATEGORIES,
 } from './data/mockData';
-import { Agent, Order, OrderStatus, Product, Shop } from './types';
+import { Order, OrderStatus, Product } from './types';
+
+const API = 'http://localhost:3000/api/v1';
 
 export default function App() {
   const { t } = useLanguage();
@@ -24,55 +24,35 @@ export default function App() {
 
   // Application Data States (Clean 0 start)
   const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [agents, setAgents] = useState<Agent[]>(INITIAL_AGENTS);
   const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [shops, setShops] = useState<Shop[]>(INITIAL_SHOPS);
+  const [debt, setDebt] = useState({ total: 0, count: 0 });
   const categories = INITIAL_CATEGORIES;
-
-  const [isServerConnected, setIsServerConnected] = useState(false);
 
   // Modals state
   const [invoiceOrder, setInvoiceOrder] = useState<Order | null>(null);
 
-  // Live polling from Mobi_R Sync Server (port 3000)
+  // Live polling of orders and shop debts synced from the mobile app
   useEffect(() => {
     let isMounted = true;
 
     const fetchServerData = async () => {
       try {
-        const [ordersRes, shopsRes] = await Promise.all([
-          fetch('http://localhost:3000/api/v1/orders').then((r) => r.json()),
-          fetch('http://localhost:3000/api/v1/shops').then((r) => r.json()),
+        const [ordersRes, debtsRes] = await Promise.all([
+          fetch(`${API}/orders`).then((r) => r.json()),
+          fetch(`${API}/debts`).then((r) => r.json()),
         ]);
 
         if (!isMounted) return;
 
-        setIsServerConnected(true);
-
         if (ordersRes && Array.isArray(ordersRes.orders)) {
           setOrders(ordersRes.orders);
-
-          // Dynamically compute agent stats based on real synced orders
-          setAgents((prevAgents) =>
-            prevAgents.map((ag) => {
-              const agentOrders = ordersRes.orders.filter((o: Order) => o.agentId === ag.id);
-              const totalSales = agentOrders.reduce((sum: number, o: Order) => sum + (o.finalAmount || 0), 0);
-              return {
-                ...ag,
-                ordersCount: agentOrders.length,
-                totalSales,
-              };
-            })
-          );
         }
 
-        if (shopsRes && Array.isArray(shopsRes.shops)) {
-          setShops(shopsRes.shops);
+        if (debtsRes && typeof debtsRes.totalDebt === 'number') {
+          setDebt({ total: debtsRes.totalDebt, count: debtsRes.count });
         }
       } catch {
-        if (isMounted) {
-          setIsServerConnected(false);
-        }
+        // Keep the last known data until the next poll succeeds
       }
     };
 
@@ -90,13 +70,12 @@ export default function App() {
       return;
     }
     try {
-      await fetch('http://localhost:3000/api/v1/reset', { method: 'POST' });
+      await fetch(`${API}/reset`, { method: 'POST' });
     } catch (e) {
       console.warn('Reset server call failed:', e);
     }
     setOrders([]);
-    setShops((prev) => prev.map((s) => ({ ...s, debtBalance: 0 })));
-    setAgents((prev) => prev.map((a) => ({ ...a, ordersCount: 0, totalSales: 0 })));
+    setDebt({ total: 0, count: 0 });
   };
 
   // Handlers
@@ -119,20 +98,7 @@ export default function App() {
     );
   };
 
-  const handleAddShop = (newShop: Shop) => {
-    setShops((prev) => [newShop, ...prev]);
-  };
-
-  const handleRecordPayment = (shopId: string, amount: number) => {
-    setShops((prev) =>
-      prev.map((s) =>
-        s.id === shopId ? { ...s, debtBalance: Math.max(0, s.debtBalance - amount) } : s
-      )
-    );
-  };
-
   const pendingOrdersCount = orders.filter((o) => o.status === 'new').length;
-  const totalTodaySales = orders.reduce((sum, o) => sum + o.finalAmount, 0);
 
   const getPageTitle = () => {
     switch (activePage) {
@@ -142,12 +108,12 @@ export default function App() {
         return { title: t('orders_title'), sub: t('orders_sub') };
       case 'products':
         return { title: t('products_title'), sub: t('products_sub') };
-      case 'shops':
-        return { title: t('shops_title'), sub: t('shops_sub') };
       case 'clients':
         return { title: t('clients_title'), sub: t('clients_sub') };
       case 'reports':
         return { title: t('reports_title'), sub: t('reports_sub') };
+      case 'settings':
+        return { title: t('settings_title'), sub: t('settings_sub') };
     }
   };
 
@@ -164,22 +130,14 @@ export default function App() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden bg-[#f8fafc]">
-        <Header
-          title={pageInfo.title}
-          subtitle={pageInfo.sub}
-          totalTodaySales={totalTodaySales}
-          activeAgentsCount={agents.length}
-          isServerConnected={isServerConnected}
-          onResetData={handleResetData}
-        />
+        <Header title={pageInfo.title} subtitle={pageInfo.sub} />
 
         <main className="flex-1 overflow-y-auto p-5 md:p-6">
           {activePage === 'dashboard' && (
             <Dashboard
               orders={orders}
-              agents={agents}
-              shops={shops}
-              products={products}
+              totalDebt={debt.total}
+              debtorsCount={debt.count}
               onViewOrder={setInvoiceOrder}
               onNavigate={setActivePage}
             />
@@ -198,24 +156,11 @@ export default function App() {
             />
           )}
 
-          {activePage === 'shops' && (
-            <Shops
-              shops={shops}
-              onAddShop={handleAddShop}
-              onRecordPayment={handleRecordPayment}
-            />
-          )}
-
           {activePage === 'clients' && <Clients />}
 
-          {activePage === 'reports' && (
-            <Reports
-              orders={orders}
-              agents={agents}
-              products={products}
-              shops={shops}
-            />
-          )}
+          {activePage === 'reports' && <Reports orders={orders} />}
+
+          {activePage === 'settings' && <Settings onResetData={handleResetData} />}
         </main>
       </div>
 

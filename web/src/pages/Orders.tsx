@@ -8,6 +8,7 @@ import {
   Calculator,
 } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { formatDate, formatDateTime } from '../utils/format';
 
 interface OrdersProps {
   orders: Order[];
@@ -24,8 +25,7 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
       const matchText =
         !search ||
         o.id.toLowerCase().includes(search.toLowerCase()) ||
-        o.shopName.toLowerCase().includes(search.toLowerCase()) ||
-        o.agentName.toLowerCase().includes(search.toLowerCase());
+        o.shopName.toLowerCase().includes(search.toLowerCase());
 
       if (!matchText) return false;
       if (statusFilter !== 'all' && o.status !== statusFilter) return false;
@@ -169,7 +169,6 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
                 <th className="py-2.5 px-3.5">{t('col_order_id')}</th>
                 <th className="py-2.5 px-3.5">{t('col_date')}</th>
                 <th className="py-2.5 px-3.5">{t('col_client')}</th>
-                <th className="py-2.5 px-3.5">{t('col_agent')}</th>
                 <th className="py-2.5 px-3.5">{t('col_payment_type')}</th>
                 <th className="py-2.5 px-3.5 text-right">{t('col_sum')}</th>
                 <th className="py-2.5 px-3.5 text-center">{t('col_status')}</th>
@@ -186,16 +185,11 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
                   </td>
                   <td className="py-2.5 px-3.5 text-slate-500 font-normal">
                     <div>
-                      {new Date(order.createdAt).toLocaleDateString(numLocale, {
-                        day: '2-digit',
-                        month: 'short',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
+                      {formatDateTime(order.createdAt, lang)}
                     </div>
                     {order.deliveryDate && (
                       <div className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.2 rounded font-normal mt-0.5 inline-block border border-sky-100">
-                        📅 {order.deliveryDate}
+                        Yetkazish: {formatDate(order.deliveryDate, lang)}
                       </div>
                     )}
                   </td>
@@ -203,7 +197,6 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
                     <div className="font-medium text-slate-900">{order.shopName}</div>
                     <div className="text-[11px] text-slate-400 font-normal">{order.shopAddress}</div>
                   </td>
-                  <td className="py-2.5 px-3.5 font-normal text-slate-600">{order.agentName}</td>
                   <td className="py-2.5 px-3.5">
                     <span
                       className={`font-normal ${
@@ -244,19 +237,6 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
               ))}
             </tbody>
           </table>
-        </div>
-
-        {/* Footer Summary */}
-        <div className="px-4 py-3 bg-white border-t border-slate-100 flex items-center justify-between text-xs font-normal">
-          <div className="text-slate-400">
-            {t('total_orders_count')}: <span className="tabular-nums text-slate-700 font-medium">{filteredOrders.length}</span>
-          </div>
-          <div className="text-right">
-            <span className="text-slate-400 mr-1.5">{t('displayed_sum')}:</span>
-            <span className="font-medium text-slate-900 tabular-nums">
-              {totalSum.toLocaleString(numLocale)} {t('som')}
-            </span>
-          </div>
         </div>
       </div>
     </div>

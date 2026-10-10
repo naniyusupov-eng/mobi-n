@@ -9,6 +9,9 @@ export interface Translations {
   nav_shops: string;
   nav_reports: string;
   nav_clients: string;
+  nav_settings: string;
+  settings_title: string;
+  settings_sub: string;
   clients_title: string;
   clients_sub: string;
   nav_section: string;
@@ -197,6 +200,9 @@ export const translations: Record<Language, Translations> = {
     nav_shops: 'Doʻkonlar & Qarz',
     nav_reports: 'Hisobotlar',
     nav_clients: 'Liniyalar & Klientlar',
+    nav_settings: 'Sozlamalar',
+    settings_title: 'Sozlamalar',
+    settings_sub: 'Til va maʼlumotlar',
     clients_title: 'Liniyalar & Klientlar',
     clients_sub: 'Liniya QR kodlari va marshrut boʻyicha doʻkonlar (masalan 4-3-1 = 4-3 liniya, Dushanba)',
     nav_section: 'Asosiy Boʻlimlar',
@@ -212,8 +218,8 @@ export const translations: Record<Language, Translations> = {
 
     // Dashboard
     dash_title: 'Bosh Boshqaruv Paneli',
-    dash_sub: 'Mobi_R savdo agentlari va buyurtmalar monitoringi',
-    kpi_total_sales: 'Bugungi Jami Savdo',
+    dash_sub: 'Savdo va buyurtmalar umumiy koʻrinishi',
+    kpi_total_sales: 'Jami Savdo',
     kpi_orders_count: 'Buyurtmalar Soni',
     kpi_cash: 'Naqd Pul Tushumi',
     kpi_debt: 'Mijozlar Qarzdorligi',
@@ -222,10 +228,10 @@ export const translations: Record<Language, Translations> = {
     vs_yesterday: '+14.2% kechagiga nisbatan',
     all_reviewed: 'Barcha zakazlar koʻrib chiqilgan',
     new_pending: 'ta yangi kutmoqda',
-    cash_desc: 'Agentlar kassasidagi naqd pul',
+    cash_desc: 'Naqd pulda toʻlangan',
     shops_with_debt: 'ta doʻkonda qarz bor',
-    recent_orders: 'Soʻnggi Buyurtmalar (Live)',
-    recent_orders_sub: 'Agentlar yuborgan eng yangi zakazlar',
+    recent_orders: 'Soʻnggi Buyurtmalar',
+    recent_orders_sub: 'Eng yangi buyurtmalar',
     view_all: 'Barchasini koʻrish',
     top_agents: 'Top Savdo Agentlari',
     top_agents_sub: 'Bugungi savdo koʻrsatkichi',
@@ -235,7 +241,7 @@ export const translations: Record<Language, Translations> = {
     // Orders
     orders_title: 'Buyurtmalar Jurnali',
     orders_sub: 'Agentlar qabul qilgan buyurtmalar va yuk xatlari',
-    search_orders_placeholder: 'Buyurtma ID, doʻkon yoki agent...',
+    search_orders_placeholder: 'Buyurtma ID yoki doʻkon...',
     tab_all: 'Barchasi',
     tab_new: 'Yangi',
     tab_confirmed: 'Tasdiqlangan',
@@ -283,7 +289,7 @@ export const translations: Record<Language, Translations> = {
     // QR Badge Modal
     badge_modal_title: 'Agent Shaxsiy QR-Beydjiki',
     badge_brand: 'MOBI_R QANDOLAT',
-    badge_sub: 'SAVDO AGENTI BEYDJIKI',
+    badge_sub: 'LINIYA QR KODI',
     badge_footer: 'Mobil ilovaga kirish uchun kameraga koʻrsating',
     btn_print: 'Printerdan Chiqarish',
     btn_close: 'Yopish',
@@ -341,7 +347,7 @@ export const translations: Record<Language, Translations> = {
     share: 'ulush',
     agent_performance: 'Savdo Agentlari Samaradorligi',
     col_avg_check: 'Oʻrtacha Chek',
-    product_turnover: 'Qandolat Tovarlari Qoldigʻi va Aylanmasi',
+    product_turnover: 'Mahsulotlar boʻyicha savdo',
     warehouse_stock: 'ombor qoldigʻi',
     sales_volume_100: '100% savdo hajmi',
 
@@ -360,7 +366,7 @@ export const translations: Record<Language, Translations> = {
     invoice_subtotal: 'Tovarlar summasi:',
     invoice_discount: 'Chegirma:',
     invoice_total_pay: 'JAMI TOʻLOV:',
-    invoice_released_by: 'Topshirdi (Agent / Haydovchi):',
+    invoice_released_by: 'Topshirdi:',
     invoice_received_by: 'Qabul qildi (Doʻkon masʼuli):',
     invoice_sign_agent: '(imzo va F.I.SH)',
     invoice_sign_client: '(imzo va muhr)',
@@ -384,6 +390,9 @@ export const translations: Record<Language, Translations> = {
     nav_shops: 'Клиенты & Долги',
     nav_reports: 'Отчеты',
     nav_clients: 'Линии & Клиенты',
+    nav_settings: 'Настройки',
+    settings_title: 'Настройки',
+    settings_sub: 'Язык и данные',
     clients_title: 'Линии & Клиенты',
     clients_sub: 'QR-коды линий и точки по маршрутам (например 4-3-1 = линия 4-3, понедельник)',
     nav_section: 'Основные разделы',
@@ -399,8 +408,8 @@ export const translations: Record<Language, Translations> = {
 
     // Dashboard
     dash_title: 'Панель Управления Моби-С',
-    dash_sub: 'Мониторинг торговых агентов и заказов в реальном времени',
-    kpi_total_sales: 'Продажи за Сегодня',
+    dash_sub: 'Общая картина продаж и заказов',
+    kpi_total_sales: 'Всего Продаж',
     kpi_orders_count: 'Количество Заказов',
     kpi_cash: 'Поступления Наличными',
     kpi_debt: 'Дебиторская Задолженность',
@@ -409,10 +418,10 @@ export const translations: Record<Language, Translations> = {
     vs_yesterday: '+14.2% по сравнению со вчера',
     all_reviewed: 'Все заявки обработаны',
     new_pending: 'новых ожидают',
-    cash_desc: 'В кассе торговых агентов',
+    cash_desc: 'Оплачено наличными',
     shops_with_debt: 'точек имеют долг',
-    recent_orders: 'Последние Заказы (Live)',
-    recent_orders_sub: 'Свежие заявки от торговых представителей',
+    recent_orders: 'Последние Заказы',
+    recent_orders_sub: 'Последние заказы',
     view_all: 'Смотреть все',
     top_agents: 'Топ Торговых Агентов',
     top_agents_sub: 'Результаты продаж за день',
@@ -422,7 +431,7 @@ export const translations: Record<Language, Translations> = {
     // Orders
     orders_title: 'Журнал Документов',
     orders_sub: 'Оформленные заявки, накладные и счета покупателей',
-    search_orders_placeholder: 'Номер заказа, клиент или агент...',
+    search_orders_placeholder: 'Номер заказа или клиент...',
     tab_all: 'Все',
     tab_new: 'Новые',
     tab_confirmed: 'Подтвержденные',
@@ -470,7 +479,7 @@ export const translations: Record<Language, Translations> = {
     // QR Badge Modal
     badge_modal_title: 'Персональный QR-Бейдж Агента',
     badge_brand: 'МОБИ-С КОНДИТЕР',
-    badge_sub: 'БЕЙДЖ ТОРГОВОГО АГЕНТА',
+    badge_sub: 'QR-КОД ЛИНИИ',
     badge_footer: 'Наведите камеру мобильного устройства для входа',
     btn_print: 'Распечатать на принтере',
     btn_close: 'Закрыть',
@@ -528,7 +537,7 @@ export const translations: Record<Language, Translations> = {
     share: 'доля',
     agent_performance: 'Эффективность Торговых Представителей',
     col_avg_check: 'Средний Чек',
-    product_turnover: 'Остатки и Оборачиваемость Сладостей',
+    product_turnover: 'Продажи по товарам',
     warehouse_stock: 'остаток на складе',
     sales_volume_100: '100% объем продаж',
 
@@ -547,7 +556,7 @@ export const translations: Record<Language, Translations> = {
     invoice_subtotal: 'Сумма товаров:',
     invoice_discount: 'Скидка:',
     invoice_total_pay: 'ИТОГО К ОПЛАТЕ:',
-    invoice_released_by: 'Отпустил (Агент / Экспедитор):',
+    invoice_released_by: 'Отпустил:',
     invoice_received_by: 'Принял (Ответственный точки):',
     invoice_sign_agent: '(подпись и Ф.И.О)',
     invoice_sign_client: '(подпись и печать)',
@@ -571,6 +580,9 @@ export const translations: Record<Language, Translations> = {
     nav_shops: 'Дўконлар & Қарз',
     nav_reports: 'Ҳисоботлар',
     nav_clients: 'Линиялар & Клиентлар',
+    nav_settings: 'Созламалар',
+    settings_title: 'Созламалар',
+    settings_sub: 'Тил ва маълумотлар',
     clients_title: 'Линиялар & Клиентлар',
     clients_sub: 'Линия QR кодлари ва маршрут бўйича дўконлар (масалан 4-3-1 = 4-3 линия, Душанба)',
     nav_section: 'Асосий Бўлимлар',
@@ -586,8 +598,8 @@ export const translations: Record<Language, Translations> = {
 
     // Dashboard
     dash_title: 'Бош Бошқарув Панели',
-    dash_sub: 'Mobi_R савдо агентлари ва буюртмалар мониторинги',
-    kpi_total_sales: 'Бугунги Жами Савдо',
+    dash_sub: 'Савдо ва буюртмалар умумий кўриниши',
+    kpi_total_sales: 'Жами Савдо',
     kpi_orders_count: 'Буюртмалар Сони',
     kpi_cash: 'Нақд Пул Тушуми',
     kpi_debt: 'Мижозлар Қарздорлиги',
@@ -596,10 +608,10 @@ export const translations: Record<Language, Translations> = {
     vs_yesterday: '+14.2% кечагига нисбатан',
     all_reviewed: 'Барча заказлар кўриб чиқилган',
     new_pending: 'та янги кутмоқда',
-    cash_desc: 'Агентлар кассасидаги нақд пул',
+    cash_desc: 'Нақд пулда тўланган',
     shops_with_debt: 'та дўконда қарз бор',
-    recent_orders: 'Сўнгги Буюртмалар (Live)',
-    recent_orders_sub: 'Агентлар юборган энг янги заказлар',
+    recent_orders: 'Сўнгги Буюртмалар',
+    recent_orders_sub: 'Энг янги буюртмалар',
     view_all: 'Барчасини кўриш',
     top_agents: 'Топ Савдо Агентлари',
     top_agents_sub: 'Бугунги савдо кўрсаткичи',
@@ -609,7 +621,7 @@ export const translations: Record<Language, Translations> = {
     // Orders
     orders_title: 'Буюртмалар Журнали',
     orders_sub: 'Агентлар қабул қилган буюртмалар ва юк хатлари',
-    search_orders_placeholder: 'Буюртма ID, дўкон ёки агент...',
+    search_orders_placeholder: 'Буюртма ID ёки дўкон...',
     tab_all: 'Барчаси',
     tab_new: 'Янги',
     tab_confirmed: 'Тасдиқланган',
@@ -657,7 +669,7 @@ export const translations: Record<Language, Translations> = {
     // QR Badge Modal
     badge_modal_title: 'Агент Шахсий QR-Бейжики',
     badge_brand: 'MOBI_R ҚАНДОЛАТ',
-    badge_sub: 'САВДО АГЕНТИ БЕЙЖИКИ',
+    badge_sub: 'ЛИНИЯ QR КОДИ',
     badge_footer: 'Мобил иловага кириш учун камерага кўрсатинг',
     btn_print: 'Принтердан Чиқариш',
     btn_close: 'Ёпиш',
@@ -715,7 +727,7 @@ export const translations: Record<Language, Translations> = {
     share: 'улуш',
     agent_performance: 'Савдо Агентлари Самарадорлиги',
     col_avg_check: 'Ўртача Чек',
-    product_turnover: 'Қандолат Товарлари Қолдиғи ва Айланмаси',
+    product_turnover: 'Маҳсулотлар бўйича савдо',
     warehouse_stock: 'омбор қолдиғи',
     sales_volume_100: '100% савдо ҳажми',
 
@@ -734,7 +746,7 @@ export const translations: Record<Language, Translations> = {
     invoice_subtotal: 'Товарлар суммаси:',
     invoice_discount: 'Чегирма:',
     invoice_total_pay: 'ЖАМИ ТЎЛОВ:',
-    invoice_released_by: 'Топширди (Агент / Ҳайдовчи):',
+    invoice_released_by: 'Топширди:',
     invoice_received_by: 'Қабул қилди (Дўкон масъули):',
     invoice_sign_agent: '(имзо ва Ф.И.Ш)',
     invoice_sign_client: '(имзо ва муҳр)',
