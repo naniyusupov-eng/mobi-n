@@ -1,63 +1,90 @@
-import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  Linking,
-  ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
 import * as Location from 'expo-location';
+import {
+  CheckCircle2,
+  MapPin,
+  Navigation,
+  Phone,
+  Receipt,
+  ShoppingBag,
+  StickyNote,
+  Store,
+  User,
+  Wallet,
+} from 'lucide-react-native';
+import { AppText, Badge, Button, Card, Divider, EmptyState, Money, Row, Screen, SectionHeader } from '../../components/ui';
+import { OrderCard, PaymentSheet } from '../../components/shared';
+import { COMMON, Tri, useL } from '../../i18n/tri';
 import { useShopStore } from '../../store/shopStore';
 import { useCartStore } from '../../store/cartStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { orderRepository } from '../../database/orderRepository';
-import { invoiceService } from '../../services/invoiceService';
+import { shopRepository } from '../../database/shopRepository';
+import { formatShopNum } from '../../utils/format';
 import { Order, Shop } from '../../types';
-import { colors } from '../../theme/colors';
-import {
-  Store,
-  Phone,
-  MapPin,
-  Calendar,
-  AlertCircle,
-  ShoppingBag,
-  CheckCircle2,
-  Receipt,
-  Navigation,
-  Printer,
-} from 'lucide-react-native';
+import { colors, radius, space } from '../../theme/colors';
+import { PKO_LABEL, dialPhone, shopDayLabel, shopRouteCode, splitPhones } from '../../components/shopHelpers';
+
+const TX = {
+  notFound: { uz: 'Doʻkon maʼlumotlari topilmadi', uz_cyrl: 'Дўкон маълумотлари топилмади', ru: 'Данные магазина не найдены' },
+  owner: { uz: 'Masʼul', uz_cyrl: 'Масъул', ru: 'Ответственный' },
+  balance: { uz: 'Qarz qoldigʻi', uz_cyrl: 'Қарз қолдиғи', ru: 'Остаток долга' },
+  checkIn: { uz: 'Tashrifni belgilash', uz_cyrl: 'Ташрифни белгилаш', ru: 'Отметить визит' },
+  openMap: { uz: 'Xaritada', uz_cyrl: 'Харитада', ru: 'На карте' },
+  history: { uz: 'Buyurtmalar tarixi', uz_cyrl: 'Буюртмалар тарихи', ru: 'История заказов' },
+  noOrders: { uz: 'Hozircha buyurtmalar yoʻq', uz_cyrl: 'Ҳозирча буюртмалар йўқ', ru: 'Заказов пока нет' },
+  gpsTitle: { uz: 'Joylashuv', uz_cyrl: 'Жойлашув', ru: 'Геолокация' },
+  gpsDenied: { uz: 'Geolokatsiyaga ruxsat berilmadi', uz_cyrl: 'Геолокацияга рухсат берилмади', ru: 'Доступ к геопозиции отклонён' },
+  gpsError: { uz: 'Joylashuvni aniqlab boʻlmadi', uz_cyrl: 'Жойлашувни аниқлаб бўлмади', ru: 'Не удалось определить местоположение' },
+  visitSaved: {
+    uz: 'Doʻkonga tashrifingiz GPS orqali saqlandi.\nKoordinatalar:',
+    uz_cyrl: 'Дўконга ташрифингиз GPS орқали сақланди.\nКоординаталар:',
+    ru: 'Визит сохранён по GPS.\nКоординаты:',
+  },
+  noCoords: {
+    uz: 'Ushbu doʻkonning GPS koordinatasi kiritilmagan',
+    uz_cyrl: 'Ушбу дўконнинг GPS координатаси киритилмаган',
+    ru: 'Координаты GPS для этого магазина не указаны',
+  },
+} satisfies Record<string, Tri>;
 
 export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation: any }) => {
   const { shopId } = route.params;
-  const { currentShop, markShopVisited, setCurrentShop, shops } = useShopStore();
-  const { setShop: setCartShop } = useCartStore();
-  const { t, lang } = useLanguageStore();
+  const { currentShop, markShopVisited, setCurrentShop, shops, loadShops } = useShopStore();
+  const setCartShop = useCartStore((s) => s.setShop);
+  const lang = useLanguageStore((s) => s.lang);
+  const L = useL();
 
   const [shop, setShop] = useState<Shop | null>(
     currentShop?.id === shopId ? currentShop : shops.find((s) => s.id === shopId) || null
   );
   const [pastOrders, setPastOrders] = useState<Order[]>([]);
   const [isCheckingLocation, setIsCheckingLocation] = useState(false);
+  const [payShop, setPayShop] = useState<Shop | null>(null);
 
-  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
-
-  useEffect(() => {
-    if (shopId) {
-      const orders = orderRepository.getAll(shopId);
-      setPastOrders(orders);
-    }
+  const loadOrders = useCallback(() => {
+    if (shopId) setPastOrders(orderRepository.getAll(shopId));
   }, [shopId]);
 
+  // Orders made from this page show up when coming back from the cart
+  useEffect(() => {
+    loadOrders();
+    return navigation.addListener('focus', loadOrders);
+  }, [navigation, loadOrders]);
+
+  // After a payment: reload the debt from the phone database
+  const refreshShop = () => {
+    loadShops();
+    const fresh = shopRepository.getById(shopId);
+    if (fresh) setShop((prev) => ({ ...fresh, lastVisitedAt: fresh.lastVisitedAt ?? prev?.lastVisitedAt }));
+  };
+
   const handleStartOrder = () => {
-    if (shop) {
-      setCurrentShop(shop);
-      setCartShop(shop);
-      navigation.navigate('CatalogTab', { screen: 'CatalogMain' });
-    }
+    if (!shop) return;
+    setCurrentShop(shop);
+    setCartShop(shop);
+    navigation.navigate('CatalogTab', { screen: 'CatalogMain' });
   };
 
   const handleRegisterVisit = async () => {
@@ -65,34 +92,20 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
       setIsCheckingLocation(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          'GPS',
-          lang === 'ru'
-            ? 'Доступ к геопозиции отклонен'
-            : lang === 'uz_cyrl'
-            ? 'Геолокацияга рухсат берилмади'
-            : 'Geolokatsiyaga ruxsat berilmadi'
-        );
-        setIsCheckingLocation(false);
+        Alert.alert(L(TX.gpsTitle), L(TX.gpsDenied));
         return;
       }
-
       const location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       if (shop) {
         markShopVisited(shop.id);
         setShop({ ...shop, lastVisitedAt: new Date().toISOString() });
         Alert.alert(
-          t('shop_visited_today') + ' ✅',
-          (lang === 'ru'
-            ? 'Визит успешно сохранен по GPS.\nКоординаты: '
-            : lang === 'uz_cyrl'
-            ? 'Дўконга ташрифингиз GPS орқали сақланди.\nКоординаталар: '
-            : 'Doʻkonga tashrifingiz GPS orqali saqlandi.\nKoordinatalar: ') +
-            `${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
+          `${L(COMMON.visited)} ✅`,
+          `${L(TX.visitSaved)} ${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`
         );
       }
-    } catch (e: any) {
-      Alert.alert(t('error'), e.message || 'GPS');
+    } catch {
+      Alert.alert(L(COMMON.error), L(TX.gpsError));
     } finally {
       setIsCheckingLocation(false);
     }
@@ -100,434 +113,167 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
 
   const handleOpenMap = () => {
     if (shop?.latitude && shop?.longitude) {
-      const url = `https://www.google.com/maps/search/?api=1&query=${shop.latitude},${shop.longitude}`;
-      Linking.openURL(url);
+      Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${shop.latitude},${shop.longitude}`);
     } else {
-      Alert.alert(
-        t('warning'),
-        lang === 'ru'
-          ? 'Координаты GPS для данной точки не указаны'
-          : lang === 'uz_cyrl'
-          ? 'Ушбу дўконнинг GPS координатаси киритилмаган'
-          : 'Ushbu doʻkonning GPS koordinatasi kiritilmagan'
-      );
-    }
-  };
-
-  const handlePrintReceipt = async (order: Order) => {
-    try {
-      const fullOrder = orderRepository.getById(order.id);
-      if (!fullOrder || !shop) return;
-      await invoiceService.printOrSharePdf(fullOrder, shop);
-    } catch (e: any) {
-      Alert.alert(t('error'), 'PDF error');
+      Alert.alert(L(COMMON.warning), L(TX.noCoords));
     }
   };
 
   if (!shop) {
     return (
-      <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-        <View style={styles.centerContainer}>
-          <Text style={styles.errorText}>
-            {lang === 'ru' ? 'Данные точки не найдены' : lang === 'uz_cyrl' ? 'Дўкон маълумотлари топилмади' : 'Doʻkon maʼlumotlari topilmadi'}
-          </Text>
-        </View>
-      </SafeAreaView>
+      <Screen>
+        <EmptyState icon={Store} title={L(TX.notFound)} />
+      </Screen>
     );
   }
 
+  const routeCode = shopRouteCode(shop);
+  const phones = splitPhones(shop.phone);
+  const hasDebt = shop.debtBalance > 0;
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Main Document Passport Card */}
-        <View style={styles.mainCard}>
-          <View style={styles.badgeRow}>
-            <View style={styles.dayChip}>
-              <Calendar size={12} color={colors.textSecondary} />
-              <Text style={styles.dayText}>{shop.visitDay}</Text>
-            </View>
+    <Screen
+      footer={<Button title={L(COMMON.newOrder)} icon={ShoppingBag} size="lg" onPress={handleStartOrder} />}
+    >
+      {/* Passport */}
+      <Card>
+        <Row gap={6} wrap>
+          {shop.num != null ? <Badge label={`№${formatShopNum(shop.num)}`} tone="primary" /> : null}
+          {routeCode ? <Badge label={routeCode} /> : null}
+          <Badge label={shopDayLabel(shop, lang)} />
+          {shop.lastVisitedAt ? <Badge icon={CheckCircle2} label={L(COMMON.visited)} tone="success" /> : null}
+        </Row>
 
-            {shop.lastVisitedAt ? (
-              <View style={styles.visitedChip}>
-                <CheckCircle2 size={12} color={colors.success} />
-                <Text style={styles.visitedText}>{t('shop_visited_today')}</Text>
-              </View>
-            ) : null}
-          </View>
+        <AppText variant="h2" lines={3}>
+          {shop.name}
+        </AppText>
 
-          <Text style={styles.title}>{shop.name}</Text>
-          <Text style={styles.ownerText}>{t('shop_responsible')}: {shop.ownerName}</Text>
+        <Divider style={styles.divider} />
 
-          <View style={styles.divider} />
+        {shop.ownerName ? (
+          <InfoRow icon={User} label={L(TX.owner)}>
+            <AppText lines={2}>{shop.ownerName}</AppText>
+          </InfoRow>
+        ) : null}
 
-          <View style={styles.rowItem}>
-            <MapPin size={15} color={colors.textMuted} />
-            <Text style={styles.rowText}>{shop.address}</Text>
-          </View>
+        {phones.map((p) => (
+          <Pressable key={p} onPress={() => dialPhone(p)} style={({ pressed }) => pressed && styles.pressed}>
+            <InfoRow icon={Phone} label={L(COMMON.call)}>
+              <AppText color={colors.primary} style={styles.bold} lines={1}>
+                {p}
+              </AppText>
+            </InfoRow>
+          </Pressable>
+        ))}
 
-          {shop.phone ? (
-            <View style={styles.rowItem}>
-              <Phone size={15} color={colors.textMuted} />
-              <TouchableOpacity onPress={() => Linking.openURL(`tel:${shop.phone}`)}>
-                <Text style={styles.phoneLink}>{shop.phone}</Text>
-              </TouchableOpacity>
-            </View>
-          ) : null}
+        {shop.address ? (
+          <InfoRow icon={MapPin}>
+            <AppText lines={2}>{shop.address}</AppText>
+          </InfoRow>
+        ) : null}
 
-          {/* Debt Indicator */}
-          <View style={[styles.debtBox, shop.debtBalance > 0 ? styles.debtBoxRed : styles.debtBoxGreen]}>
-            <View>
-              <Text style={styles.debtLabel}>{t('shop_balance_debt')}</Text>
-              <Text
-                style={[
-                  styles.debtValue,
-                  { color: shop.debtBalance > 0 ? colors.danger : colors.success },
-                ]}
-              >
-                {shop.debtBalance > 0
-                  ? `${shop.debtBalance.toLocaleString(numLocale)} ${t('currency')}`
-                  : t('shop_no_debt_text')}
-              </Text>
-            </View>
-          </View>
-        </View>
+        {shop.notes ? (
+          <InfoRow icon={StickyNote}>
+            <AppText lines={2}>{shop.notes}</AppText>
+          </InfoRow>
+        ) : null}
+      </Card>
 
-        {/* Primary Action: Start Order */}
-        <TouchableOpacity
-          style={styles.orderBtn}
-          onPress={handleStartOrder}
-          activeOpacity={0.8}
-        >
-          <ShoppingBag size={18} color="#FFFFFF" />
-          <Text style={styles.orderBtnText}>{t('shop_action_order')}</Text>
-        </TouchableOpacity>
-
-        {/* Secondary Actions: GPS Check-in & Google Maps */}
-        <View style={styles.subActionsRow}>
-          <TouchableOpacity
-            style={styles.subActionBtn}
-            onPress={handleRegisterVisit}
-            disabled={isCheckingLocation}
-            activeOpacity={0.7}
-          >
-            {isCheckingLocation ? (
-              <ActivityIndicator size="small" color={colors.primary} />
+      {/* Debt */}
+      <Card style={hasDebt ? styles.debtCard : undefined}>
+        <Row gap={space.md}>
+          <View style={styles.flex}>
+            <AppText variant="small" color={hasDebt ? colors.danger : colors.textSecondary} lines={1}>
+              {L(TX.balance)}
+            </AppText>
+            {hasDebt ? (
+              <Money amount={shop.debtBalance} variant="h2" color={colors.danger} />
             ) : (
-              <CheckCircle2 size={16} color={colors.primary} />
+              <AppText variant="title" color={colors.success} lines={1}>
+                {L(COMMON.noDebt)}
+              </AppText>
             )}
-            <Text style={styles.subActionText}>
-              {isCheckingLocation
-                ? (lang === 'ru' ? 'GPS...' : 'GPS...')
-                : t('shop_action_visit')}
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.subActionBtn}
-            onPress={handleOpenMap}
-            activeOpacity={0.7}
-          >
-            <Navigation size={16} color={colors.primary} />
-            <Text style={styles.subActionText}>{t('shop_open_map')}</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Past Orders for This Shop */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>{t('shop_prev_orders')}</Text>
-          <Text style={styles.sectionBadge}>{pastOrders.length}</Text>
-        </View>
-
-        {pastOrders.length === 0 ? (
-          <View style={styles.emptyHistory}>
-            <Receipt size={28} color={colors.textMuted} />
-            <Text style={styles.emptyHistoryText}>{t('shop_no_prev_orders')}</Text>
           </View>
-        ) : (
-          <View style={styles.historyList}>
-            {pastOrders.map((ord) => (
-              <View key={ord.id} style={styles.orderItemCard}>
-                <View style={styles.orderItemHeader}>
-                  <View style={styles.orderIdPill}>
-                    <Text style={styles.orderIdText}>#{ord.id.slice(-6).toUpperCase()}</Text>
-                  </View>
-                  <Text style={styles.orderDate}>
-                    {new Date(ord.createdAt).toLocaleDateString(numLocale)}
-                  </Text>
-                </View>
+          <Button
+            title={L(PKO_LABEL)}
+            icon={Wallet}
+            size="sm"
+            variant={hasDebt ? 'danger' : 'outline'}
+            onPress={() => setPayShop(shop)}
+          />
+        </Row>
+      </Card>
 
-                <View style={styles.orderItemFooter}>
-                  <Text style={styles.orderAmount}>
-                    {ord.finalAmount.toLocaleString(numLocale)} {t('currency')}
-                  </Text>
+      {/* GPS check-in & map */}
+      <Row gap={space.sm}>
+        <Button
+          title={L(TX.checkIn)}
+          icon={CheckCircle2}
+          variant="outline"
+          onPress={handleRegisterVisit}
+          loading={isCheckingLocation}
+          style={styles.flex}
+        />
+        <Button title={L(TX.openMap)} icon={Navigation} variant="outline" onPress={handleOpenMap} style={styles.flex} />
+      </Row>
 
-                  <View style={styles.orderFooterRight}>
-                    <Text
-                      style={[
-                        styles.paymentMethodBadge,
-                        ord.paymentMethod === 'nasiya' && { color: colors.danger },
-                      ]}
-                    >
-                      {ord.paymentMethod === 'naqd'
-                        ? t('checkout_pay_cash')
-                        : ord.paymentMethod === 'nasiya'
-                        ? t('checkout_pay_debt')
-                        : t('checkout_pay_bank')}
-                    </Text>
+      {/* Order history */}
+      <SectionHeader title={`${L(TX.history)} · ${pastOrders.length}`} />
+      {pastOrders.length === 0 ? (
+        <Card>
+          <EmptyState icon={Receipt} title={L(TX.noOrders)} />
+        </Card>
+      ) : (
+        <Card style={styles.historyCard}>
+          {pastOrders.map((ord, i) => (
+            <View key={ord.id}>
+              {i > 0 ? <Divider /> : null}
+              <OrderCard order={ord} showDate showShop={false} />
+            </View>
+          ))}
+        </Card>
+      )}
 
-                    <TouchableOpacity
-                      onPress={() => handlePrintReceipt(ord)}
-                      style={styles.printBtn}
-                    >
-                      <Printer size={14} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+      <PaymentSheet shop={payShop} onClose={() => setPayShop(null)} onDone={refreshShop} />
+    </Screen>
   );
 };
 
+/** Icon + optional small label + value; the value side wraps instead of overflowing */
+const InfoRow: React.FC<{
+  icon: React.ComponentType<{ size?: number; color?: string }>;
+  label?: string;
+  children: React.ReactNode;
+}> = ({ icon: Icon, label, children }) => (
+  <View style={styles.infoRow}>
+    <View style={styles.infoIcon}>
+      <Icon size={15} color={colors.textSecondary} />
+    </View>
+    <View style={styles.flex}>
+      {label ? (
+        <AppText variant="caption" lines={1}>
+          {label}
+        </AppText>
+      ) : null}
+      {children}
+    </View>
+  </View>
+);
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    padding: 12,
-    paddingBottom: 30,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  errorText: {
-    fontSize: 14,
-    color: colors.danger,
-  },
-  mainCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 14,
-    marginBottom: 12,
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  dayChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  flex: { flex: 1, minWidth: 0 },
+  bold: { fontWeight: '600' },
+  pressed: { opacity: 0.6 },
+  divider: { marginVertical: space.xs },
+  infoRow: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: 4 },
+  infoIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: radius.sm,
     backgroundColor: colors.surfaceSecondary,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  dayText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  visitedChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: colors.successLight,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    borderRadius: 4,
-  },
-  visitedText: {
-    fontSize: 11,
-    color: colors.success,
-    fontWeight: '600',
-  },
-  title: {
-    fontSize: 17,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 3,
-  },
-  ownerText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    marginBottom: 8,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.borderSubtle,
-    marginVertical: 10,
-  },
-  rowItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 8,
-  },
-  rowText: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    flex: 1,
-  },
-  phoneLink: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  debtBox: {
-    marginTop: 6,
-    padding: 10,
-    borderRadius: 6,
-  },
-  debtBoxRed: {
-    backgroundColor: colors.dangerLight,
-  },
-  debtBoxGreen: {
-    backgroundColor: colors.successLight,
-  },
-  debtLabel: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginBottom: 2,
-  },
-  debtValue: {
-    fontSize: 15,
-    fontWeight: '700',
-  },
-  orderBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    marginBottom: 8,
   },
-  orderBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  subActionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  subActionBtn: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  subActionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  sectionBadge: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    backgroundColor: colors.surfaceSecondary,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  emptyHistory: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 24,
-    alignItems: 'center',
-    gap: 6,
-  },
-  emptyHistoryText: {
-    fontSize: 12,
-    color: colors.textMuted,
-  },
-  historyList: {
-    gap: 8,
-  },
-  orderItemCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 10,
-  },
-  orderItemHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  orderIdPill: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  orderIdText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  orderDate: {
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  orderItemFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  orderAmount: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  orderFooterRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  paymentMethodBadge: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  printBtn: {
-    padding: 4,
-  },
+  debtCard: { backgroundColor: colors.dangerLight, borderColor: colors.dangerLight },
+  historyCard: { paddingVertical: 0, gap: 0 },
 });

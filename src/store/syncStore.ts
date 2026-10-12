@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { syncRepository } from '../database/syncRepository';
 import { syncService, SyncResult } from '../services/syncService';
+import { formatTime } from '../utils/format';
 
 interface SyncState {
   isSyncing: boolean;
@@ -30,7 +31,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
       set({
         isSyncing: false,
         pendingCount: count,
-        lastSyncedAt: new Date().toLocaleTimeString('uz-UZ', { hour: '2-digit', minute: '2-digit' }),
+        lastSyncedAt: formatTime(new Date()),
         lastResult: result,
       });
       return result;

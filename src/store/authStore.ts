@@ -3,6 +3,25 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Agent } from '../types';
 import { getDatabase } from '../database/db';
 import { lineService, parseLineCode } from '../services/lineService';
+import { useLanguageStore } from './languageStore';
+import { Tri, pick } from '../i18n/tri';
+
+// Sign-in errors in the current app language
+const msg = (text: Tri) => pick(text, useLanguageStore.getState().lang);
+const ERR = {
+  notLine: {
+    uz: 'Bu liniya QR kodi emas. Liniya kodini kiriting, masalan 4-3',
+    uz_cyrl: 'Бу линия QR коди эмас. Линия кодини киритинг, масалан 4-3',
+    ru: 'Это не QR-код линии. Введите код линии, например 4-3',
+  },
+  offline: {
+    uz: 'Serverga ulanib boʻlmadi. Internet yoki server manzilini tekshiring',
+    uz_cyrl: 'Серверга уланиб бўлмади. Интернет ёки сервер манзилини текширинг',
+    ru: 'Нет связи с сервером. Проверьте интернет или адрес сервера',
+  },
+  notFound: { uz: 'liniyasi topilmadi', uz_cyrl: 'линияси топилмади', ru: '— линия не найдена' },
+  generic: { uz: 'Xatolik yuz berdi', uz_cyrl: 'Хатолик юз берди', ru: 'Произошла ошибка' },
+} satisfies Record<string, Tri>;
 
 interface AuthState {
   agent: Agent | null;
@@ -44,17 +63,17 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       const lineCode = parseLineCode(qrData);
       if (!lineCode) {
-        return fail('Bu liniya QR kodi emas. Liniya kodini kiriting, masalan 4-3');
+        return fail(msg(ERR.notLine));
       }
 
       let line;
       try {
         line = await lineService.findLine(lineCode);
       } catch {
-        return fail('Serverga ulanib boʻlmadi. Internet yoki server manzilini tekshiring');
+        return fail(msg(ERR.offline));
       }
       if (!line) {
-        return fail(`${lineCode} liniyasi topilmadi`);
+        return fail(`${lineCode} ${msg(ERR.notFound)}`);
       }
 
       await lineService.downloadShops(lineCode);
@@ -89,7 +108,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       set({ agent: session, isLoading: false, error: null });
       return { success: true };
     } catch (err: any) {
-      return fail(err.message || 'Xatolik yuz berdi');
+      return fail(err.message || msg(ERR.generic));
     }
   },
 

@@ -1,738 +1,346 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  RefreshControl,
-  Alert,
-  StatusBar,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+  Banknote,
+  ChevronLeft,
+  ChevronRight,
+  CloudOff,
+  CloudUpload,
+  BarChart3,
+  Plus,
+  Receipt,
+  RefreshCw,
+  ShoppingBag,
+  Store,
+  TrendingUp,
+  Wallet,
+} from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
 import { useSyncStore } from '../../store/syncStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { useCartStore } from '../../store/cartStore';
 import { useShopStore } from '../../store/shopStore';
-import { useDateStore } from '../../store/dateStore';
+import { getTodayDateString, useDateStore } from '../../store/dateStore';
 import { orderRepository } from '../../database/orderRepository';
-import { shopRepository } from '../../database/shopRepository';
-import { invoiceService } from '../../services/invoiceService';
 import { Order } from '../../types';
-import { colors } from '../../theme/colors';
-import {
-  Calendar,
-  Store,
-  FileText,
-  Printer,
-  CheckCircle2,
-  Clock,
-  ChevronRight,
-  ChevronLeft,
-  ArrowRight,
-  RefreshCw,
-  PlusCircle,
-  ShoppingBag,
-} from 'lucide-react-native';
+import { colors, radius, space } from '../../theme/colors';
+import { AppText, Badge, Button, Card, Divider, EmptyState, IconButton, Row, Screen, SectionHeader, Stat } from '../../components/ui';
+import { OrderCard } from '../../components/shared';
+import { COMMON, useL } from '../../i18n/tri';
+import { formatDayLong, formatMoneyShort, formatNumber } from '../../utils/format';
+
+type Stats = { totalSales: number; orderCount: number; cashCollected: number };
+
+const orderDay = (o: Order) => o.deliveryDate || (o.createdAt ? o.createdAt.split('T')[0] : '');
 
 export const HomeScreen = ({ navigation }: { navigation: any }) => {
-  const { agent } = useAuthStore();
-  const isSyncing = useSyncStore((state) => state.isSyncing);
-  const pendingCount = useSyncStore((state) => state.pendingCount);
-  const refreshPendingCount = useSyncStore((state) => state.refreshPendingCount);
-  const triggerSync = useSyncStore((state) => state.triggerSync);
-  const { lang, t } = useLanguageStore();
+  const L = useL();
+  const lang = useLanguageStore((s) => s.lang);
+  const agent = useAuthStore((s) => s.agent);
+  const isSyncing = useSyncStore((s) => s.isSyncing);
+  const pendingCount = useSyncStore((s) => s.pendingCount);
+  const refreshPendingCount = useSyncStore((s) => s.refreshPendingCount);
+  const triggerSync = useSyncStore((s) => s.triggerSync);
+  const cartShop = useCartStore((s) => s.shop);
+  const currentShop = useShopStore((s) => s.currentShop);
+  const activeShop = cartShop || currentShop;
+  const { workingDate, shiftWorkingDay, resetToToday } = useDateStore();
 
-  const [stats, setStats] = useState({
-    totalSales: 0,
-    orderCount: 0,
-    cashCollected: 0,
-  });
-  const [todayOrders, setTodayOrders] = useState<Order[]>([]);
+  const [todayStats, setTodayStats] = useState<Stats>({ totalSales: 0, orderCount: 0, cashCollected: 0 });
+  const [orders, setOrders] = useState<Order[]>([]);
   const [refreshing, setRefreshing] = useState(false);
 
-  const { shop } = useCartStore();
-  const { currentShop } = useShopStore();
-  const activeShop = shop || currentShop;
-
-  const { workingDate, shiftWorkingDay, resetToToday, getFormattedWorkingDate } = useDateStore();
-  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
+  const isToday = workingDate === getTodayDateString();
+  const lineCode = agent?.lineCode || agent?.territory || '';
 
   const loadData = useCallback(() => {
-    if (agent?.id) {
-      const s = orderRepository.getTodayStats(agent.id);
-      setStats(s);
-    }
-    const all = orderRepository.getAll();
-    const filtered = all.filter((o) => {
-      const orderDate = o.deliveryDate || (o.createdAt ? o.createdAt.split('T')[0] : '');
-      return orderDate === workingDate;
-    });
-    setTodayOrders(filtered);
+    if (agent?.id) setTodayStats(orderRepository.getTodayStats(agent.id));
+    setOrders(orderRepository.getAll().filter((o) => orderDay(o) === workingDate));
     refreshPendingCount();
   }, [agent?.id, workingDate, refreshPendingCount]);
 
   useEffect(() => {
     loadData();
-    const unsubscribe = navigation.addListener('focus', () => {
-      loadData();
-    });
-    return unsubscribe;
+    return navigation.addListener('focus', loadData);
   }, [navigation, loadData]);
 
-  const onRefresh = async () => {
+  const onRefresh = () => {
     setRefreshing(true);
     loadData();
     setRefreshing(false);
   };
 
-  const handleSyncNow = async () => {
-    const res = await triggerSync();
-    if (res.success) {
-      Alert.alert(t('home_sync_title'), t('home_sync_success'));
-      loadData();
-    } else {
-      Alert.alert(t('warning'), t('home_sync_failed'));
-    }
-  };
-
-  const handlePrintReceipt = async (order: Order) => {
-    try {
-      const fullOrder = orderRepository.getById(order.id);
-      if (!fullOrder) return;
-      const sh = shopRepository.getById(order.shopId);
-      await invoiceService.printOrSharePdf(fullOrder, sh);
-    } catch (e: any) {
-      Alert.alert(t('error'), 'PDF error');
-    }
-  };
-
-  const getPaymentLabel = (pm: string) => {
-    if (pm === 'naqd') return t('checkout_pay_cash');
-    if (pm === 'nasiya') return t('checkout_pay_debt');
-    return t('checkout_pay_bank');
-  };
-
+  // Today uses the stored stats; another working day is summed from its orders
+  const stats: Stats = useMemo(() => {
+    if (isToday) return todayStats;
+    return orders.reduce<Stats>(
+      (acc, o) => ({
+        totalSales: acc.totalSales + o.finalAmount,
+        orderCount: acc.orderCount + 1,
+        cashCollected: acc.cashCollected + (o.paymentMethod === 'naqd' ? o.finalAmount : 0),
+      }),
+      { totalSales: 0, orderCount: 0, cashCollected: 0 }
+    );
+  }, [isToday, todayStats, orders]);
   const debtAmount = Math.max(0, stats.totalSales - stats.cashCollected);
 
+  const handleSync = async () => {
+    const res = await triggerSync();
+    if (res.success) {
+      Alert.alert(
+        L({ uz: 'Sinxronlash', uz_cyrl: 'Синхронлаш', ru: 'Синхронизация' }),
+        L({ uz: 'Maʼlumotlar yuborildi va yangilandi.', uz_cyrl: 'Маълумотлар юборилди ва янгиланди.', ru: 'Данные отправлены и обновлены.' })
+      );
+      loadData();
+    } else {
+      Alert.alert(
+        L(COMMON.warning),
+        L({
+          uz: 'Serverga ulanib boʻlmadi. Maʼlumotlar telefonda saqlangan, keyinroq qayta urinib koʻring.',
+          uz_cyrl: 'Серверга уланиб бўлмади. Маълумотлар телефонда сақланган, кейинроқ қайта уриниб кўринг.',
+          ru: 'Не удалось связаться с сервером. Данные сохранены на телефоне, попробуйте позже.',
+        })
+      );
+    }
+  };
+
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
-
-      {/* Minimalist Top App Bar */}
-      <View style={styles.topHeader}>
-        <View style={styles.headerLeft}>
-          <Text style={styles.appBrand}>Mobi_R</Text>
-          {agent && (
-            <View style={styles.agentBadge}>
-              <Text style={styles.agentBadgeText}>{agent.code}</Text>
-            </View>
-          )}
+    <Screen edges={['top', 'left', 'right']} refreshing={refreshing} onRefresh={onRefresh}>
+      {/* Top: line + sync */}
+      <Row gap={space.md}>
+        <View style={styles.flex}>
+          <AppText variant="caption" lines={1}>
+            {L({ uz: 'Joriy liniya', uz_cyrl: 'Жорий линия', ru: 'Текущая линия' })}
+          </AppText>
+          <AppText variant="h2" lines={1}>
+            {lineCode ? `${lineCode} ${L(COMMON.line)}` : '—'}
+          </AppText>
         </View>
-
-        <TouchableOpacity
-          style={[styles.syncHeaderBtn, pendingCount > 0 && styles.syncHeaderBtnPending]}
-          onPress={handleSyncNow}
+        <IconButton
+          icon={pendingCount > 0 ? CloudUpload : RefreshCw}
+          tone={pendingCount > 0 ? 'warning' : 'primary'}
+          onPress={handleSync}
           disabled={isSyncing}
-          activeOpacity={0.7}
-        >
-          <RefreshCw size={14} color={pendingCount > 0 ? colors.warning : colors.primary} />
-          <Text style={[styles.syncHeaderText, pendingCount > 0 && { color: colors.warning }]}>
-            {isSyncing ? t('loading') : pendingCount > 0 ? `+${pendingCount}` : '1C'}
-          </Text>
-        </TouchableOpacity>
+          size={40}
+        />
+      </Row>
+
+      {/* Working day switcher */}
+      <View style={styles.dateBar}>
+        <IconButton icon={ChevronLeft} onPress={() => shiftWorkingDay(-1)} size={36} />
+        <Pressable onPress={resetToToday} style={({ pressed }) => [styles.dateCenter, pressed && styles.pressed]} hitSlop={4}>
+          <AppText variant="strong" align="center" lines={1}>
+            {formatDayLong(workingDate, lang)}
+          </AppText>
+          <AppText variant="caption" align="center" color={isToday ? colors.textMuted : colors.primary} lines={1}>
+            {isToday
+              ? L(COMMON.today)
+              : L({ uz: 'Bugunga qaytish', uz_cyrl: 'Бугунга қайтиш', ru: 'Вернуться к сегодня' })}
+          </AppText>
+        </Pressable>
+        <IconButton icon={ChevronRight} onPress={() => shiftWorkingDay(1)} size={36} />
       </View>
 
-      {/* Date Ribbon - Clean & Documental */}
-      <View style={styles.dateRibbon}>
-        <TouchableOpacity
-          style={styles.dateNavBtn}
-          onPress={() => shiftWorkingDay(-1)}
-          activeOpacity={0.6}
-        >
-          <ChevronLeft size={16} color={colors.textSecondary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.dateCenterContent}
-          onPress={resetToToday}
-          activeOpacity={0.7}
-        >
-          <Calendar size={14} color={colors.primary} />
-          <Text style={styles.dateRibbonText}>{getFormattedWorkingDate(lang)}</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.dateNavBtn}
-          onPress={() => shiftWorkingDay(1)}
-          activeOpacity={0.6}
-        >
-          <ChevronRight size={16} color={colors.textSecondary} />
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[colors.primary]} />}
-      >
-        {/* Active Client / Document Session Banner */}
-        {activeShop ? (
-          <View style={styles.activeShopCard}>
-            <View style={styles.activeShopHeader}>
-              <View style={styles.activeShopBadge}>
-                <Store size={13} color={colors.primary} />
-                <Text style={styles.activeShopBadgeText}>{t('checkout_client')}</Text>
-              </View>
-              <TouchableOpacity
-                onPress={() => navigation.navigate('ShopsTab')}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.changeShopLink}>{lang === 'ru' ? 'Сменить' : 'Almashtirish'}</Text>
-              </TouchableOpacity>
+      {/* Sync status (only when something waits) */}
+      {pendingCount > 0 || isSyncing ? (
+        <Card style={styles.syncCard}>
+          <Row gap={space.md}>
+            <CloudOff size={18} color={colors.warning} />
+            <View style={styles.flex}>
+              <AppText variant="strong" lines={1}>
+                {isSyncing
+                  ? L({ uz: 'Yuborilmoqda…', uz_cyrl: 'Юборилмоқда…', ru: 'Отправка…' })
+                  : L({ uz: 'Yuborilmagan hujjatlar', uz_cyrl: 'Юборилмаган ҳужжатлар', ru: 'Неотправленные документы' })}
+              </AppText>
+              {!isSyncing ? (
+                <AppText variant="small" lines={1}>
+                  {formatNumber(pendingCount)} {L({ uz: 'ta', uz_cyrl: 'та', ru: 'шт.' })}
+                </AppText>
+              ) : null}
             </View>
+            <Button
+              title={L({ uz: 'Yuborish', uz_cyrl: 'Юбориш', ru: 'Отправить' })}
+              size="sm"
+              variant="secondary"
+              onPress={handleSync}
+              loading={isSyncing}
+            />
+          </Row>
+        </Card>
+      ) : null}
 
-            <Text style={styles.activeShopName} numberOfLines={1}>{activeShop.name}</Text>
-            <Text style={styles.activeShopAddress} numberOfLines={1}>{activeShop.address}</Text>
-
-            <TouchableOpacity
-              style={styles.startOrderBtn}
-              onPress={() => navigation.navigate('CatalogTab')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.startOrderBtnText}>{t('tab_catalog')} ({t('home_menu_order')})</Text>
-              <ArrowRight size={14} color="#FFFFFF" />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.selectShopPrompt}
-            onPress={() => navigation.navigate('ShopsTab')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.selectShopIconBox}>
-              <Store size={18} color={colors.primary} />
+      {/* Active shop */}
+      {activeShop ? (
+        <Card>
+          <Row gap={space.md}>
+            <View style={styles.shopIcon}>
+              <Store size={18} color={colors.primaryDark} />
             </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.selectShopTitle}>{lang === 'ru' ? 'Выберите торговую точку' : 'Mijozni tanlang'}</Text>
-              <Text style={styles.selectShopSub}>{lang === 'ru' ? 'Для оформления нового заказа' : 'Yangi buyurtma ochish uchun'}</Text>
+            <View style={styles.flex}>
+              <AppText variant="caption" lines={1}>
+                {L({ uz: 'Tanlangan doʻkon', uz_cyrl: 'Танланган дўкон', ru: 'Выбранный магазин' })}
+              </AppText>
+              <AppText variant="title" lines={1}>
+                {activeShop.name}
+              </AppText>
+              {activeShop.address ? (
+                <AppText variant="small" lines={1}>
+                  {activeShop.address}
+                </AppText>
+              ) : null}
             </View>
-            <ArrowRight size={16} color={colors.primary} />
-          </TouchableOpacity>
-        )}
-
-        {/* 4 Clean Micro KPI Cards */}
-        <View style={styles.kpiGrid}>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>{t('home_orders_count')}</Text>
-            <Text style={styles.kpiValue}>
-              {stats.orderCount} <Text style={styles.kpiUnit}>{t('pcs')}</Text>
-            </Text>
-          </View>
-
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>{t('home_sales_today')}</Text>
-            <Text style={[styles.kpiValue, { color: colors.primary }]}>
-              {stats.totalSales > 0 ? (stats.totalSales / 1000).toLocaleString(numLocale, { maximumFractionDigits: 1 }) + 'k' : '0'}
-              <Text style={styles.kpiUnit}> {t('currency')}</Text>
-            </Text>
-          </View>
-
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>{t('reports_cash')}</Text>
-            <Text style={[styles.kpiValue, { color: colors.success }]}>
-              {stats.cashCollected > 0 ? (stats.cashCollected / 1000).toLocaleString(numLocale, { maximumFractionDigits: 1 }) + 'k' : '0'}
-              <Text style={styles.kpiUnit}> {t('currency')}</Text>
-            </Text>
-          </View>
-
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiLabel}>{t('reports_debt')}</Text>
-            <Text style={[styles.kpiValue, { color: debtAmount > 0 ? colors.danger : colors.textSecondary }]}>
-              {debtAmount > 0 ? (debtAmount / 1000).toLocaleString(numLocale, { maximumFractionDigits: 1 }) + 'k' : '0'}
-              <Text style={styles.kpiUnit}> {t('currency')}</Text>
-            </Text>
-          </View>
-        </View>
-
-        {/* Today's Orders / Live Feed Section */}
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionTitle}>{t('rep_orders_today')}</Text>
-          <TouchableOpacity onPress={() => navigation.navigate('HistoryTab')} activeOpacity={0.7}>
-            <Text style={styles.viewAllLink}>{t('tab_history')} →</Text>
-          </TouchableOpacity>
-        </View>
-
-        {todayOrders.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <ShoppingBag size={32} color={colors.textMuted} />
-            <Text style={styles.emptyTitle}>
-              {lang === 'ru' ? 'На эту дату заказов пока нет' : 'Ushbu sanada buyurtmalar mavjud emas'}
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyActionBtn}
+          </Row>
+          <Row gap={space.sm} style={styles.topGap}>
+            <Button
+              title={L({ uz: 'Almashtirish', uz_cyrl: 'Алмаштириш', ru: 'Сменить' })}
+              variant="outline"
+              size="sm"
               onPress={() => navigation.navigate('ShopsTab')}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.emptyActionText}>{lang === 'ru' ? 'Оформить заказ' : 'Buyurtma olish'}</Text>
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <View style={styles.ordersList}>
-            {todayOrders.map((ord) => (
-              <View key={ord.id} style={styles.orderItemCard}>
-                <View style={styles.orderTopRow}>
-                  <View style={styles.orderIdPill}>
-                    <Text style={styles.orderIdText}>#{ord.id.slice(-6).toUpperCase()}</Text>
-                  </View>
+              style={styles.flex}
+            />
+            <Button
+              title={L({ uz: 'Buyurtmani davom ettirish', uz_cyrl: 'Буюртмани давом эттириш', ru: 'Продолжить заказ' })}
+              size="sm"
+              icon={ShoppingBag}
+              onPress={() => navigation.navigate('CatalogTab')}
+              style={styles.grow2}
+            />
+          </Row>
+        </Card>
+      ) : (
+        <Card onPress={() => navigation.navigate('ShopsTab')}>
+          <Row gap={space.md}>
+            <View style={styles.shopIcon}>
+              <Store size={18} color={colors.primaryDark} />
+            </View>
+            <View style={styles.flex}>
+              <AppText variant="strong" lines={1}>
+                {L(COMMON.chooseShop)}
+              </AppText>
+              <AppText variant="small" lines={2}>
+                {L({ uz: 'Yangi buyurtma ochish uchun', uz_cyrl: 'Янги буюртма очиш учун', ru: 'Чтобы оформить новый заказ' })}
+              </AppText>
+            </View>
+            <ChevronRight size={18} color={colors.textMuted} />
+          </Row>
+        </Card>
+      )}
 
-                  <View style={styles.orderTopRight}>
-                    {ord.isSynced ? (
-                      <View style={styles.syncedChip}>
-                        <CheckCircle2 size={11} color={colors.success} />
-                        <Text style={styles.syncedChipText}>1C</Text>
-                      </View>
-                    ) : (
-                      <View style={styles.pendingChip}>
-                        <Clock size={11} color={colors.warning} />
-                        <Text style={styles.pendingChipText}>{t('home_to_export')}</Text>
-                      </View>
-                    )}
+      {/* KPIs for the working day */}
+      <Row gap={space.md} wrap>
+        <Stat
+          label={L(COMMON.orders)}
+          value={formatNumber(stats.orderCount)}
+          icon={Receipt}
+        />
+        <Stat
+          label={L({ uz: 'Savdo', uz_cyrl: 'Савдо', ru: 'Продажи' })}
+          value={formatMoneyShort(stats.totalSales, lang)}
+          icon={TrendingUp}
+          tone="primary"
+        />
+      </Row>
+      <Row gap={space.md} wrap>
+        <Stat
+          label={L({ uz: 'Naqd', uz_cyrl: 'Нақд', ru: 'Наличные' })}
+          value={formatMoneyShort(stats.cashCollected, lang)}
+          icon={Banknote}
+          tone="success"
+        />
+        <Stat
+          label={L({ uz: 'Nasiya va oʻtkazma', uz_cyrl: 'Насия ва ўтказма', ru: 'В долг и перечисл.' })}
+          value={formatMoneyShort(debtAmount, lang)}
+          icon={Wallet}
+          tone={debtAmount > 0 ? 'danger' : 'neutral'}
+        />
+      </Row>
 
-                    <TouchableOpacity
-                      style={styles.printIconBtn}
-                      onPress={() => handlePrintReceipt(ord)}
-                      activeOpacity={0.7}
-                    >
-                      <Printer size={14} color={colors.textSecondary} />
-                    </TouchableOpacity>
-                  </View>
-                </View>
+      {/* Orders of the working day */}
+      <SectionHeader
+        title={L({ uz: 'Kun buyurtmalari', uz_cyrl: 'Кун буюртмалари', ru: 'Заказы за день' })}
+        action={L(COMMON.all)}
+        onAction={() => navigation.navigate('HistoryTab')}
+      />
+      {orders.length === 0 ? (
+        <Card>
+          <EmptyState
+            icon={ShoppingBag}
+            title={L({ uz: 'Bu kunda buyurtma yoʻq', uz_cyrl: 'Бу кунда буюртма йўқ', ru: 'Заказов за этот день нет' })}
+            action={
+              <Button
+                title={L({ uz: 'Buyurtma olish', uz_cyrl: 'Буюртма олиш', ru: 'Оформить заказ' })}
+                variant="secondary"
+                size="sm"
+                onPress={() => navigation.navigate('ShopsTab')}
+              />
+            }
+          />
+        </Card>
+      ) : (
+        <Card style={styles.listCard}>
+          {orders.map((o, i) => (
+            <View key={o.id}>
+              {i > 0 ? <Divider /> : null}
+              <OrderCard order={o} />
+            </View>
+          ))}
+        </Card>
+      )}
 
-                <Text style={styles.orderShopName} numberOfLines={1}>{ord.shopName}</Text>
-
-                <View style={styles.orderBottomRow}>
-                  <View style={styles.orderMeta}>
-                    <Text style={styles.orderTimeText}>
-                      {new Date(ord.createdAt).toLocaleTimeString(numLocale, { hour: '2-digit', minute: '2-digit' })}
-                    </Text>
-                    <Text style={styles.orderDot}>•</Text>
-                    <Text style={[styles.orderPayMethod, ord.paymentMethod === 'nasiya' && { color: colors.danger }]}>
-                      {getPaymentLabel(ord.paymentMethod)}
-                    </Text>
-                  </View>
-
-                  <Text style={styles.orderFinalSum}>
-                    {ord.finalAmount.toLocaleString(numLocale)} {t('currency')}
-                  </Text>
-                </View>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* Quick Utilities Strip */}
-        <View style={styles.quickUtilities}>
-          <TouchableOpacity
-            style={styles.utilityBtn}
-            onPress={() => navigation.navigate('ShopsTab', { screen: 'AddShopModal' })}
-            activeOpacity={0.7}
-          >
-            <PlusCircle size={16} color={colors.primary} />
-            <Text style={styles.utilityBtnText}>{t('nav_new_shop')}</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={styles.utilityBtn}
-            onPress={handleSyncNow}
-            disabled={isSyncing}
-            activeOpacity={0.7}
-          >
-            <RefreshCw size={16} color={colors.primary} />
-            <Text style={styles.utilityBtnText}>{t('home_menu_sync')}</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+      {/* Quick actions (not duplicated by the tab bar) */}
+      <Row gap={space.sm}>
+        <Button
+          title={L({ uz: 'Yangi doʻkon', uz_cyrl: 'Янги дўкон', ru: 'Новый магазин' })}
+          icon={Plus}
+          variant="outline"
+          onPress={() => navigation.navigate('ShopsTab', { screen: 'AddShopModal' })}
+          style={styles.flex}
+        />
+        <Button
+          title={L({ uz: 'Hisobotlar', uz_cyrl: 'Ҳисоботлар', ru: 'Отчёты' })}
+          icon={BarChart3}
+          variant="outline"
+          onPress={() => navigation.navigate('ReportsScreen')}
+          style={styles.flex}
+        />
+      </Row>
+      {pendingCount === 0 && !isSyncing ? (
+        <Row gap={6} style={styles.center}>
+          <Badge
+            label={L({ uz: 'Hammasi yuborilgan', uz_cyrl: 'Ҳаммаси юборилган', ru: 'Всё отправлено' })}
+            tone="success"
+          />
+        </Row>
+      ) : null}
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  topHeader: {
-    height: 52,
-    backgroundColor: '#FFFFFF',
+  flex: { flex: 1, minWidth: 0 },
+  grow2: { flex: 2, minWidth: 0 },
+  pressed: { opacity: 0.75 },
+  center: { justifyContent: 'center' },
+  topGap: { marginTop: space.xs },
+  dateBar: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  appBrand: {
-    color: colors.text,
-    fontSize: 18,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
-  agentBadge: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-  },
-  agentBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  syncHeaderBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-    backgroundColor: colors.primaryLight,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-  },
-  syncHeaderBtnPending: {
-    backgroundColor: colors.warningLight,
-    borderColor: '#FDE68A',
-  },
-  syncHeaderText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  dateRibbon: {
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  dateNavBtn: {
-    width: 32,
-    height: 30,
-    borderRadius: 6,
-    backgroundColor: colors.surfaceSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dateCenterContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  dateRibbonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  scrollContent: {
-    padding: 12,
-    paddingBottom: 24,
-  },
-  activeShopCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
+    gap: space.sm,
+    padding: space.sm,
+    backgroundColor: colors.card,
+    borderRadius: radius.lg,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  activeShopHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  activeShopBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  activeShopBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  changeShopLink: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  activeShopName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 2,
-  },
-  activeShopAddress: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 10,
-  },
-  startOrderBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 6,
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  startOrderBtnText: {
-    color: '#FFFFFF',
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  selectShopPrompt: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  selectShopIconBox: {
+  dateCenter: { flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 2 },
+  syncCard: { backgroundColor: colors.warningLight, borderColor: colors.border, paddingVertical: space.md },
+  shopIcon: {
     width: 38,
     height: 38,
-    borderRadius: 8,
+    borderRadius: radius.md,
     backgroundColor: colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  selectShopTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  selectShopSub: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-  kpiGrid: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16,
-  },
-  kpiCard: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  kpiLabel: {
-    fontSize: 10,
-    color: colors.textSecondary,
-    marginBottom: 4,
-    fontWeight: '500',
-  },
-  kpiValue: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  kpiUnit: {
-    fontSize: 9,
-    fontWeight: '400',
-    color: colors.textSecondary,
-  },
-  sectionHeaderRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-    marginTop: 4,
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
-  viewAllLink: {
-    fontSize: 12,
-    color: colors.primary,
-    fontWeight: '500',
-  },
-  emptyCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 24,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 14,
-  },
-  emptyTitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginTop: 8,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  emptyActionBtn: {
-    backgroundColor: colors.primaryLight,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 6,
-  },
-  emptyActionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  ordersList: {
-    gap: 8,
-    marginBottom: 14,
-  },
-  orderItemCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  orderTopRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  orderIdPill: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  orderIdText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  orderTopRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  syncedChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: colors.successLight,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  syncedChipText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.success,
-  },
-  pendingChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    backgroundColor: colors.warningLight,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  pendingChipText: {
-    fontSize: 10,
-    fontWeight: '500',
-    color: colors.warning,
-  },
-  printIconBtn: {
-    padding: 3,
-  },
-  orderShopName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-    marginBottom: 4,
-  },
-  orderBottomRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  orderMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  orderTimeText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  orderDot: {
-    fontSize: 10,
-    color: colors.textMuted,
-  },
-  orderPayMethod: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  orderFinalSum: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  quickUtilities: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 6,
-  },
-  utilityBtn: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    paddingVertical: 10,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  utilityBtnText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: colors.text,
-  },
+  listCard: { paddingVertical: 0 },
 });

@@ -1,229 +1,133 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Order, Shop } from '../types';
+import { useLanguageStore } from '../store/languageStore';
+import { PAYMENT_LABELS, Tri, UNIT_LABELS, pick } from '../i18n/tri';
+import { formatDate, formatDateTime, formatMoney, formatNumber } from '../utils/format';
+
+// Receipt texts in the three app languages; the receipt follows the app language
+const T = {
+  title: { uz: 'Hisob cheki', uz_cyrl: 'Ҳисоб чеки', ru: 'Товарный чек' },
+  number: { uz: 'Chek raqami', uz_cyrl: 'Чек рақами', ru: 'Номер чека' },
+  date: { uz: 'Sana', uz_cyrl: 'Сана', ru: 'Дата' },
+  delivery: { uz: 'Yetkazish', uz_cyrl: 'Етказиш', ru: 'Доставка' },
+  shop: { uz: 'Doʻkon', uz_cyrl: 'Дўкон', ru: 'Магазин' },
+  owner: { uz: 'Egasi', uz_cyrl: 'Эгаси', ru: 'Владелец' },
+  address: { uz: 'Manzil', uz_cyrl: 'Манзил', ru: 'Адрес' },
+  line: { uz: 'Liniya', uz_cyrl: 'Линия', ru: 'Линия' },
+  payment: { uz: 'Toʻlov', uz_cyrl: 'Тўлов', ru: 'Оплата' },
+  product: { uz: 'Mahsulot', uz_cyrl: 'Маҳсулот', ru: 'Товар' },
+  qty: { uz: 'Miqdor', uz_cyrl: 'Миқдор', ru: 'Кол-во' },
+  price: { uz: 'Narx', uz_cyrl: 'Нарх', ru: 'Цена' },
+  sum: { uz: 'Summa', uz_cyrl: 'Сумма', ru: 'Сумма' },
+  subtotal: { uz: 'Tovarlar summasi', uz_cyrl: 'Товарлар суммаси', ru: 'Сумма товаров' },
+  discount: { uz: 'Chegirma', uz_cyrl: 'Чегирма', ru: 'Скидка' },
+  total: { uz: 'Jami toʻlov', uz_cyrl: 'Жами тўлов', ru: 'Итого к оплате' },
+  debt: { uz: 'Doʻkonning umumiy qarzi', uz_cyrl: 'Дўконнинг умумий қарзи', ru: 'Общий долг магазина' },
+  notes: { uz: 'Izoh', uz_cyrl: 'Изоҳ', ru: 'Примечание' },
+  thanks: { uz: 'Xaridingiz uchun rahmat!', uz_cyrl: 'Харидингиз учун раҳмат!', ru: 'Спасибо за покупку!' },
+  share: { uz: 'Hisob cheki', uz_cyrl: 'Ҳисоб чеки', ru: 'Чек' },
+} satisfies Record<string, Tri>;
+
+// Shop names and notes are user data: keep them from breaking the HTML
+const esc = (s: string | undefined | null) =>
+  String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 export const invoiceService = {
-  formatCurrency: (amount: number): string => {
-    return amount.toLocaleString('uz-UZ') + " so'm";
-  },
-
   generateInvoiceHtml: (order: Order, shop?: Shop | null): string => {
-    const itemsHtml = (order.items || [])
+    const lang = useLanguageStore.getState().lang;
+    const L = (t: Tri) => pick(t, lang);
+    const money = (n: number) => formatMoney(n, lang);
+
+    const rows = (order.items || [])
       .map(
-        (item, index) => `
-        <tr style="border-bottom: 1px solid #e2e8f0;">
-          <td style="padding: 8px 4px; font-size: 13px;">${index + 1}</td>
-          <td style="padding: 8px 4px; font-size: 13px; font-weight: 500;">${item.productName}</td>
-          <td style="padding: 8px 4px; font-size: 13px; text-align: center;">${item.quantity} ${item.unit}</td>
-          <td style="padding: 8px 4px; font-size: 13px; text-align: right;">${item.unitPrice.toLocaleString('uz-UZ')}</td>
-          <td style="padding: 8px 4px; font-size: 13px; text-align: right; font-weight: 600;">${item.totalPrice.toLocaleString('uz-UZ')}</td>
-        </tr>
-      `
+        (item, i) => `
+        <tr>
+          <td class="muted">${i + 1}</td>
+          <td>${esc(item.productName)}</td>
+          <td class="c">${formatNumber(item.quantity)} ${L(UNIT_LABELS[item.unit] || UNIT_LABELS.dona)}</td>
+          <td class="r">${formatNumber(item.unitPrice)}</td>
+          <td class="r b">${formatNumber(item.totalPrice)}</td>
+        </tr>`
       )
       .join('');
 
-    const paymentLabel =
-      order.paymentMethod === 'naqd'
-        ? 'Naqd pul'
-        : order.paymentMethod === 'nasiya'
-        ? 'Nasiya (Qarzga)'
-        : "Pul o'tkazish (Bank)";
+    const info = (label: Tri, value: string, cls = '') =>
+      `<tr><td class="label">${L(label)}</td><td class="val ${cls}">${value}</td></tr>`;
 
-    const formattedDate = new Date(order.createdAt).toLocaleString('uz-UZ', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>${L(T.title)} #${order.id.slice(-8).toUpperCase()}</title>
+<style>
+  body { font-family: -apple-system, 'Segoe UI', Roboto, Arial, sans-serif; color: #0f172a; padding: 24px; margin: 0; }
+  .header { text-align: center; border-bottom: 2px dashed #cbd5e1; padding-bottom: 12px; margin-bottom: 14px; }
+  .brand { font-size: 20px; font-weight: 800; color: #0369a1; margin: 0; }
+  .sub { font-size: 12px; color: #64748b; margin: 4px 0 0; }
+  table { width: 100%; border-collapse: collapse; }
+  .info td { padding: 3px 0; font-size: 13px; vertical-align: top; }
+  .label { color: #64748b; width: 34%; }
+  .val { font-weight: 600; }
+  .items { margin: 14px 0; }
+  .items th { background: #f1f5f9; padding: 7px 4px; font-size: 11px; color: #475569; text-align: left; border-bottom: 1px solid #cbd5e1; }
+  .items td { padding: 7px 4px; font-size: 12px; border-bottom: 1px solid #e2e8f0; }
+  .c { text-align: center; } .r { text-align: right; } .b { font-weight: 700; } .muted { color: #94a3b8; }
+  .totals { border-top: 1px dashed #cbd5e1; }
+  .totals td { padding: 4px 0; font-size: 13px; }
+  .grand td { font-size: 16px; font-weight: 800; color: #0369a1; padding-top: 6px; }
+  .red { color: #e11d48; } .green { color: #16a34a; }
+  .notes { margin-top: 12px; font-size: 12px; color: #475569; background: #f8fafc; padding: 8px; border-radius: 6px; }
+  .footer { margin-top: 22px; text-align: center; font-size: 11px; color: #94a3b8; border-top: 1px solid #e2e8f0; padding-top: 10px; }
+</style>
+</head>
+<body>
+  <div class="header">
+    <p class="brand">Mobi_R</p>
+    <p class="sub">${L(T.title)} • #${order.id.slice(-8).toUpperCase()}</p>
+  </div>
 
-    return `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="utf-8">
-        <title>Buyurtma Cheki - ${order.id}</title>
-        <style>
-          body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            color: #1e293b;
-            padding: 24px;
-            margin: 0;
-            background: #ffffff;
-          }
-          .header {
-            text-align: center;
-            border-bottom: 2px dashed #cbd5e1;
-            padding-bottom: 14px;
-            margin-bottom: 16px;
-          }
-          .brand-title {
-            font-size: 22px;
-            font-weight: 800;
-            color: #d97706;
-            margin: 0 0 4px 0;
-            text-transform: uppercase;
-          }
-          .brand-sub {
-            font-size: 12px;
-            color: #64748b;
-            margin: 0;
-          }
-          .info-table {
-            width: 100%;
-            margin-bottom: 16px;
-            font-size: 13px;
-          }
-          .info-table td {
-            padding: 3px 0;
-          }
-          .label {
-            color: #64748b;
-            width: 35%;
-          }
-          .val {
-            font-weight: 600;
-            color: #0f172a;
-          }
-          table.items {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 12px;
-            margin-bottom: 16px;
-          }
-          table.items th {
-            background-color: #f1f5f9;
-            padding: 8px 4px;
-            font-size: 12px;
-            font-weight: 700;
-            color: #475569;
-            border-bottom: 1px solid #cbd5e1;
-          }
-          .totals {
-            width: 100%;
-            margin-top: 12px;
-            border-top: 1px dashed #cbd5e1;
-            padding-top: 10px;
-          }
-          .totals td {
-            padding: 4px 0;
-            font-size: 13px;
-          }
-          .total-highlight {
-            font-size: 16px !important;
-            font-weight: 800 !important;
-            color: #d97706 !important;
-          }
-          .footer {
-            margin-top: 24px;
-            text-align: center;
-            font-size: 11px;
-            color: #94a3b8;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 12px;
-          }
-        </style>
-      </head>
-      <body>
-        <div class="header">
-          <h1 class="brand-title">Mobi_R Qandolat</h1>
-          <p class="brand-sub">Savdo agentligi hisob-fakturasi</p>
-        </div>
+  <table class="info">
+    ${info(T.date, formatDateTime(order.createdAt, lang))}
+    ${order.deliveryDate ? info(T.delivery, formatDate(order.deliveryDate, lang)) : ''}
+    ${info(T.shop, esc(order.shopName))}
+    ${shop?.ownerName ? info(T.owner, `${esc(shop.ownerName)}${shop.phone ? ` • ${esc(shop.phone)}` : ''}`) : ''}
+    ${shop?.address ? info(T.address, esc(shop.address)) : ''}
+    ${shop?.lineCode && shop.routeDay ? info(T.line, `${esc(shop.lineCode)}-${shop.routeDay}`) : ''}
+    ${info(T.payment, L(PAYMENT_LABELS[order.paymentMethod]), order.paymentMethod === 'nasiya' ? 'red' : 'green')}
+  </table>
 
-        <table class="info-table">
-          <tr>
-            <td class="label">Chek raqami:</td>
-            <td class="val">#${order.id.slice(-8).toUpperCase()}</td>
-          </tr>
-          <tr>
-            <td class="label">Sana va vaqt:</td>
-            <td class="val">${formattedDate}</td>
-          </tr>
-          ${order.deliveryDate ? `<tr><td class="label">Yetkazish sanasi:</td><td class="val" style="color: #d97706; font-weight: 700;">${order.deliveryDate}</td></tr>` : ''}
-          <tr>
-            <td class="label">Doʻkon (Mijoz):</td>
-            <td class="val">${order.shopName}</td>
-          </tr>
-          ${shop?.ownerName ? `<tr><td class="label">Doʻkon egasi:</td><td class="val">${shop.ownerName} (${shop.phone})</td></tr>` : ''}
-          ${shop?.address ? `<tr><td class="label">Manzil:</td><td class="val">${shop.address}</td></tr>` : ''}
-          <tr>
-            <td class="label">Savdo agenti:</td>
-            <td class="val">${order.agentName}</td>
-          </tr>
-          <tr>
-            <td class="label">Toʻlov turi:</td>
-            <td class="val" style="color: ${order.paymentMethod === 'nasiya' ? '#dc2626' : '#16a34a'};">${paymentLabel}</td>
-          </tr>
-        </table>
+  <table class="items">
+    <thead><tr><th style="width:22px">#</th><th>${L(T.product)}</th><th class="c">${L(T.qty)}</th><th class="r">${L(T.price)}</th><th class="r">${L(T.sum)}</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
 
-        <table class="items">
-          <thead>
-            <tr>
-              <th style="width: 25px;">#</th>
-              <th style="text-align: left;">Mahsulot</th>
-              <th>Miqdor</th>
-              <th style="text-align: right;">Narxi</th>
-              <th style="text-align: right;">Jami</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${itemsHtml}
-          </tbody>
-        </table>
+  <table class="totals">
+    <tr><td class="label">${L(T.subtotal)}</td><td class="val r">${money(order.totalAmount)}</td></tr>
+    ${order.discountAmount > 0 ? `<tr><td class="label red">${L(T.discount)}</td><td class="val r red">-${money(order.discountAmount)}</td></tr>` : ''}
+    <tr class="grand"><td>${L(T.total)}</td><td class="r">${money(order.finalAmount)}</td></tr>
+    ${shop && shop.debtBalance > 0 ? `<tr><td class="label red">${L(T.debt)}</td><td class="val r red">${money(shop.debtBalance)}</td></tr>` : ''}
+  </table>
 
-        <table class="totals">
-          <tr>
-            <td class="label">Tovarlar summasi:</td>
-            <td class="val" style="text-align: right;">${order.totalAmount.toLocaleString('uz-UZ')} so'm</td>
-          </tr>
-          ${order.discountAmount > 0 ? `
-          <tr>
-            <td class="label" style="color: #dc2626;">Chegirma:</td>
-            <td class="val" style="text-align: right; color: #dc2626;">-${order.discountAmount.toLocaleString('uz-UZ')} so'm</td>
-          </tr>` : ''}
-          <tr>
-            <td class="label total-highlight">Jami toʻlov:</td>
-            <td class="val total-highlight" style="text-align: right;">${order.finalAmount.toLocaleString('uz-UZ')} so'm</td>
-          </tr>
-          ${shop && shop.debtBalance > 0 ? `
-          <tr>
-            <td class="label" style="color: #dc2626; padding-top: 8px;">Mijozning umumiy qarzi:</td>
-            <td class="val" style="text-align: right; color: #dc2626; padding-top: 8px;">${shop.debtBalance.toLocaleString('uz-UZ')} so'm</td>
-          </tr>` : ''}
-        </table>
+  ${order.notes ? `<div class="notes"><strong>${L(T.notes)}:</strong> ${esc(order.notes)}</div>` : ''}
 
-        ${order.notes ? `
-          <div style="margin-top: 12px; font-size: 12px; color: #475569; background: #f8fafc; padding: 8px; border-radius: 6px;">
-            <strong>Izoh:</strong> ${order.notes}
-          </div>
-        ` : ''}
-
-        <div class="footer">
-          <p>Xaridingiz uchun rahmat! Qandolat mahsulotlarimiz sizga yoqimli boʻlsin.</p>
-          <p>Mobi_R savdo agenti tizimi orqali yaratildi</p>
-        </div>
-      </body>
-      </html>
-    `;
+  <div class="footer">${L(T.thanks)}</div>
+</body>
+</html>`;
   },
 
   printOrSharePdf: async (order: Order, shop?: Shop | null): Promise<void> => {
-    try {
-      const html = invoiceService.generateInvoiceHtml(order, shop);
-      const { uri } = await Print.printToFileAsync({ html });
-
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(uri, {
-          UTI: '.pdf',
-          mimeType: 'application/pdf',
-          dialogTitle: `${order.shopName} uchun hisob cheki`,
-        });
-      } else {
-        await Print.printAsync({ html });
-      }
-    } catch (error) {
-      console.warn('Chek chiqarishda xatolik:', error);
-      throw error;
+    const html = invoiceService.generateInvoiceHtml(order, shop);
+    const { uri } = await Print.printToFileAsync({ html });
+    if (await Sharing.isAvailableAsync()) {
+      const lang = useLanguageStore.getState().lang;
+      await Sharing.shareAsync(uri, {
+        UTI: '.pdf',
+        mimeType: 'application/pdf',
+        dialogTitle: `${pick(T.share, lang)} — ${order.shopName}`,
+      });
+    } else {
+      await Print.printAsync({ html });
     }
   },
 };

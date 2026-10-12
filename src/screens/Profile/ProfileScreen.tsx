@@ -1,362 +1,180 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Alert,
-  TextInput,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useEffect } from 'react';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
+import { Check, LogOut, Route, RefreshCw, Wifi } from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
 import { useSyncStore } from '../../store/syncStore';
 import { useLanguageStore } from '../../store/languageStore';
-import { apiClient, DEFAULT_API_BASE_URL, getApiUrl, setCustomApiUrl } from '../../services/apiClient';
-import { colors } from '../../theme/colors';
 import { MobileLanguage } from '../../i18n/mobileTranslations';
-import {
-  User,
-  RefreshCw,
-  LogOut,
-  ShieldCheck,
-  Check,
-} from 'lucide-react-native';
+import { colors, radius, space } from '../../theme/colors';
+import { AppText, Badge, Button, Card, Divider, KeyValue, Row, Screen, SectionHeader } from '../../components/ui';
+import { COMMON, useL } from '../../i18n/tri';
+import { formatNumber } from '../../utils/format';
+
+// Each language is named in its own script, so these labels never change with the UI language
+const LANGUAGES: { id: MobileLanguage; label: string }[] = [
+  { id: 'uz', label: 'Oʻzbekcha' },
+  { id: 'uz_cyrl', label: 'Ўзбекча' },
+  { id: 'ru', label: 'Русский' },
+];
 
 export const ProfileScreen = () => {
-  const { agent, logout } = useAuthStore();
-  const { pendingCount, triggerSync, isSyncing, lastSyncedAt } = useSyncStore();
-  const { lang, setLang, t } = useLanguageStore();
-
-  const [apiUrl, setApiUrl] = useState(DEFAULT_API_BASE_URL);
-  const [testingServer, setTestingServer] = useState(false);
+  const L = useL();
+  const agent = useAuthStore((s) => s.agent);
+  const logout = useAuthStore((s) => s.logout);
+  const { pendingCount, triggerSync, isSyncing, lastSyncedAt, refreshPendingCount } = useSyncStore();
+  const lang = useLanguageStore((s) => s.lang);
+  const setLang = useLanguageStore((s) => s.setLang);
 
   useEffect(() => {
-    getApiUrl().then((saved) => {
-      if (saved) setApiUrl(saved);
-    });
-  }, []);
+    refreshPendingCount();
+  }, [refreshPendingCount]);
 
-  const handleUrlChange = (newUrl: string) => {
-    setApiUrl(newUrl);
-    setCustomApiUrl(newUrl);
-  };
+  const lineCode = agent?.lineCode || agent?.territory || '';
 
-  const handleTestConnection = async () => {
-    try {
-      setTestingServer(true);
-      await setCustomApiUrl(apiUrl);
-      await apiClient.get('/health', { baseURL: apiUrl.trim().replace(/\/+$/, ''), timeout: 4000 });
+  const handleSync = async () => {
+    const res = await triggerSync();
+    if (res.success) {
       Alert.alert(
-        t('success'),
-        lang === 'ru'
-          ? 'Связь с сервером установлена (192.168.1.47)'
-          : lang === 'uz_cyrl'
-          ? 'Сервер билан алоқа ўрнатилди (192.168.1.47)'
-          : 'Server bilan aloqa oʻrnatildi (192.168.1.47)'
+        L({ uz: 'Sinxronlash', uz_cyrl: 'Синхронлаш', ru: 'Синхронизация' }),
+        L({ uz: 'Maʼlumotlar yuborildi va yangilandi.', uz_cyrl: 'Маълумотлар юборилди ва янгиланди.', ru: 'Данные отправлены и обновлены.' })
       );
-    } catch (e: any) {
+    } else {
       Alert.alert(
-        t('warning'),
-        lang === 'ru'
-          ? `Сервер недоступен (${apiUrl}). Проверьте Wi-Fi.`
-          : lang === 'uz_cyrl'
-          ? `Серверга уланиб бўлмади (${apiUrl}). Wi-Fi ни текширинг.`
-          : `Serverga ulanib boʻlmadi (${apiUrl}). Kompyuter va telefon bitta Wi-Fi tarmogʻida ekanini tekshiring.`
+        L(COMMON.warning),
+        L({
+          uz: 'Serverga ulanib boʻlmadi. Maʼlumotlar telefonda saqlangan.',
+          uz_cyrl: 'Серверга уланиб бўлмади. Маълумотлар телефонда сақланган.',
+          ru: 'Не удалось связаться с сервером. Данные сохранены на телефоне.',
+        })
       );
-    } finally {
-      setTestingServer(false);
     }
   };
 
   const handleLogout = () => {
-    Alert.alert(t('profile_logout_btn'), t('profile_logout_confirm'), [
-      { text: t('cancel'), style: 'cancel' },
-      { text: t('profile_logout_btn'), style: 'destructive', onPress: logout },
-    ]);
+    const title = L({ uz: 'Liniyadan chiqish', uz_cyrl: 'Линиядан чиқиш', ru: 'Выйти из линии' });
+    Alert.alert(
+      title,
+      L({
+        uz: 'Chiqib, boshqa liniya QR kodi bilan kirmoqchimisiz?',
+        uz_cyrl: 'Чиқиб, бошқа линия QR коди билан кирмоқчимисиз?',
+        ru: 'Выйти и войти по QR-коду другой линии?',
+      }),
+      [
+        { text: L(COMMON.cancel), style: 'cancel' },
+        { text: title, style: 'destructive', onPress: () => void logout() },
+      ]
+    );
   };
 
-  const languages: { id: MobileLanguage; label: string; desc: string }[] = [
-    { id: 'uz', label: "🇺🇿 Oʻzbekcha", desc: 'Lotin yozuvida' },
-    { id: 'ru', label: '🇷🇺 Русский', desc: 'Классический' },
-    { id: 'uz_cyrl', label: '🇺🇿 Ўзбекча', desc: 'Кирилл ёзувида' },
-  ];
-
   return (
-    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Agent Passport Card */}
-        <View style={styles.agentCard}>
-          <View style={styles.avatarCircle}>
-            <User size={26} color={colors.primary} />
+    <Screen>
+      {/* Line */}
+      <Card>
+        <Row gap={space.md}>
+          <View style={styles.lineIcon}>
+            <Route size={20} color={colors.primaryDark} />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.agentName}>{agent?.name}</Text>
-            <View style={styles.agentMetaRow}>
-              <View style={styles.codeBadge}>
-                <Text style={styles.codeText}>{agent?.code}</Text>
-              </View>
-              <Text style={styles.territoryText}>{agent?.territory}</Text>
-            </View>
+          <View style={styles.flex}>
+            <AppText variant="caption" lines={1}>
+              {L({ uz: 'Liniya', uz_cyrl: 'Линия', ru: 'Линия' })}
+            </AppText>
+            <AppText variant="h2" lines={1}>
+              {lineCode ? `${lineCode} ${L(COMMON.line)}` : '—'}
+            </AppText>
           </View>
-        </View>
+        </Row>
+      </Card>
 
-        {/* Language Selector Card */}
-        <Text style={styles.sectionHeader}>{t('profile_language_title').toUpperCase()}</Text>
-        <View style={styles.card}>
-          {languages.map((item, idx) => {
-            const isSelected = lang === item.id;
-            return (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.langOption,
-                  idx < languages.length - 1 && styles.langOptionBorder,
-                  isSelected && styles.langOptionSelected,
-                ]}
+      {/* Language */}
+      <SectionHeader title={L({ uz: 'Ilova tili', uz_cyrl: 'Илова тили', ru: 'Язык приложения' })} />
+      <Card padded={false}>
+        {LANGUAGES.map((item, i) => {
+          const selected = lang === item.id;
+          return (
+            <View key={item.id}>
+              {i > 0 ? <Divider style={styles.inset} /> : null}
+              <Pressable
                 onPress={() => setLang(item.id)}
-                activeOpacity={0.7}
+                style={({ pressed }) => [styles.langRow, pressed && styles.pressed]}
+                accessibilityRole="radio"
+                accessibilityState={{ selected }}
               >
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                  <Text style={styles.langOptionLabel}>{item.label}</Text>
-                  <Text style={styles.langOptionDesc}>({item.desc})</Text>
+                <AppText variant={selected ? 'strong' : 'body'} lines={1} style={styles.flex}>
+                  {item.label}
+                </AppText>
+                <View style={[styles.radio, selected && styles.radioOn]}>
+                  {selected ? <Check size={13} color={colors.white} strokeWidth={3} /> : null}
                 </View>
-                {isSelected && <Check size={16} color={colors.primary} strokeWidth={2.5} />}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+              </Pressable>
+            </View>
+          );
+        })}
+      </Card>
 
-        {/* 1C / Mobi_R Server Connection Parameters */}
-        <Text style={styles.sectionHeader}>{t('profile_server_title').toUpperCase()}</Text>
-        <View style={styles.card}>
-          <Text style={styles.inputLabel}>{t('profile_server_url')}</Text>
-          <TextInput
-            style={styles.apiInput}
-            value={apiUrl}
-            onChangeText={handleUrlChange}
-            placeholder="http://192.168.1.47:3000/api/v1"
-            placeholderTextColor={colors.textMuted}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+      {/* Sync */}
+      <SectionHeader title={L({ uz: 'Sinxronlash', uz_cyrl: 'Синхронлаш', ru: 'Синхронизация' })} />
+      <Card>
+        <KeyValue
+          label={L({ uz: 'Yuborilmagan', uz_cyrl: 'Юборилмаган', ru: 'Не отправлено' })}
+          value={
+            <View>
+              <Badge label={formatNumber(pendingCount)} tone={pendingCount > 0 ? 'warning' : 'success'} />
+            </View>
+          }
+        />
+        <KeyValue
+          label={L({ uz: 'Oxirgi sinxronlash', uz_cyrl: 'Охирги синхронлаш', ru: 'Последняя синхронизация' })}
+          value={lastSyncedAt || L({ uz: 'Hali boʻlmagan', uz_cyrl: 'Ҳали бўлмаган', ru: 'Ещё не было' })}
+        />
+        <Button
+          title={L({ uz: 'Sinxronlash', uz_cyrl: 'Синхронлаш', ru: 'Синхронизировать' })}
+          icon={pendingCount > 0 ? RefreshCw : Wifi}
+          onPress={handleSync}
+          loading={isSyncing}
+          style={styles.topGap}
+        />
+      </Card>
 
-          <View style={styles.syncStatusStrip}>
-            <Text style={styles.syncStatusText}>
-              {t('profile_unsynced_docs')}:{' '}
-              <Text style={{ fontWeight: '700', color: pendingCount > 0 ? colors.warning : colors.success }}>
-                {pendingCount}
-              </Text>
-            </Text>
-            <Text style={styles.syncStatusText}>
-              {lastSyncedAt ? `${t('profile_last_sync')} ${lastSyncedAt.split('T')[0]}` : t('profile_never_synced')}
-            </Text>
-          </View>
-
-          {/* Action Buttons for Sync */}
-          <View style={styles.syncActionsContainer}>
-            <TouchableOpacity
-              style={styles.fullSyncBtn}
-              onPress={triggerSync}
-              disabled={isSyncing}
-              activeOpacity={0.8}
-            >
-              <RefreshCw size={14} color="#FFFFFF" />
-              <Text style={styles.fullSyncText}>
-                {isSyncing ? t('loading') : t('profile_sync_btn')}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.testConnBtn}
-              onPress={handleTestConnection}
-              disabled={testingServer}
-              activeOpacity={0.7}
-            >
-              <ShieldCheck size={14} color={colors.textSecondary} />
-              <Text style={styles.testConnText}>{t('profile_test_btn')}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} activeOpacity={0.8}>
-          <LogOut size={16} color={colors.danger} />
-          <Text style={styles.logoutText}>{t('profile_logout_btn')}</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+      <Button
+        title={L({ uz: 'Liniyadan chiqish', uz_cyrl: 'Линиядан чиқиш', ru: 'Выйти из линии' })}
+        icon={LogOut}
+        variant="danger"
+        onPress={handleLogout}
+        style={styles.logout}
+      />
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    padding: 12,
-    gap: 8,
-    paddingBottom: 30,
-  },
-  agentCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 12,
-  },
-  avatarCircle: {
+  flex: { flex: 1, minWidth: 0 },
+  pressed: { opacity: 0.75 },
+  topGap: { marginTop: space.xs },
+  inset: { marginLeft: space.lg },
+  logout: { marginTop: space.md },
+  lineIcon: {
     width: 44,
     height: 44,
-    borderRadius: 22,
+    borderRadius: radius.md,
     backgroundColor: colors.primaryLight,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  agentName: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  agentMetaRow: {
+  langRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
+    gap: space.md,
+    paddingHorizontal: space.lg,
+    minHeight: 48,
   },
-  codeBadge: {
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  codeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  territoryText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  sectionHeader: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    letterSpacing: 0.5,
-    marginTop: 8,
-    marginLeft: 2,
-  },
-  card: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
+  radio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
     borderColor: colors.border,
-    padding: 12,
-  },
-  langOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 10,
-  },
-  langOptionBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderSubtle,
-  },
-  langOptionSelected: {
-    backgroundColor: '#FFFFFF',
-  },
-  langOptionLabel: {
-    fontSize: 13,
-    color: colors.text,
-    fontWeight: '500',
-  },
-  langOptionDesc: {
-    fontSize: 11,
-    color: colors.textMuted,
-  },
-  inputLabel: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginBottom: 6,
-    fontWeight: '500',
-  },
-  apiInput: {
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 10,
-    height: 38,
-    fontSize: 12,
-    color: colors.text,
-    marginBottom: 8,
-  },
-  syncStatusStrip: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 10,
-  },
-  syncStatusText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-  },
-  syncActionsContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  fullSyncBtn: {
-    flex: 1,
-    backgroundColor: colors.primary,
-    borderRadius: 6,
-    paddingVertical: 9,
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
   },
-  fullSyncText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  testConnBtn: {
-    flex: 1,
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 9,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-  },
-  testConnText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  logoutBtn: {
-    backgroundColor: colors.dangerLight,
-    borderWidth: 1,
-    borderColor: '#FECDD3',
-    borderRadius: 8,
-    paddingVertical: 11,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginTop: 10,
-  },
-  logoutText: {
-    color: colors.danger,
-    fontSize: 13,
-    fontWeight: '600',
-  },
+  radioOn: { backgroundColor: colors.primary, borderColor: colors.primary },
 });

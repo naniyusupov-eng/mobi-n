@@ -1,34 +1,68 @@
-// Mobi_R Minimalist & Documental Enterprise Theme
+// Mobi_R mobile design tokens. Same sky brand as the web admin.
 export const colors = {
-  // Primary Brand - Refined Sky & Deep Slate (Matches Web Admin)
-  primary: '#0284C7',        // Sky-600 (Primary active elements, highlights, links)
-  primaryDark: '#0369A1',    // Sky-700 (Focused actions & brand text)
-  primaryLight: '#F0F9FF',   // Sky-50 (Delicate pill backgrounds)
-  primaryBorder: '#BAE6FD',  // Sky-200 (Active borders)
-  secondary: '#334155',      // Slate-700 (Clean secondary buttons & tags)
-  accent: '#0284C7',         // Sky accent
+  primary: '#0284C7', // sky-600
+  primaryDark: '#0369A1', // sky-700
+  primaryLight: '#F0F9FF', // sky-50
+  primaryBorder: '#BAE6FD', // sky-200
+  secondary: '#334155', // slate-700
+  accent: '#0284C7',
 
-  // Clean Documental Surfaces
-  background: '#F8FAFC',     // Slate-50 (Ultra clean, eye-friendly light canvas)
-  card: '#FFFFFF',           // Pure white cards
-  surfaceSecondary: '#F1F5F9', // Slate-100 (Inputs, dividers, table headers)
+  background: '#F4F6F9',
+  card: '#FFFFFF',
+  surfaceSecondary: '#F1F5F9', // slate-100
 
-  // Typography - High legibility, minimal bolding
-  text: '#0F172A',           // Slate-900 (High contrast headers & values)
-  textSecondary: '#475569',  // Slate-600 (Clear subtitles & labels)
-  textMuted: '#94A3B8',      // Slate-400 (Placeholders, secondary metadata)
-  border: '#E2E8F0',         // Slate-200 (Crisp hairline document dividers)
-  borderSubtle: '#F1F5F9',   // Slate-100 (Ultra light separator)
+  text: '#0F172A', // slate-900
+  textSecondary: '#475569', // slate-600
+  textMuted: '#94A3B8', // slate-400
+  border: '#E2E8F0', // slate-200
+  borderSubtle: '#F1F5F9',
 
-  // Operational Status Badges (Soft background + vibrant tone)
-  success: '#16A34A',        // Emerald-600 (Synced, paid, visited)
-  successLight: '#F0FDF4',   // Emerald-50
-  danger: '#E11D48',         // Rose-600 (Debts, delete, cancel)
-  dangerLight: '#FEF2F2',    // Rose-50
-  warning: '#D97706',        // Amber-600 (Pending sync, low stock)
-  warningLight: '#FFFBEB',   // Amber-50
-  info: '#0284C7',           // Sky-600
-  infoLight: '#F0F9FF',      // Sky-50
+  success: '#16A34A',
+  successLight: '#F0FDF4',
+  danger: '#E11D48',
+  dangerLight: '#FFF1F2',
+  warning: '#D97706',
+  warningLight: '#FFFBEB',
+  info: '#0284C7',
+  infoLight: '#F0F9FF',
 
   shadow: '#0F172A',
+  white: '#FFFFFF',
+  overlay: 'rgba(15, 23, 42, 0.45)',
+};
+
+// 4-pt spacing scale
+export const space = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  xxl: 28,
+};
+
+export const radius = {
+  sm: 6,
+  md: 10,
+  lg: 14,
+  pill: 999,
+};
+
+export const font = {
+  caption: 11,
+  small: 12,
+  body: 14,
+  title: 16,
+  h2: 19,
+  h1: 24,
+};
+
+export const shadow = {
+  card: {
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
+  },
 };

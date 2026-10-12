@@ -1,22 +1,43 @@
+/**
+ * Sign-in: scan the line QR code (or type the line code, e.g. "4-3").
+ * Language can be switched before signing in.
+ */
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  TextInput,
-  ScrollView,
-  Image,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
+import { Camera, LogIn } from 'lucide-react-native';
+import { AppText, Button, Card, Field, Screen } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { MobileLanguage } from '../../i18n/mobileTranslations';
-import { colors } from '../../theme/colors';
-import { ShieldAlert, KeyRound } from 'lucide-react-native';
+import { colors, radius, space } from '../../theme/colors';
+
+// Each language is labelled in its own script
+const LANGUAGES: { id: MobileLanguage; label: string }[] = [
+  { id: 'uz', label: 'UZ' },
+  { id: 'uz_cyrl', label: 'ЎЗ' },
+  { id: 'ru', label: 'RU' },
+];
+
+const LanguageSwitch: React.FC<{ value: MobileLanguage; onChange: (l: MobileLanguage) => void }> = ({ value, onChange }) => (
+  <View style={styles.langBar}>
+    {LANGUAGES.map((opt) => {
+      const active = opt.id === value;
+      return (
+        <Pressable
+          key={opt.id}
+          onPress={() => onChange(opt.id)}
+          hitSlop={4}
+          style={[styles.langBtn, active && styles.langBtnActive]}
+        >
+          <AppText variant="small" color={active ? colors.primaryDark : colors.textSecondary} style={styles.langText}>
+            {opt.label}
+          </AppText>
+        </Pressable>
+      );
+    })}
+  </View>
+);
 
 export const QRScannerScreen = () => {
   const [permission, requestPermission] = useCameraPermissions();
@@ -24,6 +45,10 @@ export const QRScannerScreen = () => {
   const [manualCode, setManualCode] = useState('');
   const { loginWithQR, isLoading } = useAuthStore();
   const { lang, setLang, t } = useLanguageStore();
+  const { width } = useWindowDimensions();
+
+  const scannerSize = Math.min(width - space.lg * 2, 300);
+  const frameSize = Math.round(scannerSize * 0.7);
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
     if (scanned || isLoading) return;
@@ -31,16 +56,15 @@ export const QRScannerScreen = () => {
 
     const result = await loginWithQR(data);
     if (!result.success) {
-      Alert.alert(
-        t('auth_error_title'),
-        result.error || t('auth_error_title'),
-        [{ text: t('auth_retry'), onPress: () => setScanned(false) }]
-      );
+      Alert.alert(t('auth_error_title'), result.error || t('auth_error_title'), [
+        { text: t('auth_retry'), onPress: () => setScanned(false) },
+      ]);
     }
   };
 
-  const handleManualLogin = async (codeToUse?: string) => {
-    const code = codeToUse || manualCode.trim();
+  const handleManualLogin = async () => {
+    if (isLoading) return;
+    const code = manualCode.trim();
     if (!code) {
       Alert.alert(t('warning'), t('auth_enter_code_alert'));
       return;
@@ -52,375 +76,151 @@ export const QRScannerScreen = () => {
     }
   };
 
-  const languageOptions: { id: MobileLanguage; label: string }[] = [
-    { id: 'uz', label: '🇺🇿 UZ' },
-    { id: 'ru', label: '🇷🇺 RU' },
-    { id: 'uz_cyrl', label: '🇺🇿 ЎЗБ' },
-  ];
-
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent} bounces={false}>
-        {/* Top Language Switcher Bar */}
-        <View style={styles.langBar}>
-          <View style={styles.langPillContainer}>
-            {languageOptions.map((opt) => (
-              <TouchableOpacity
-                key={opt.id}
-                onPress={() => setLang(opt.id)}
-                style={[
-                  styles.langBtn,
-                  lang === opt.id && styles.langBtnActive,
-                ]}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    styles.langBtnText,
-                    lang === opt.id && styles.langBtnTextActive,
-                  ]}
-                >
-                  {opt.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
+    <Screen edges={['top', 'bottom', 'left', 'right']} contentStyle={styles.content}>
+      <LanguageSwitch value={lang} onChange={setLang} />
 
-        {/* Header Branding */}
-        <View style={styles.header}>
-          <View style={styles.logoBadge}>
-            <Image
-              source={require('../../../assets/logo.jpg')}
-              style={styles.logoImage}
-              resizeMode="cover"
+      <View style={styles.brand}>
+        <Image source={require('../../../assets/logo.jpg')} style={styles.logo} resizeMode="cover" />
+        <AppText variant="small" color={colors.primary} align="center" lines={1} style={styles.brandName}>
+          {t('auth_brand')}
+        </AppText>
+        <AppText variant="h2" align="center" lines={2}>
+          {t('auth_subtitle')}
+        </AppText>
+        <AppText variant="small" align="center" lines={3}>
+          {t('auth_scan_hint')}
+        </AppText>
+      </View>
+
+      <View style={[styles.scanner, { width: scannerSize, height: scannerSize }]}>
+        {permission?.granted ? (
+          <>
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+              onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
             />
-          </View>
-          <Text style={styles.brandTitle}>{t('auth_brand')}</Text>
-          <Text style={styles.subtitle}>{t('auth_subtitle')}</Text>
-          <Text style={styles.description}>
-            {t('auth_scan_hint')}
-          </Text>
-        </View>
-
-        {/* Camera Scanner View */}
-        <View style={styles.scannerWrapper}>
-          {permission?.granted ? (
-            <View style={styles.cameraBox}>
-              <CameraView
-                style={StyleSheet.absoluteFill}
-                facing="back"
-                barcodeScannerSettings={{
-                  barcodeTypes: ['qr'],
-                }}
-                onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-              />
-              {/* Overlay Frame */}
-              <View style={styles.overlay}>
-                <View style={styles.scanTarget}>
-                  <View style={[styles.corner, styles.topLeft]} />
-                  <View style={[styles.corner, styles.topRight]} />
-                  <View style={[styles.corner, styles.bottomLeft]} />
-                  <View style={[styles.corner, styles.bottomRight]} />
-                </View>
+            <View style={styles.frameWrap} pointerEvents="none">
+              <View style={{ width: frameSize, height: frameSize }}>
+                <View style={[styles.corner, styles.topLeft]} />
+                <View style={[styles.corner, styles.topRight]} />
+                <View style={[styles.corner, styles.bottomLeft]} />
+                <View style={[styles.corner, styles.bottomRight]} />
               </View>
             </View>
-          ) : (
-            <View style={styles.noCameraBox}>
-              <ShieldAlert size={48} color={colors.warning} />
-              <Text style={styles.noCameraTitle}>{t('auth_camera_permission')}</Text>
-              <Text style={styles.noCameraText}>
-                {t('auth_scan_hint')}
-              </Text>
-              <TouchableOpacity
-                style={styles.permissionBtn}
-                onPress={requestPermission}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.permissionBtnText}>{t('auth_grant_camera')}</Text>
-              </TouchableOpacity>
+          </>
+        ) : (
+          <View style={styles.permission}>
+            <View style={styles.permissionIcon}>
+              <Camera size={26} color={colors.primary} strokeWidth={1.8} />
             </View>
-          )}
-
-          {isLoading && (
-            <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color={colors.primary} />
-              <Text style={styles.loadingText}>{t('loading')}</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Manual line code entry (e.g. 4-3) when the camera is unavailable */}
-        <View style={styles.manualToggleContainer}>
-          <View style={styles.toggleBtn}>
-            <KeyRound size={16} color={colors.textSecondary} />
-            <Text style={styles.toggleBtnText}>{t('auth_enter_code')}</Text>
+            <AppText variant="strong" align="center" lines={2}>
+              {t('auth_camera_permission')}
+            </AppText>
+            <Button title={t('auth_grant_camera')} onPress={requestPermission} style={styles.permissionBtn} />
           </View>
+        )}
 
-          <View style={styles.manualInputBox}>
-            <TextInput
-              style={styles.input}
-              placeholder={t('auth_code_placeholder')}
-              placeholderTextColor={colors.textMuted}
-              value={manualCode}
-              onChangeText={setManualCode}
-              keyboardType="numbers-and-punctuation"
-              onSubmitEditing={() => handleManualLogin()}
-            />
-            <TouchableOpacity
-              style={styles.manualSubmitBtn}
-              onPress={() => handleManualLogin()}
-              disabled={isLoading}
-            >
-              <Text style={styles.manualSubmitText}>{t('auth_login_btn')}</Text>
-            </TouchableOpacity>
+        {isLoading ? (
+          <View style={styles.loading}>
+            <ActivityIndicator size="large" color={colors.white} />
+            <AppText variant="strong" color={colors.white} align="center" lines={1}>
+              {t('loading')}
+            </AppText>
           </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        ) : null}
+      </View>
+
+      <Card style={styles.manual}>
+        <Field
+          label={t('auth_enter_code')}
+          value={manualCode}
+          onChangeText={setManualCode}
+          placeholder={t('auth_code_placeholder')}
+          keyboardType="numbers-and-punctuation"
+          autoCapitalize="none"
+          autoCorrect={false}
+          returnKeyType="go"
+          onSubmitEditing={handleManualLogin}
+          editable={!isLoading}
+        />
+        <Button title={t('auth_login_btn')} icon={LogIn} onPress={handleManualLogin} loading={isLoading} />
+      </Card>
+    </Screen>
   );
 };
 
+const CORNER = 26;
+const CORNER_WIDTH = 4;
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    padding: 20,
-    alignItems: 'center',
-  },
+  content: { alignItems: 'center', gap: space.lg },
+
   langBar: {
-    width: '100%',
-    alignItems: 'flex-end',
-    marginBottom: 8,
-  },
-  langPillContainer: {
+    alignSelf: 'flex-end',
     flexDirection: 'row',
-    backgroundColor: '#e2e8f0',
-    borderRadius: 8,
     padding: 2,
-    borderWidth: 1,
-    borderColor: '#cbd5e1',
-  },
-  langBtn: {
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 6,
-  },
-  langBtnActive: {
-    backgroundColor: '#fff',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  langBtnText: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: '#64748b',
-  },
-  langBtnTextActive: {
-    color: colors.primary,
-  },
-  header: {
-    alignItems: 'center',
-    marginTop: 4,
-    marginBottom: 20,
-  },
-  logoBadge: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: '#fff',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
-    overflow: 'hidden',
-  },
-  logoImage: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-  },
-  brandTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: colors.primary,
-    letterSpacing: 0.5,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: colors.text,
-    marginTop: 2,
-  },
-  description: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 6,
-    paddingHorizontal: 20,
-  },
-  scannerWrapper: {
-    width: 280,
-    height: 280,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 2,
+    gap: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceSecondary,
+    borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: '#000',
-    position: 'relative',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
   },
-  cameraBox: {
-    flex: 1,
+  langBtn: { minWidth: 44, alignItems: 'center', paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill },
+  langBtnActive: { backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.primaryBorder },
+  langText: { fontWeight: '600' },
+
+  brand: { alignSelf: 'stretch', alignItems: 'center', gap: space.xs, paddingHorizontal: space.sm },
+  logo: { width: 64, height: 64, borderRadius: 32, marginBottom: space.sm },
+  brandName: { fontWeight: '600' },
+
+  scanner: {
+    borderRadius: radius.lg,
+    overflow: 'hidden',
+    backgroundColor: colors.text,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.35)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  scanTarget: {
-    width: 200,
-    height: 200,
-    position: 'relative',
-  },
-  corner: {
-    position: 'absolute',
-    width: 28,
-    height: 28,
-    borderColor: colors.primary,
-  },
-  topLeft: {
-    top: 0,
-    left: 0,
-    borderTopWidth: 4,
-    borderLeftWidth: 4,
-    borderTopLeftRadius: 6,
-  },
-  topRight: {
-    top: 0,
-    right: 0,
-    borderTopWidth: 4,
-    borderRightWidth: 4,
-    borderTopRightRadius: 6,
-  },
-  bottomLeft: {
-    bottom: 0,
-    left: 0,
-    borderBottomWidth: 4,
-    borderLeftWidth: 4,
-    borderBottomLeftRadius: 6,
-  },
+  frameWrap: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
+  corner: { position: 'absolute', width: CORNER, height: CORNER, borderColor: colors.white },
+  topLeft: { top: 0, left: 0, borderTopWidth: CORNER_WIDTH, borderLeftWidth: CORNER_WIDTH, borderTopLeftRadius: radius.md },
+  topRight: { top: 0, right: 0, borderTopWidth: CORNER_WIDTH, borderRightWidth: CORNER_WIDTH, borderTopRightRadius: radius.md },
+  bottomLeft: { bottom: 0, left: 0, borderBottomWidth: CORNER_WIDTH, borderLeftWidth: CORNER_WIDTH, borderBottomLeftRadius: radius.md },
   bottomRight: {
     bottom: 0,
     right: 0,
-    borderBottomWidth: 4,
-    borderRightWidth: 4,
-    borderBottomRightRadius: 6,
+    borderBottomWidth: CORNER_WIDTH,
+    borderRightWidth: CORNER_WIDTH,
+    borderBottomRightRadius: radius.md,
   },
-  noCameraBox: {
+
+  permission: {
     flex: 1,
-    backgroundColor: '#fff',
-    padding: 24,
+    alignItems: 'center',
     justifyContent: 'center',
+    gap: space.md,
+    padding: space.xl,
+    backgroundColor: colors.card,
+  },
+  permissionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
     alignItems: 'center',
-  },
-  noCameraTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.text,
-    marginTop: 12,
-  },
-  noCameraText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 6,
-    marginBottom: 16,
-  },
-  permissionBtn: {
-    backgroundColor: colors.primary,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  permissionBtnText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 14,
-  },
-  loadingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.85)',
     justifyContent: 'center',
+    backgroundColor: colors.primaryLight,
+  },
+  permissionBtn: { alignSelf: 'stretch' },
+
+  loading: {
+    position: 'absolute', top: 0, right: 0, bottom: 0, left: 0,
     alignItems: 'center',
-  },
-  loadingText: {
-    marginTop: 10,
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  manualToggleContainer: {
-    width: '100%',
-    marginTop: 10,
-    alignItems: 'center',
-  },
-  toggleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingVertical: 8,
-  },
-  toggleBtnText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    fontWeight: '600',
-  },
-  manualInputBox: {
-    width: '100%',
-    marginTop: 8,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  input: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 13,
-    color: colors.text,
-  },
-  manualSubmitBtn: {
-    backgroundColor: colors.secondary,
-    paddingHorizontal: 16,
     justifyContent: 'center',
-    alignItems: 'center',
-    borderRadius: 8,
+    gap: space.md,
+    backgroundColor: colors.overlay,
   },
-  manualSubmitText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 13,
-  },
+
+  manual: { alignSelf: 'stretch', gap: space.md },
 });

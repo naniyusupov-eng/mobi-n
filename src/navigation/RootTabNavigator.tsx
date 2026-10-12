@@ -1,6 +1,9 @@
 import React from 'react';
+import { StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createNativeStackNavigator, NativeStackHeaderProps } from '@react-navigation/native-stack';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FileText, Home, MapPin, Package, User } from 'lucide-react-native';
 import { HomeScreen } from '../screens/Dashboard/HomeScreen';
 import { ShopsListScreen } from '../screens/Shops/ShopsListScreen';
 import { ShopDetailScreen } from '../screens/Shops/ShopDetailScreen';
@@ -12,115 +15,96 @@ import { OrderSuccessScreen } from '../screens/Order/OrderSuccessScreen';
 import { OrdersHistoryScreen } from '../screens/History/OrdersHistoryScreen';
 import { ReportsScreen } from '../screens/Reports/ReportsScreen';
 import { ProfileScreen } from '../screens/Profile/ProfileScreen';
-import { colors } from '../theme/colors';
-import { Home, MapPin, Package, FileText, User } from 'lucide-react-native';
-import { useLanguageStore } from '../store/languageStore';
+import { AppHeader } from '../components/AppHeader';
+import { Tri, useL } from '../i18n/tri';
+import { colors, font } from '../theme/colors';
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
 const ShopsStack = createNativeStackNavigator();
 const CatalogStack = createNativeStackNavigator();
 
-const defaultHeaderOptions = {
-  headerStyle: { backgroundColor: '#FFFFFF' },
-  headerTintColor: colors.text,
-  headerTitleStyle: { fontWeight: '600' as const, fontSize: 16, color: colors.text },
-  headerShadowVisible: false,
+// Screen and tab titles
+const TITLES = {
+  home: { uz: 'Asosiy', uz_cyrl: 'Асосий', ru: 'Главная' },
+  reports: { uz: 'Hisobotlar', uz_cyrl: 'Ҳисоботлар', ru: 'Отчёты' },
+  shops: { uz: 'Doʻkonlar', uz_cyrl: 'Дўконлар', ru: 'Магазины' },
+  shop: { uz: 'Doʻkon', uz_cyrl: 'Дўкон', ru: 'Магазин' },
+  newShop: { uz: 'Yangi doʻkon', uz_cyrl: 'Янги дўкон', ru: 'Новый магазин' },
+  catalog: { uz: 'Katalog', uz_cyrl: 'Каталог', ru: 'Каталог' },
+  cart: { uz: 'Savatcha', uz_cyrl: 'Саватча', ru: 'Корзина' },
+  checkout: { uz: 'Rasmiylashtirish', uz_cyrl: 'Расмийлаштириш', ru: 'Оформление' },
+  history: { uz: 'Buyurtmalar', uz_cyrl: 'Буюртмалар', ru: 'Заказы' },
+  profile: { uz: 'Profil', uz_cyrl: 'Профил', ru: 'Профиль' },
+} satisfies Record<string, Tri>;
+
+// Every stack uses the app's own header (same look on Android and iOS)
+const stackHeader = {
+  header: ({ navigation, back, options }: NativeStackHeaderProps) => (
+    <AppHeader title={String(options.title ?? '')} onBack={back ? navigation.goBack : undefined} />
+  ),
 };
 
 const HomeStackNavigator = () => {
-  const { t } = useLanguageStore();
+  const L = useL();
   return (
-    <HomeStack.Navigator screenOptions={defaultHeaderOptions}>
-      <HomeStack.Screen
-        name="HomeMain"
-        component={HomeScreen}
-        options={{ headerShown: false }}
-      />
-      <HomeStack.Screen
-        name="ReportsScreen"
-        component={ReportsScreen}
-        options={{ title: t('nav_reports_agent') }}
-      />
+    <HomeStack.Navigator screenOptions={stackHeader}>
+      <HomeStack.Screen name="HomeMain" component={HomeScreen} options={{ headerShown: false }} />
+      <HomeStack.Screen name="ReportsScreen" component={ReportsScreen} options={{ title: L(TITLES.reports) }} />
     </HomeStack.Navigator>
   );
 };
 
 const ShopsStackNavigator = () => {
-  const { t } = useLanguageStore();
+  const L = useL();
   return (
-    <ShopsStack.Navigator screenOptions={defaultHeaderOptions}>
-      <ShopsStack.Screen
-        name="ShopsList"
-        component={ShopsListScreen}
-        options={{ title: t('tab_shops') }}
-      />
-      <ShopsStack.Screen
-        name="ShopDetail"
-        component={ShopDetailScreen}
-        options={{ title: t('nav_shop_detail') }}
-      />
+    <ShopsStack.Navigator screenOptions={stackHeader}>
+      <ShopsStack.Screen name="ShopsList" component={ShopsListScreen} options={{ title: L(TITLES.shops) }} />
+      <ShopsStack.Screen name="ShopDetail" component={ShopDetailScreen} options={{ title: L(TITLES.shop) }} />
       <ShopsStack.Screen
         name="AddShopModal"
         component={AddShopModal}
-        options={{ title: t('nav_new_shop'), presentation: 'modal' }}
+        options={{ title: L(TITLES.newShop) }}
       />
     </ShopsStack.Navigator>
   );
 };
 
 const CatalogStackNavigator = () => {
-  const { t } = useLanguageStore();
+  const L = useL();
   return (
-    <CatalogStack.Navigator screenOptions={defaultHeaderOptions}>
-      <CatalogStack.Screen
-        name="CatalogMain"
-        component={CatalogScreen}
-        options={{ title: t('tab_catalog') }}
-      />
-      <CatalogStack.Screen
-        name="CartScreen"
-        component={CartScreen}
-        options={{ title: t('nav_cart') }}
-      />
-      <CatalogStack.Screen
-        name="CheckoutScreen"
-        component={CheckoutScreen}
-        options={{ title: t('nav_checkout') }}
-      />
-      <CatalogStack.Screen
-        name="OrderSuccessScreen"
-        component={OrderSuccessScreen}
-        options={{ headerShown: false }}
-      />
+    <CatalogStack.Navigator screenOptions={stackHeader}>
+      <CatalogStack.Screen name="CatalogMain" component={CatalogScreen} options={{ title: L(TITLES.catalog) }} />
+      <CatalogStack.Screen name="CartScreen" component={CartScreen} options={{ title: L(TITLES.cart) }} />
+      <CatalogStack.Screen name="CheckoutScreen" component={CheckoutScreen} options={{ title: L(TITLES.checkout) }} />
+      <CatalogStack.Screen name="OrderSuccessScreen" component={OrderSuccessScreen} options={{ headerShown: false }} />
     </CatalogStack.Navigator>
   );
 };
 
 export const RootTabNavigator = () => {
-  const { t, lang } = useLanguageStore();
+  const L = useL();
+  const insets = useSafeAreaInsets();
 
   return (
     <Tab.Navigator
-      key={lang}
       screenOptions={{
+        // Tab screens without their own stack (history, profile) use the same header
+        header: ({ options }) => <AppHeader title={String(options.headerTitle ?? options.title ?? '')} />,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: colors.card,
           borderTopColor: colors.border,
-          borderTopWidth: 1,
-          height: 58,
-          paddingBottom: 6,
+          borderTopWidth: StyleSheet.hairlineWidth,
+          height: 60 + insets.bottom,
           paddingTop: 6,
+          paddingBottom: 6 + insets.bottom,
           elevation: 0,
           shadowOpacity: 0,
         },
-        tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: '500',
-        },
-        ...defaultHeaderOptions,
+        tabBarLabelStyle: { fontSize: font.caption, fontWeight: '500' },
+        tabBarHideOnKeyboard: true,
       }}
     >
       <Tab.Screen
@@ -128,7 +112,7 @@ export const RootTabNavigator = () => {
         component={HomeStackNavigator}
         options={{
           headerShown: false,
-          title: t('tab_home'),
+          title: L(TITLES.home),
           tabBarIcon: ({ color, size }) => <Home size={size - 2} color={color} strokeWidth={1.8} />,
         }}
       />
@@ -137,7 +121,7 @@ export const RootTabNavigator = () => {
         component={ShopsStackNavigator}
         options={{
           headerShown: false,
-          title: t('tab_shops'),
+          title: L(TITLES.shops),
           tabBarIcon: ({ color, size }) => <MapPin size={size - 2} color={color} strokeWidth={1.8} />,
         }}
       />
@@ -146,7 +130,7 @@ export const RootTabNavigator = () => {
         component={CatalogStackNavigator}
         options={{
           headerShown: false,
-          title: t('tab_catalog'),
+          title: L(TITLES.catalog),
           tabBarIcon: ({ color, size }) => <Package size={size - 2} color={color} strokeWidth={1.8} />,
         }}
       />
@@ -154,8 +138,7 @@ export const RootTabNavigator = () => {
         name="HistoryTab"
         component={OrdersHistoryScreen}
         options={{
-          title: t('tab_history'),
-          headerTitle: t('nav_orders_journal'),
+          title: L(TITLES.history),
           tabBarIcon: ({ color, size }) => <FileText size={size - 2} color={color} strokeWidth={1.8} />,
         }}
       />
@@ -163,8 +146,7 @@ export const RootTabNavigator = () => {
         name="ProfileTab"
         component={ProfileScreen}
         options={{
-          title: t('nav_profile'),
-          headerTitle: t('nav_profile'),
+          title: L(TITLES.profile),
           tabBarIcon: ({ color, size }) => <User size={size - 2} color={color} strokeWidth={1.8} />,
         }}
       />

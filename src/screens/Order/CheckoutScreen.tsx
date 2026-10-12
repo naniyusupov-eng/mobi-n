@@ -1,29 +1,45 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  TextInput,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import * as Location from 'expo-location';
+import { AlertTriangle, Check } from 'lucide-react-native';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
+import { getTodayDateString } from '../../store/dateStore';
 import { PaymentMethod } from '../../types';
-import { colors } from '../../theme/colors';
-import {
-  Check,
-  AlertTriangle,
-  Calendar,
-} from 'lucide-react-native';
+import { AppText, Button, Card, Divider, Field, KeyValue, Money, Row, Screen, SectionHeader } from '../../components/ui';
+import { COMMON, PAYMENT_LABELS, Tri, useL } from '../../i18n/tri';
+import { formatDayLong, formatNumber } from '../../utils/format';
+import { colors, radius, space } from '../../theme/colors';
+import { EqualSegments } from '../../components/orderControls';
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** Local calendar day N days from today as YYYY-MM-DD */
+const datePlusDays = (days: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+const isValidDate = (s: string) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  return dt.getFullYear() === y && dt.getMonth() === m - 1 && dt.getDate() === d;
+};
+
+const PAYMENT_HINTS: Record<PaymentMethod, Tri> = {
+  naqd: { uz: 'Darhol toʻlov', uz_cyrl: 'Дарҳол тўлов', ru: 'Оплата сразу' },
+  nasiya: { uz: 'Keyinchalik toʻlov (qarzga)', uz_cyrl: 'Кейинчалик тўлов (қарзга)', ru: 'Отсрочка платежа' },
+  otkazma: { uz: 'Hisob raqam orqali', uz_cyrl: 'Ҳисоб рақам орқали', ru: 'Через расчётный счёт' },
+};
+
+const PAYMENT_ORDER: PaymentMethod[] = ['naqd', 'nasiya', 'otkazma'];
 
 export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
-  const { lang, t } = useLanguageStore();
+  const L = useL();
+  const lang = useLanguageStore((s) => s.lang);
   const {
     shop,
     items,
@@ -33,66 +49,38 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
     setDeliveryDate,
     notes,
     setNotes,
+    discountPercent,
+    getTotalAmount,
+    getDiscountAmount,
     getFinalAmount,
     submitOrder,
   } = useCartStore();
   const { agent } = useAuthStore();
   const [submitting, setSubmitting] = useState(false);
 
-  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
   const finalAmount = getFinalAmount();
+  const dateOk = isValidDate(deliveryDate);
 
-  const getDatePlusDays = (days: number) => {
-    const d = new Date();
-    d.setDate(d.getDate() + days);
-    return d.toISOString().split('T')[0];
-  };
-
-  const todayStr = getDatePlusDays(0);
-  const tomorrowStr = getDatePlusDays(1);
-  const dayAfterStr = getDatePlusDays(2);
-
-  const getFormattedDate = (dateStr: string) => {
-    try {
-      const parts = dateStr.split('-');
-      if (parts.length === 3) {
-        const d = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        const day = d.getDate();
-        const year = d.getFullYear();
-        const uzMonths = ['Yanvar', 'Fevral', 'Mart', 'Aprel', 'May', 'Iyun', 'Iyul', 'Avgust', 'Sentabr', 'Oktabr', 'Noyabr', 'Dekabr'];
-        const uzWeekdays = ['Yakshanba', 'Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
-        return `${day}-${uzMonths[d.getMonth()]}, ${year} (${uzWeekdays[d.getDay()]})`;
-      }
-    } catch (e) {}
-    return dateStr;
-  };
-
-  const paymentMethodsList: { key: PaymentMethod; label: string; sub: string }[] = [
-    {
-      key: 'naqd',
-      label: t('checkout_pay_cash'),
-      sub: lang === 'ru' ? 'Оплата сразу' : 'Darhol toʻlov',
-    },
-    {
-      key: 'nasiya',
-      label: t('checkout_pay_debt'),
-      sub: lang === 'ru' ? 'Отсрочка платежа' : 'Keyinchalik toʻlov',
-    },
-    {
-      key: 'otkazma',
-      label: t('checkout_pay_bank'),
-      sub: lang === 'ru' ? 'Расчетный счет' : 'Hisob-raqam orqali',
-    },
+  const quickDates = [
+    { key: datePlusDays(0), label: L(COMMON.today) },
+    { key: datePlusDays(1), label: L({ uz: 'Ertaga', uz_cyrl: 'Эртага', ru: 'Завтра' }) },
+    { key: datePlusDays(2), label: L({ uz: 'Indinga', uz_cyrl: 'Индинга', ru: 'Послезавтра' }) },
   ];
 
   const handleConfirmOrder = async () => {
     if (!shop || items.length === 0) {
-      Alert.alert(t('error'), t('cart_empty'));
+      Alert.alert(L(COMMON.error), L({ uz: 'Savatcha boʻsh', uz_cyrl: 'Саватча бўш', ru: 'Корзина пуста' }));
       return;
     }
-
     if (!agent) {
-      Alert.alert(t('error'), t('auth_error_title'));
+      Alert.alert(L(COMMON.error), L({ uz: 'Avtorizatsiya xatosi', uz_cyrl: 'Авторизация хатоси', ru: 'Ошибка авторизации' }));
+      return;
+    }
+    if (!dateOk) {
+      Alert.alert(
+        L(COMMON.warning),
+        L({ uz: 'Yetkazish sanasini toʻgʻri kiriting', uz_cyrl: 'Етказиш санасини тўғри киритинг', ru: 'Укажите корректную дату доставки' })
+      );
       return;
     }
 
@@ -106,7 +94,9 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
           const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
           coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
         }
-      } catch (locErr) {}
+      } catch {
+        // Location is optional; the order is saved without it
+      }
 
       const createdOrder = submitOrder(agent.id, agent.name, coords);
 
@@ -117,368 +107,153 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
         });
       }
     } catch (e: any) {
-      Alert.alert(t('error'), e.message || t('error'));
+      Alert.alert(L(COMMON.error), e?.message || L(COMMON.error));
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Document Header Card */}
-        <View style={styles.docHeaderCard}>
-          <Text style={styles.docTypeTitle}>{t('nav_checkout').toUpperCase()}</Text>
-          <View style={styles.docRow}>
-            <Text style={styles.docLabel}>{t('checkout_client')}</Text>
-            <Text style={styles.docVal}>{shop?.name}</Text>
-          </View>
-          <View style={styles.docRow}>
-            <Text style={styles.docLabel}>{t('add_shop_address')}</Text>
-            <Text style={styles.docVal}>{shop?.address}</Text>
-          </View>
-          <View style={styles.docRow}>
-            <Text style={styles.docLabel}>
-              {lang === 'ru' ? 'Торговый агент:' : 'Savdo agenti:'}
-            </Text>
-            <Text style={styles.docVal}>{agent?.name}</Text>
-          </View>
-          {shop && shop.debtBalance > 0 && (
-            <View style={styles.debtWarningRow}>
-              <AlertTriangle size={13} color={colors.danger} />
-              <Text style={styles.debtWarningText}>
-                {t('shop_debt')} {shop.debtBalance.toLocaleString(numLocale)} {t('currency')}
-              </Text>
-            </View>
-          )}
-        </View>
-
-        {/* Delivery Date Selection Section */}
-        <Text style={styles.sectionTitle}>
-          {lang === 'ru' ? 'ДАТА ДОСТАВКИ' : 'YETKAZISH SANASI'}
-        </Text>
-        <View style={styles.dateCard}>
-          {/* Quick Choice Chips */}
-          <View style={styles.dateChipsRow}>
-            <TouchableOpacity
-              style={[styles.dateChip, deliveryDate === todayStr && styles.dateChipActive]}
-              onPress={() => setDeliveryDate(todayStr)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.dateChipText, deliveryDate === todayStr && styles.dateChipTextActive]}>
-                {lang === 'ru' ? 'Сегодня' : 'Bugun'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.dateChip, deliveryDate === tomorrowStr && styles.dateChipActive]}
-              onPress={() => setDeliveryDate(tomorrowStr)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.dateChipText, deliveryDate === tomorrowStr && styles.dateChipTextActive]}>
-                {lang === 'ru' ? 'Завтра' : 'Ertaga'}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.dateChip, deliveryDate === dayAfterStr && styles.dateChipActive]}
-              onPress={() => setDeliveryDate(dayAfterStr)}
-              activeOpacity={0.7}
-            >
-              <Text style={[styles.dateChipText, deliveryDate === dayAfterStr && styles.dateChipTextActive]}>
-                {lang === 'ru' ? 'Послезавтра' : 'Indinga'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Date Input with Calendar Icon */}
-          <View style={styles.dateInputWrapper}>
-            <Calendar size={16} color={colors.primary} />
-            <TextInput
-              style={styles.dateTextInput}
-              value={deliveryDate}
-              onChangeText={setDeliveryDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.textMuted}
-              maxLength={10}
-            />
-          </View>
-
-          {/* Formatted Date Preview */}
-          <Text style={styles.datePreviewText}>
-            📅 {getFormattedDate(deliveryDate)}
-          </Text>
-        </View>
-
-        {/* Payment Method Selector */}
-        <Text style={styles.sectionTitle}>{t('checkout_pay_method').toUpperCase()}</Text>
-        <View style={styles.paymentMethodsContainer}>
-          {paymentMethodsList.map((pm) => {
-            const isSelected = paymentMethod === pm.key;
-            return (
-              <TouchableOpacity
-                key={pm.key}
-                style={[styles.pmCard, isSelected && styles.pmCardActive]}
-                onPress={() => setPaymentMethod(pm.key)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.pmInfo}>
-                  <Text style={[styles.pmLabel, isSelected && styles.pmLabelActive]}>{pm.label}</Text>
-                  <Text style={styles.pmSub}>{pm.sub}</Text>
-                </View>
-                <View style={[styles.radioCircle, isSelected && styles.radioCircleActive]}>
-                  {isSelected && <Check size={12} color="#FFFFFF" strokeWidth={2.5} />}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
-        {/* Notes Input */}
-        <Text style={styles.sectionTitle}>{t('checkout_notes').toUpperCase()}</Text>
-        <TextInput
-          style={styles.notesInput}
-          placeholder={t('checkout_notes')}
-          placeholderTextColor={colors.textMuted}
-          value={notes}
-          onChangeText={setNotes}
-          multiline
-          numberOfLines={2}
-        />
-
-        {/* Final Amount & Submit Button */}
-        <View style={styles.summaryBox}>
-          <View style={styles.amountStrip}>
-            <Text style={styles.amountLabel}>{t('checkout_total_final')}</Text>
-            <Text style={styles.amountVal}>{finalAmount.toLocaleString(numLocale)} {t('currency')}</Text>
-          </View>
-
-          <TouchableOpacity
-            style={styles.confirmBtn}
+    <Screen
+      footer={
+        <>
+          <Row gap={space.md}>
+            <AppText variant="small" lines={1} style={styles.flex}>
+              {L(COMMON.toPay)}
+            </AppText>
+            <Money amount={finalAmount} variant="h2" style={styles.footerMoney} />
+          </Row>
+          <Button
+            title={L({ uz: 'Buyurtmani tasdiqlash', uz_cyrl: 'Буюртмани тасдиқлаш', ru: 'Подтвердить заказ' })}
+            icon={Check}
+            size="lg"
+            loading={submitting}
             onPress={handleConfirmOrder}
-            disabled={submitting}
-            activeOpacity={0.8}
-          >
-            {submitting ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <Text style={styles.confirmBtnText}>{t('checkout_confirm_btn')}</Text>
-            )}
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+          />
+        </>
+      }
+    >
+      {/* Order document */}
+      <Card>
+        <AppText variant="label" lines={1}>
+          {L({ uz: 'Buyurtma hujjati', uz_cyrl: 'Буюртма ҳужжати', ru: 'Документ заказа' })}
+        </AppText>
+        <KeyValue label={L({ uz: 'Doʻkon', uz_cyrl: 'Дўкон', ru: 'Магазин' })} value={shop?.name || '—'} />
+        {shop?.address ? (
+          <KeyValue label={L({ uz: 'Manzil', uz_cyrl: 'Манзил', ru: 'Адрес' })} value={shop.address} />
+        ) : null}
+        <KeyValue label={L({ uz: 'Liniya', uz_cyrl: 'Линия', ru: 'Линия' })} value={agent?.lineCode || '—'} />
+        <Divider style={styles.divider} />
+        <KeyValue
+          label={L({ uz: 'Pozitsiyalar', uz_cyrl: 'Позициялар', ru: 'Позиций' })}
+          value={formatNumber(items.length)}
+        />
+        <KeyValue label={L({ uz: 'Summa', uz_cyrl: 'Сумма', ru: 'Сумма' })} value={<Money amount={getTotalAmount()} variant="body" />} />
+        {discountPercent > 0 ? (
+          <KeyValue
+            label={`${L(COMMON.discount)} ${discountPercent}%`}
+            value={<Money amount={-getDiscountAmount()} variant="body" color={colors.danger} />}
+          />
+        ) : null}
+        {shop && shop.debtBalance > 0 ? (
+          <View style={styles.debtBox}>
+            <AlertTriangle size={16} color={colors.danger} />
+            <AppText variant="small" color={colors.danger} lines={1} style={styles.flex}>
+              {L({ uz: 'Oldingi qarz', uz_cyrl: 'Олдинги қарз', ru: 'Прежний долг' })}
+            </AppText>
+            <Money amount={shop.debtBalance} variant="strong" color={colors.danger} style={styles.debtMoney} />
+          </View>
+        ) : null}
+      </Card>
+
+      {/* Delivery date */}
+      <SectionHeader title={L({ uz: 'Yetkazish sanasi', uz_cyrl: 'Етказиш санаси', ru: 'Дата доставки' })} />
+      <Card>
+        <EqualSegments options={quickDates} value={deliveryDate} onChange={setDeliveryDate} />
+        <Field
+          label={L({ uz: 'Boshqa sana', uz_cyrl: 'Бошқа сана', ru: 'Другая дата' })}
+          value={deliveryDate}
+          onChangeText={setDeliveryDate}
+          placeholder={getTodayDateString()}
+          keyboardType="numbers-and-punctuation"
+          maxLength={10}
+          error={
+            deliveryDate && !dateOk
+              ? L({ uz: 'Format: 2026-01-31', uz_cyrl: 'Формат: 2026-01-31', ru: 'Формат: 2026-01-31' })
+              : undefined
+          }
+          hint={dateOk ? formatDayLong(deliveryDate, lang) : undefined}
+        />
+      </Card>
+
+      {/* Payment method */}
+      <SectionHeader title={L(COMMON.payment)} />
+      <Card padded={false} style={styles.clip}>
+        {PAYMENT_ORDER.map((pm, index) => {
+          const active = paymentMethod === pm;
+          return (
+            <View key={pm}>
+              {index > 0 ? <Divider style={styles.optionDivider} /> : null}
+              <Pressable
+                onPress={() => setPaymentMethod(pm)}
+                style={({ pressed }) => [styles.option, active && styles.optionActive, pressed && styles.pressed]}
+              >
+                <View style={styles.flex}>
+                  <AppText variant="strong" lines={1} color={active ? colors.primaryDark : colors.text}>
+                    {L(PAYMENT_LABELS[pm])}
+                  </AppText>
+                  <AppText variant="small" lines={1}>
+                    {L(PAYMENT_HINTS[pm])}
+                  </AppText>
+                </View>
+                <View style={[styles.radio, active && styles.radioActive]}>
+                  {active ? <Check size={13} color={colors.white} strokeWidth={3} /> : null}
+                </View>
+              </Pressable>
+            </View>
+          );
+        })}
+      </Card>
+
+      {/* Notes */}
+      <Field
+        label={L({ uz: 'Izoh', uz_cyrl: 'Изоҳ', ru: 'Комментарий' })}
+        placeholder={L({ uz: 'Buyurtma uchun izoh', uz_cyrl: 'Буюртма учун изоҳ', ru: 'Комментарий к заказу' })}
+        value={notes}
+        onChangeText={setNotes}
+        multiline
+      />
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    padding: 12,
-    paddingBottom: 30,
-  },
-  docHeaderCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    marginBottom: 12,
-  },
-  docTypeTitle: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  docRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  docLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  docVal: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  debtWarningRow: {
+  flex: { flex: 1, minWidth: 0 },
+  pressed: { opacity: 0.75 },
+  clip: { overflow: 'hidden' },
+  divider: { marginVertical: space.xs },
+  footerMoney: { flexShrink: 1, maxWidth: '65%' },
+  debtBox: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: space.sm,
+    marginTop: space.xs,
+    padding: space.sm,
+    borderRadius: radius.sm,
     backgroundColor: colors.dangerLight,
-    padding: 6,
-    borderRadius: 4,
-    marginTop: 6,
   },
-  debtWarningText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.danger,
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: 6,
-    letterSpacing: 0.5,
-  },
-  dateCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    marginBottom: 12,
-  },
-  dateChipsRow: {
-    flexDirection: 'row',
-    gap: 6,
-    marginBottom: 10,
-  },
-  dateChip: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: colors.surfaceSecondary,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dateChipActive: {
-    backgroundColor: colors.primaryLight,
-    borderColor: colors.primaryBorder,
-  },
-  dateChipText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  dateChipTextActive: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  dateInputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    height: 38,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  dateTextInput: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text,
-    paddingVertical: 0,
-  },
-  datePreviewText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 6,
-  },
-  paymentMethodsContainer: {
-    gap: 6,
-    marginBottom: 12,
-  },
-  pmCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 10,
-  },
-  pmCardActive: {
-    borderColor: colors.primaryBorder,
-    backgroundColor: colors.primaryLight,
-  },
-  pmInfo: {
-    flex: 1,
-  },
-  pmLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  pmLabelActive: {
-    color: colors.primary,
-  },
-  pmSub: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 1,
-  },
-  radioCircle: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+  debtMoney: { flexShrink: 1, maxWidth: '55%' },
+  option: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, minHeight: 60 },
+  optionActive: { backgroundColor: colors.primaryLight },
+  optionDivider: { marginHorizontal: space.md },
+  radio: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
     borderWidth: 1.5,
     borderColor: colors.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  radioCircleActive: {
-    borderColor: colors.primary,
-    backgroundColor: colors.primary,
-  },
-  notesInput: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 10,
-    fontSize: 13,
-    color: colors.text,
-    marginBottom: 16,
-    minHeight: 60,
-    textAlignVertical: 'top',
-  },
-  summaryBox: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-  },
-  amountStrip: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  amountLabel: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  amountVal: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  confirmBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  confirmBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
+  radioActive: { borderColor: colors.primary, backgroundColor: colors.primary },
 });

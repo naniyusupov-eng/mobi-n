@@ -1,40 +1,73 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Alert,
-  ActivityIndicator,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Pressable, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
+import { Check, CheckCircle2, Navigation } from 'lucide-react-native';
+import { AppText, Button, Card, Field, Row, Screen, SectionHeader } from '../../components/ui';
+import { COMMON, Tri, useL } from '../../i18n/tri';
 import { useShopStore } from '../../store/shopStore';
 import { useLanguageStore } from '../../store/languageStore';
-import { colors } from '../../theme/colors';
-import { Store, User, Phone, MapPin, Navigation, Check } from 'lucide-react-native';
+import { ROUTE_DAYS } from '../../services/lineService';
+import { routeDayName } from '../../utils/format';
+import { colors, radius, space } from '../../theme/colors';
+import { EVERY_DAY } from '../../components/shopHelpers';
+
+// Stored values stay the Latin day names used in the database ("Dushanba" ... "Barchasi")
+const ALL_DAYS = 'Barchasi';
+
+const TX = {
+  subtitle: {
+    uz: 'Telefonda saqlanadi va internet boʻlganda serverga yuboriladi',
+    uz_cyrl: 'Телефонда сақланади ва интернет бўлганда серверга юборилади',
+    ru: 'Сохраняется на телефоне и отправляется на сервер при наличии интернета',
+  },
+  main: { uz: 'Asosiy maʼlumot', uz_cyrl: 'Асосий маълумот', ru: 'Основное' },
+  name: { uz: 'Doʻkon nomi', uz_cyrl: 'Дўкон номи', ru: 'Название магазина' },
+  namePh: { uz: 'Masalan: Baraka market', uz_cyrl: 'Масалан: Барака маркет', ru: 'Например: Барака маркет' },
+  owner: { uz: 'Doʻkon egasi', uz_cyrl: 'Дўкон эгаси', ru: 'Владелец' },
+  ownerPh: { uz: 'Masalan: Rustam aka', uz_cyrl: 'Масалан: Рустам ака', ru: 'Например: Рустам ака' },
+  phone: { uz: 'Telefon raqami', uz_cyrl: 'Телефон рақами', ru: 'Номер телефона' },
+  address: { uz: 'Manzil', uz_cyrl: 'Манзил', ru: 'Адрес' },
+  addressPh: { uz: 'Masalan: Chilonzor 1-mavze', uz_cyrl: 'Масалан: Чилонзор 1-мавзе', ru: 'Например: Чиланзар 1-квартал' },
+  location: { uz: 'Joylashuv', uz_cyrl: 'Жойлашув', ru: 'Местоположение' },
+  getGps: { uz: 'Joriy joylashuvni olish', uz_cyrl: 'Жорий жойлашувни олиш', ru: 'Определить координаты' },
+  gpsSaved: { uz: 'Koordinatalar olindi', uz_cyrl: 'Координаталар олинди', ru: 'Координаты получены' },
+  gpsHint: {
+    uz: 'Doʻkon oldida turib bosing — keyin xaritada ochiladi',
+    uz_cyrl: 'Дўкон олдида туриб босинг — кейин харитада очилади',
+    ru: 'Нажмите, стоя у магазина — потом его можно открыть на карте',
+  },
+  gpsDenied: { uz: 'Geolokatsiyaga ruxsat berilmadi', uz_cyrl: 'Геолокацияга рухсат берилмади', ru: 'Доступ к геопозиции отклонён' },
+  gpsError: { uz: 'Joylashuvni aniqlab boʻlmadi', uz_cyrl: 'Жойлашувни аниқлаб бўлмади', ru: 'Не удалось определить местоположение' },
+  lat: { uz: 'Kenglik', uz_cyrl: 'Кенглик', ru: 'Широта' },
+  lng: { uz: 'Uzunlik', uz_cyrl: 'Узунлик', ru: 'Долгота' },
+  day: { uz: 'Marshrut kuni', uz_cyrl: 'Маршрут куни', ru: 'День маршрута' },
+  needName: { uz: 'Doʻkon nomini kiriting', uz_cyrl: 'Дўкон номини киритинг', ru: 'Введите название магазина' },
+  needOwner: { uz: 'Doʻkon egasi ismini kiriting', uz_cyrl: 'Дўкон эгаси исмини киритинг', ru: 'Введите имя владельца' },
+  needAddress: { uz: 'Doʻkon manzilini kiriting', uz_cyrl: 'Дўкон манзилини киритинг', ru: 'Введите адрес магазина' },
+  saved: { uz: 'Doʻkon qoʻshildi', uz_cyrl: 'Дўкон қўшилди', ru: 'Магазин добавлен' },
+  savedText: {
+    uz: 'saqlandi va serverga yuborish navbatiga qoʻyildi.',
+    uz_cyrl: 'сақланди ва серверга юбориш навбатига қўйилди.',
+    ru: 'сохранён и поставлен в очередь отправки на сервер.',
+  },
+  saveShop: { uz: 'Doʻkonni saqlash', uz_cyrl: 'Дўконни сақлаш', ru: 'Сохранить магазин' },
+} satisfies Record<string, Tri>;
 
 export const AddShopModal = ({ navigation }: { navigation: any }) => {
   const { addNewShop } = useShopStore();
-  const { t, lang } = useLanguageStore();
+  const lang = useLanguageStore((s) => s.lang);
+  const L = useL();
 
-  const DAYS = [
-    { key: 'Dushanba', label: t('day_mon') },
-    { key: 'Seshanba', label: t('day_tue') },
-    { key: 'Chorshanba', label: t('day_wed') },
-    { key: 'Payshanba', label: t('day_thu') },
-    { key: 'Juma', label: t('day_fri') },
-    { key: 'Shanba', label: t('day_sat') },
-    { key: 'Barchasi', label: t('day_all') },
+  const days = [
+    ...ROUTE_DAYS.map((key, i) => ({ key, label: routeDayName(i + 1, lang) })),
+    { key: ALL_DAYS, label: L(EVERY_DAY) },
   ];
 
   const [name, setName] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [phone, setPhone] = useState('+998 ');
   const [address, setAddress] = useState('');
-  const [visitDay, setVisitDay] = useState('Dushanba');
+  const [visitDay, setVisitDay] = useState(ROUTE_DAYS[0]);
   const [coords, setCoords] = useState<{ latitude?: number; longitude?: number }>({});
   const [gettingLocation, setGettingLocation] = useState(false);
 
@@ -43,32 +76,17 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
       setGettingLocation(true);
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert(
-          'GPS',
-          lang === 'ru'
-            ? 'Доступ к геопозиции отклонен'
-            : lang === 'uz_cyrl'
-            ? 'Геолокацияга рухсат берилмади'
-            : 'GPS lokatsiyaga ruxsat berilmadi'
-        );
-        setGettingLocation(false);
+        Alert.alert(L(TX.location), L(TX.gpsDenied));
         return;
       }
-
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setCoords({
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-      });
+      setCoords({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
       Alert.alert(
-        t('success'),
-        (lang === 'ru' ? 'Широта: ' : 'Kenglik: ') +
-          `${loc.coords.latitude.toFixed(4)}\n` +
-          (lang === 'ru' ? 'Долгота: ' : 'Uzunlik: ') +
-          `${loc.coords.longitude.toFixed(4)}`
+        L(TX.gpsSaved),
+        `${L(TX.lat)}: ${loc.coords.latitude.toFixed(4)}\n${L(TX.lng)}: ${loc.coords.longitude.toFixed(4)}`
       );
-    } catch (e: any) {
-      Alert.alert(t('error'), 'GPS');
+    } catch {
+      Alert.alert(L(COMMON.error), L(TX.gpsError));
     } finally {
       setGettingLocation(false);
     }
@@ -76,15 +94,15 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
 
   const handleSave = () => {
     if (!name.trim()) {
-      Alert.alert(t('error'), lang === 'ru' ? 'Введите название точки' : 'Iltimos, doʻkon nomini kiriting');
+      Alert.alert(L(COMMON.error), L(TX.needName));
       return;
     }
     if (!ownerName.trim()) {
-      Alert.alert(t('error'), lang === 'ru' ? 'Введите имя ответственного' : 'Doʻkon egasi ismini kiriting');
+      Alert.alert(L(COMMON.error), L(TX.needOwner));
       return;
     }
     if (!address.trim()) {
-      Alert.alert(t('error'), lang === 'ru' ? 'Введите адрес точки' : 'Doʻkon manzilini kiriting');
+      Alert.alert(L(COMMON.error), L(TX.needAddress));
       return;
     }
 
@@ -99,262 +117,87 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
       debtBalance: 0,
     });
 
-    Alert.alert(
-      t('success'),
-      `"${createdShop.name}" ${t('add_shop_saved_success')}`,
-      [
-        {
-          text: 'OK',
-          onPress: () => navigation.goBack(),
-        },
-      ]
-    );
+    Alert.alert(L(TX.saved), `«${createdShop.name}» ${L(TX.savedText)}`, [
+      { text: 'OK', onPress: () => navigation.goBack() },
+    ]);
   };
 
+  const hasCoords = coords.latitude != null && coords.longitude != null;
+
   return (
-    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Text style={styles.modalTitle}>{t('add_shop_title')}</Text>
-        <Text style={styles.modalSubtitle}>{t('add_shop_subtitle')}</Text>
+    <Screen
+      edges={['left', 'right', 'bottom']}
+      footer={
+        <Row gap={space.sm}>
+          <Button title={L(COMMON.cancel)} variant="outline" onPress={() => navigation.goBack()} style={styles.flex} />
+          <Button title={L(TX.saveShop)} icon={Check} onPress={handleSave} style={styles.flexWide} />
+        </Row>
+      }
+    >
+      <AppText variant="small">{L(TX.subtitle)}</AppText>
 
-        {/* Form Card */}
-        <View style={styles.formCard}>
-          {/* Shop Name */}
-          <Text style={styles.label}>{t('add_shop_name')}</Text>
-          <View style={styles.inputRow}>
-            <Store size={16} color={colors.textMuted} />
-            <TextInput
-              style={styles.input}
-              placeholder={lang === 'ru' ? 'Например: Барака Маркет' : 'Masalan: Baraka Oziq-ovqat'}
-              placeholderTextColor={colors.textMuted}
-              value={name}
-              onChangeText={setName}
-            />
-          </View>
+      <SectionHeader title={L(TX.main)} />
+      <Card style={styles.form}>
+        <Field label={L(TX.name)} value={name} onChangeText={setName} placeholder={L(TX.namePh)} returnKeyType="next" />
+        <Field label={L(TX.owner)} value={ownerName} onChangeText={setOwnerName} placeholder={L(TX.ownerPh)} returnKeyType="next" />
+        <Field
+          label={L(TX.phone)}
+          value={phone}
+          onChangeText={setPhone}
+          placeholder="+998 90 123 45 67"
+          keyboardType="phone-pad"
+        />
+        <Field label={L(TX.address)} value={address} onChangeText={setAddress} placeholder={L(TX.addressPh)} multiline />
+      </Card>
 
-          {/* Owner Name */}
-          <Text style={styles.label}>{t('add_shop_owner')}</Text>
-          <View style={styles.inputRow}>
-            <User size={16} color={colors.textMuted} />
-            <TextInput
-              style={styles.input}
-              placeholder={lang === 'ru' ? 'Например: Рустам ака' : 'Masalan: Rustam aka'}
-              placeholderTextColor={colors.textMuted}
-              value={ownerName}
-              onChangeText={setOwnerName}
-            />
-          </View>
+      <SectionHeader title={L(TX.location)} />
+      <Card>
+        <Button
+          title={hasCoords ? L(TX.gpsSaved) : L(TX.getGps)}
+          icon={hasCoords ? CheckCircle2 : Navigation}
+          variant={hasCoords ? 'secondary' : 'outline'}
+          onPress={handleGetLocation}
+          loading={gettingLocation}
+        />
+        <AppText variant="caption" align="center">
+          {hasCoords ? `${coords.latitude!.toFixed(4)}, ${coords.longitude!.toFixed(4)}` : L(TX.gpsHint)}
+        </AppText>
+      </Card>
 
-          {/* Phone */}
-          <Text style={styles.label}>{t('add_shop_phone')}</Text>
-          <View style={styles.inputRow}>
-            <Phone size={16} color={colors.textMuted} />
-            <TextInput
-              style={styles.input}
-              placeholder="+998 90 123 45 67"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="phone-pad"
-              value={phone}
-              onChangeText={setPhone}
-            />
-          </View>
-
-          {/* Address */}
-          <Text style={styles.label}>{t('add_shop_address')}</Text>
-          <View style={styles.inputRow}>
-            <MapPin size={16} color={colors.textMuted} />
-            <TextInput
-              style={styles.input}
-              placeholder={lang === 'ru' ? 'Например: Чиланзар 1-квартал' : 'Masalan: Chilonzor 1-mavze'}
-              placeholderTextColor={colors.textMuted}
-              value={address}
-              onChangeText={setAddress}
-            />
-          </View>
-
-          {/* GPS Button */}
-          <Text style={styles.label}>GPS LOKATSIYA</Text>
-          <TouchableOpacity
-            style={styles.gpsBtn}
-            onPress={handleGetLocation}
-            disabled={gettingLocation}
-            activeOpacity={0.7}
-          >
-            {gettingLocation ? (
-              <ActivityIndicator size="small" color={colors.primary} />
-            ) : (
-              <Navigation size={16} color={colors.primary} />
-            )}
-            <Text style={styles.gpsBtnText}>
-              {coords.latitude
-                ? `GPS: ${coords.latitude.toFixed(4)}, ${coords.longitude?.toFixed(4)} ✓`
-                : t('add_shop_gps_btn')}
-            </Text>
-          </TouchableOpacity>
-
-          {/* Visit Day Selector */}
-          <Text style={styles.label}>{t('add_shop_day')}</Text>
-          <View style={styles.daysGrid}>
-            {DAYS.map((day) => {
-              const selected = visitDay === day.key;
-              return (
-                <TouchableOpacity
-                  key={day.key}
-                  style={[styles.dayItem, selected && styles.dayItemSelected]}
-                  onPress={() => setVisitDay(day.key)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.dayItemText, selected && styles.dayItemTextSelected]}>
-                    {day.label}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        </View>
-
-        {/* Action Buttons */}
-        <TouchableOpacity style={styles.submitBtn} onPress={handleSave} activeOpacity={0.8}>
-          <Check size={18} color="#FFFFFF" strokeWidth={2.5} />
-          <Text style={styles.submitBtnText}>
-            {lang === 'ru' ? 'Сохранить точку' : 'Doʻkonni saqlash'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.cancelBtn}
-          onPress={() => navigation.goBack()}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.cancelBtnText}>{t('cancel')}</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+      <SectionHeader title={L(TX.day)} />
+      <Row gap={space.sm} wrap>
+        {days.map((d) => {
+          const selected = visitDay === d.key;
+          return (
+            <Pressable
+              key={d.key}
+              onPress={() => setVisitDay(d.key)}
+              style={({ pressed }) => [styles.chip, selected && styles.chipActive, pressed && styles.pressed]}
+            >
+              <AppText variant="small" lines={1} color={selected ? colors.primaryDark : colors.textSecondary} style={selected && styles.bold}>
+                {d.label}
+              </AppText>
+            </Pressable>
+          );
+        })}
+      </Row>
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    padding: 12,
-    paddingBottom: 30,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    marginBottom: 2,
-  },
-  modalSubtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    marginBottom: 12,
-  },
-  formCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-    marginBottom: 14,
-  },
-  label: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    marginBottom: 5,
-    marginTop: 8,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingHorizontal: 10,
-    height: 38,
-    gap: 8,
-  },
-  input: {
-    flex: 1,
-    fontSize: 13,
-    color: colors.text,
-    paddingVertical: 0,
-  },
-  gpsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    backgroundColor: colors.primaryLight,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    borderRadius: 6,
-    paddingVertical: 9,
-  },
-  gpsBtnText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.primary,
-  },
-  daysGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 4,
-  },
-  dayItem: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: colors.surfaceSecondary,
+  flex: { flex: 1, minWidth: 0 },
+  flexWide: { flex: 2, minWidth: 0 },
+  bold: { fontWeight: '600' },
+  pressed: { opacity: 0.75 },
+  form: { gap: space.md },
+  chip: {
+    paddingHorizontal: space.md,
+    paddingVertical: space.sm,
+    borderRadius: radius.pill,
+    backgroundColor: colors.card,
     borderWidth: 1,
     borderColor: colors.border,
   },
-  dayItemSelected: {
-    backgroundColor: colors.primaryLight,
-    borderColor: colors.primaryBorder,
-  },
-  dayItemText: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    fontWeight: '500',
-  },
-  dayItemTextSelected: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  submitBtn: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    marginBottom: 8,
-  },
-  submitBtnText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  cancelBtn: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelBtnText: {
-    color: colors.textSecondary,
-    fontSize: 13,
-    fontWeight: '500',
-  },
+  chipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
 });

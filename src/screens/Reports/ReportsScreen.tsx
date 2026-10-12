@@ -1,308 +1,223 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
+import { Banknote, Receipt, Store, TrendingUp, Wallet } from 'lucide-react-native';
 import { orderRepository } from '../../database/orderRepository';
 import { shopRepository } from '../../database/shopRepository';
 import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
-import { Shop, Order } from '../../types';
-import { colors } from '../../theme/colors';
+import { getTodayDateString } from '../../store/dateStore';
+import { Order, Shop } from '../../types';
+import { colors, space } from '../../theme/colors';
+import { AppText, Card, Divider, EmptyState, KeyValue, ListItem, Money, Row, Screen, SectionHeader, Segmented, Stat } from '../../components/ui';
+import { OrderCard, PaymentSheet } from '../../components/shared';
+import { COMMON, useL } from '../../i18n/tri';
+import { formatMoneyShort, formatNumber } from '../../utils/format';
 
 type ReportTab = 'sales' | 'debts' | 'cash';
+type Stats = { totalSales: number; orderCount: number; cashCollected: number };
 
-export const ReportsScreen = () => {
-  const { agent } = useAuthStore();
-  const { t, lang } = useLanguageStore();
-  const [activeTab, setActiveTab] = useState<ReportTab>('sales');
-  const [stats, setStats] = useState({ totalSales: 0, orderCount: 0, cashCollected: 0 });
+const localDay = (iso: string) => {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
+
+export const ReportsScreen = ({ navigation }: { navigation?: any }) => {
+  const L = useL();
+  const lang = useLanguageStore((s) => s.lang);
+  const agent = useAuthStore((s) => s.agent);
+
+  const [tab, setTab] = useState<ReportTab>('sales');
+  const [stats, setStats] = useState<Stats>({ totalSales: 0, orderCount: 0, cashCollected: 0 });
   const [debtShops, setDebtShops] = useState<Shop[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [payShop, setPayShop] = useState<Shop | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
-
-  useEffect(() => {
-    if (agent?.id) {
-      const todayStats = orderRepository.getTodayStats(agent.id);
-      setStats(todayStats);
-    }
-    const allShops = shopRepository.getAll();
-    const withDebts = allShops.filter((s) => s.debtBalance > 0).sort((a, b) => b.debtBalance - a.debtBalance);
-    setDebtShops(withDebts);
-
-    const allOrders = orderRepository.getAll();
-    setOrders(allOrders);
+  const load = useCallback(() => {
+    if (agent?.id) setStats(orderRepository.getTodayStats(agent.id));
+    setDebtShops(
+      shopRepository
+        .getAll()
+        .filter((s) => s.debtBalance > 0)
+        .sort((a, b) => b.debtBalance - a.debtBalance)
+    );
+    const today = getTodayDateString();
+    setOrders(orderRepository.getAll().filter((o) => o.createdAt && localDay(o.createdAt) === today));
   }, [agent?.id]);
 
-  const totalDebt = debtShops.reduce((sum, s) => sum + s.debtBalance, 0);
+  useEffect(() => {
+    load();
+    return navigation?.addListener?.('focus', load);
+  }, [navigation, load]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    load();
+    setRefreshing(false);
+  };
+
+  const totalDebt = useMemo(() => debtShops.reduce((sum, s) => sum + s.debtBalance, 0), [debtShops]);
+  const creditSales = Math.max(0, stats.totalSales - stats.cashCollected);
+
+  const tabs: { key: ReportTab; label: string; count?: number }[] = [
+    { key: 'sales', label: L({ uz: 'Kunlik savdo', uz_cyrl: 'Кунлик савдо', ru: 'Продажи за день' }) },
+    { key: 'debts', label: L({ uz: 'Qarzdorlar', uz_cyrl: 'Қарздорлар', ru: 'Должники' }), count: debtShops.length },
+    { key: 'cash', label: L({ uz: 'Kassa', uz_cyrl: 'Касса', ru: 'Касса' }) },
+  ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['bottom', 'left', 'right']}>
-      {/* Segmented Sub Tabs */}
-      <View style={styles.subTabs}>
-        <TouchableOpacity
-          style={[styles.subTabItem, activeTab === 'sales' && styles.subTabItemActive]}
-          onPress={() => setActiveTab('sales')}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.subTabText, activeTab === 'sales' && styles.subTabTextActive]}>
-            {t('rep_sales_day')}
-          </Text>
-        </TouchableOpacity>
+    <Screen refreshing={refreshing} onRefresh={onRefresh}>
+      <Segmented options={tabs} value={tab} onChange={setTab} />
 
-        <TouchableOpacity
-          style={[styles.subTabItem, activeTab === 'debts' && styles.subTabItemActive]}
-          onPress={() => setActiveTab('debts')}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.subTabText, activeTab === 'debts' && styles.subTabTextActive]}>
-            {t('rep_client_debts')}
-          </Text>
-        </TouchableOpacity>
+      {tab === 'sales' ? (
+        <>
+          <Row gap={space.md} wrap>
+            <Stat label={L(COMMON.orders)} value={formatNumber(stats.orderCount)} icon={Receipt} />
+            <Stat
+              label={L({ uz: 'Savdo', uz_cyrl: 'Савдо', ru: 'Продажи' })}
+              value={formatMoneyShort(stats.totalSales, lang)}
+              icon={TrendingUp}
+              tone="primary"
+            />
+          </Row>
+          <Card>
+            <KeyValue label={L(COMMON.orders)} value={formatNumber(stats.orderCount)} />
+            <KeyValue
+              label={L({ uz: 'Jami savdo', uz_cyrl: 'Жами савдо', ru: 'Сумма продаж' })}
+              value={<Money amount={stats.totalSales} color={colors.primaryDark} />}
+            />
+            <Divider style={styles.divider} />
+            <KeyValue
+              label={L({ uz: 'Naqd', uz_cyrl: 'Нақд', ru: 'Наличные' })}
+              value={<Money amount={stats.cashCollected} color={colors.success} />}
+            />
+            <KeyValue
+              label={L({ uz: 'Nasiya va oʻtkazma', uz_cyrl: 'Насия ва ўтказма', ru: 'В долг и перечисл.' })}
+              value={<Money amount={creditSales} color={creditSales > 0 ? colors.danger : colors.text} />}
+            />
+          </Card>
 
-        <TouchableOpacity
-          style={[styles.subTabItem, activeTab === 'cash' && styles.subTabItemActive]}
-          onPress={() => setActiveTab('cash')}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.subTabText, activeTab === 'cash' && styles.subTabTextActive]}>
-            {t('rep_agent_cash')}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {activeTab === 'sales' && (
-          <View style={styles.tabContent}>
-            {/* KPI Summary Card */}
-            <View style={styles.summaryCard}>
-              <Text style={styles.cardHeaderTitle}>{t('rep_summary_today')}</Text>
-
-              <View style={styles.rowItem}>
-                <Text style={styles.rowLabel}>{t('reports_total_orders')}</Text>
-                <Text style={styles.rowValBold}>{stats.orderCount} {t('rep_docs_count')}</Text>
-              </View>
-
-              <View style={styles.rowItem}>
-                <Text style={styles.rowLabel}>{t('reports_total_sales')}</Text>
-                <Text style={[styles.rowValBold, { color: colors.primary }]}>
-                  {stats.totalSales.toLocaleString(numLocale)} {t('currency')}
-                </Text>
-              </View>
-
-              <View style={styles.divider} />
-
-              <View style={styles.rowItem}>
-                <Text style={styles.rowLabel}>{t('reports_cash')}</Text>
-                <Text style={[styles.rowValBold, { color: colors.success }]}>
-                  {stats.cashCollected.toLocaleString(numLocale)} {t('currency')}
-                </Text>
-              </View>
-
-              <View style={styles.rowItem}>
-                <Text style={styles.rowLabel}>{t('reports_debt')}</Text>
-                <Text style={[styles.rowValBold, { color: colors.danger }]}>
-                  {Math.max(0, stats.totalSales - stats.cashCollected).toLocaleString(numLocale)} {t('currency')}
-                </Text>
-              </View>
-            </View>
-
-            {/* List of Orders */}
-            <Text style={styles.sectionTitle}>{t('rep_orders_today')}</Text>
-            {orders.slice(0, 10).map((ord) => (
-              <View key={ord.id} style={styles.orderRowCard}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.orderShopName} numberOfLines={1}>{ord.shopName}</Text>
-                  <Text style={styles.orderTime}>
-                    {new Date(ord.createdAt).toLocaleTimeString(numLocale, { hour: '2-digit', minute: '2-digit' })} •{' '}
-                    {ord.paymentMethod === 'naqd'
-                      ? t('checkout_pay_cash')
-                      : ord.paymentMethod === 'nasiya'
-                      ? t('checkout_pay_debt')
-                      : t('checkout_pay_bank')}
-                  </Text>
+          <SectionHeader title={L({ uz: 'Bugungi buyurtmalar', uz_cyrl: 'Бугунги буюртмалар', ru: 'Заказы за сегодня' })} />
+          {orders.length === 0 ? (
+            <Card>
+              <EmptyState
+                icon={Receipt}
+                title={L({ uz: 'Bugun buyurtma yoʻq', uz_cyrl: 'Бугун буюртма йўқ', ru: 'Сегодня заказов нет' })}
+              />
+            </Card>
+          ) : (
+            <Card style={styles.listCard}>
+              {orders.map((o, i) => (
+                <View key={o.id}>
+                  {i > 0 ? <Divider /> : null}
+                  <OrderCard order={o} />
                 </View>
-                <Text style={styles.orderFinalSum}>
-                  {ord.finalAmount.toLocaleString(numLocale)} {t('currency')}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
+              ))}
+            </Card>
+          )}
+        </>
+      ) : null}
 
-        {activeTab === 'debts' && (
-          <View style={styles.tabContent}>
-            {/* Total Debt Banner */}
-            <View style={[styles.summaryCard, { backgroundColor: colors.dangerLight, borderColor: '#FECDD3' }]}>
-              <Text style={[styles.cardHeaderTitle, { color: colors.danger }]}>
-                {t('rep_debt_receivable')}
-              </Text>
-              <Text style={styles.totalDebtNumber}>
-                {totalDebt.toLocaleString(numLocale)} {t('currency')}
-              </Text>
-              <Text style={styles.totalDebtSub}>
-                {debtShops.length} {t('home_of')}
-              </Text>
-            </View>
+      {tab === 'debts' ? (
+        <>
+          <Card style={styles.debtCard}>
+            <AppText variant="small" color={colors.danger} lines={1}>
+              {L({ uz: 'Umumiy qarz', uz_cyrl: 'Умумий қарз', ru: 'Общий долг' })}
+            </AppText>
+            <Money amount={totalDebt} variant="h1" color={colors.danger} />
+            <AppText variant="small" lines={1}>
+              {formatNumber(debtShops.length)} {L(COMMON.shopsCount)}
+            </AppText>
+          </Card>
 
-            {/* Debtor Shops List */}
-            <Text style={styles.sectionTitle}>{t('rep_client_debts')}</Text>
-            {debtShops.map((s) => (
-              <View key={s.id} style={styles.orderRowCard}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.orderShopName} numberOfLines={1}>{s.name}</Text>
-                  <Text style={styles.orderTime}>{s.ownerName} • {s.address}</Text>
+          <SectionHeader title={L({ uz: 'Qarzdor doʻkonlar', uz_cyrl: 'Қарздор дўконлар', ru: 'Магазины с долгом' })} />
+          {debtShops.length === 0 ? (
+            <Card>
+              <EmptyState icon={Store} title={L(COMMON.noDebt)} />
+            </Card>
+          ) : (
+            <Card style={styles.listCard}>
+              {debtShops.map((s, i) => (
+                <View key={s.id}>
+                  {i > 0 ? <Divider /> : null}
+                  <ListItem
+                    title={s.name}
+                    subtitle={[s.ownerName, s.address].filter(Boolean).join(' · ') || undefined}
+                    icon={Store}
+                    iconTone="danger"
+                    onPress={() => setPayShop(s)}
+                    right={
+                      <View style={styles.amount}>
+                        <Money amount={s.debtBalance} color={colors.danger} />
+                      </View>
+                    }
+                  />
                 </View>
-                <Text style={[styles.orderFinalSum, { color: colors.danger }]}>
-                  {s.debtBalance.toLocaleString(numLocale)} {t('currency')}
-                </Text>
-              </View>
-            ))}
-          </View>
-        )}
+              ))}
+            </Card>
+          )}
+          {debtShops.length > 0 ? (
+            <AppText variant="caption" align="center">
+              {L({
+                uz: 'Toʻlov qabul qilish uchun doʻkonni bosing',
+                uz_cyrl: 'Тўлов қабул қилиш учун дўконни босинг',
+                ru: 'Нажмите на магазин, чтобы принять оплату',
+              })}
+            </AppText>
+          ) : null}
+        </>
+      ) : null}
 
-        {activeTab === 'cash' && (
-          <View style={styles.tabContent}>
-            <View style={[styles.summaryCard, { backgroundColor: colors.successLight, borderColor: '#BBF7D0' }]}>
-              <Text style={[styles.cardHeaderTitle, { color: colors.success }]}>
-                {t('rep_agent_cash')}
-              </Text>
-              <Text style={[styles.totalDebtNumber, { color: colors.success }]}>
-                {stats.cashCollected.toLocaleString(numLocale)} {t('currency')}
-              </Text>
-            </View>
-          </View>
-        )}
-      </ScrollView>
-    </SafeAreaView>
+      {tab === 'cash' ? (
+        <>
+          <Card style={styles.cashCard}>
+            <Row gap={space.sm}>
+              <Banknote size={18} color={colors.success} />
+              <AppText variant="small" color={colors.success} lines={1} style={styles.flex}>
+                {L({ uz: 'Bugun olingan naqd pul', uz_cyrl: 'Бугун олинган нақд пул', ru: 'Наличные за сегодня' })}
+              </AppText>
+            </Row>
+            <Money amount={stats.cashCollected} variant="h1" color={colors.success} />
+          </Card>
+          <Card>
+            <KeyValue
+              label={L({ uz: 'Jami savdo', uz_cyrl: 'Жами савдо', ru: 'Сумма продаж' })}
+              value={<Money amount={stats.totalSales} />}
+            />
+            <KeyValue
+              label={L({ uz: 'Naqd', uz_cyrl: 'Нақд', ru: 'Наличные' })}
+              value={<Money amount={stats.cashCollected} color={colors.success} />}
+            />
+            <KeyValue
+              label={L({ uz: 'Nasiya va oʻtkazma', uz_cyrl: 'Насия ва ўтказма', ru: 'В долг и перечисл.' })}
+              value={<Money amount={creditSales} />}
+            />
+          </Card>
+          <Row gap={space.sm} style={styles.hint}>
+            <Wallet size={14} color={colors.textMuted} />
+            <AppText variant="caption" style={styles.flex}>
+              {L({
+                uz: 'Faqat naqd toʻlangan buyurtmalar hisoblanadi.',
+                uz_cyrl: 'Фақат нақд тўланган буюртмалар ҳисобланади.',
+                ru: 'Учитываются только заказы, оплаченные наличными.',
+              })}
+            </AppText>
+          </Row>
+        </>
+      ) : null}
+
+      <PaymentSheet shop={payShop} onClose={() => setPayShop(null)} onDone={load} />
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  subTabs: {
-    flexDirection: 'row',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    gap: 6,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-  },
-  subTabItem: {
-    flex: 1,
-    paddingVertical: 6,
-    borderRadius: 6,
-    backgroundColor: colors.surfaceSecondary,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  subTabItemActive: {
-    backgroundColor: colors.primaryLight,
-    borderColor: colors.primaryBorder,
-  },
-  subTabText: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: colors.textSecondary,
-  },
-  subTabTextActive: {
-    color: colors.primary,
-    fontWeight: '600',
-  },
-  scrollContent: {
-    padding: 12,
-    paddingBottom: 30,
-  },
-  tabContent: {
-    gap: 10,
-  },
-  summaryCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 12,
-  },
-  cardHeaderTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginBottom: 8,
-  },
-  rowItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 4,
-  },
-  rowLabel: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  rowValBold: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.borderSubtle,
-    marginVertical: 6,
-  },
-  sectionTitle: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    marginTop: 6,
-    marginBottom: 2,
-  },
-  orderRowCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: 10,
-  },
-  orderShopName: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  orderTime: {
-    fontSize: 11,
-    color: colors.textMuted,
-    marginTop: 2,
-  },
-  orderFinalSum: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  totalDebtNumber: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: colors.danger,
-    marginTop: 4,
-  },
-  totalDebtSub: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
+  flex: { flex: 1, minWidth: 0 },
+  divider: { marginVertical: space.xs },
+  listCard: { paddingVertical: 0 },
+  amount: { maxWidth: '45%' },
+  debtCard: { backgroundColor: colors.dangerLight, gap: space.xs },
+  cashCard: { backgroundColor: colors.successLight, gap: space.xs },
+  hint: { paddingHorizontal: 2 },
 });

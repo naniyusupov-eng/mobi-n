@@ -1,324 +1,190 @@
 import React, { useEffect, useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Alert,
-  ActivityIndicator,
-  BackHandler,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { BackHandler, StyleSheet, View } from 'react-native';
+import { Check, Home, Printer, ShoppingBag } from 'lucide-react-native';
 import { orderRepository } from '../../database/orderRepository';
 import { shopRepository } from '../../database/shopRepository';
-import { invoiceService } from '../../services/invoiceService';
 import { useLanguageStore } from '../../store/languageStore';
 import { Order, Shop } from '../../types';
-import { colors } from '../../theme/colors';
-import { CheckCircle2, Home, ShoppingBag, Printer } from 'lucide-react-native';
+import { AppText, Badge, Button, Card, Divider, KeyValue, Money, Row, Screen } from '../../components/ui';
+import { PAYMENT_TONE, usePrintReceipt } from '../../components/shared';
+import { COMMON, PAYMENT_LABELS, UNIT_LABELS, useL } from '../../i18n/tri';
+import { formatDayLong, formatMoney, formatNumber } from '../../utils/format';
+import { colors, space } from '../../theme/colors';
 
 export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigation: any }) => {
   const { orderId, shopId } = route.params;
-  const { lang, t } = useLanguageStore();
+  const L = useL();
+  const lang = useLanguageStore((s) => s.lang);
+  const printReceipt = usePrintReceipt();
   const [order, setOrder] = useState<Order | null>(null);
   const [shop, setShop] = useState<Shop | null>(null);
-  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-
-  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
+  const [printing, setPrinting] = useState(false);
 
   useEffect(() => {
-    if (orderId) {
-      const ord = orderRepository.getById(orderId);
-      setOrder(ord);
-    }
-    if (shopId) {
-      const sh = shopRepository.getById(shopId);
-      setShop(sh);
-    }
+    if (orderId) setOrder(orderRepository.getById(orderId));
+    if (shopId) setShop(shopRepository.getById(shopId));
   }, [orderId, shopId]);
 
-  const handleSharePdf = async () => {
+  const handlePrint = async () => {
     if (!order) return;
+    setPrinting(true);
     try {
-      setIsGeneratingPdf(true);
-      await invoiceService.printOrSharePdf(order, shop);
-    } catch (e: any) {
-      Alert.alert(t('error'), 'PDF generation error');
+      await printReceipt(order); // shows its own error alert
     } finally {
-      setIsGeneratingPdf(false);
+      setPrinting(false);
     }
   };
 
   const handleGoHome = () => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'CatalogMain' }],
-    });
+    navigation.reset({ index: 0, routes: [{ name: 'CatalogMain' }] });
     const parent = navigation.getParent();
-    if (parent) {
-      parent.navigate('HomeTab');
-    } else {
-      navigation.navigate('HomeTab');
-    }
+    if (parent) parent.navigate('HomeTab');
+    else navigation.navigate('HomeTab');
   };
 
   const handleNewOrder = () => {
-    navigation.reset({
-      index: 0,
-      routes: [{ name: 'CatalogMain' }],
-    });
+    navigation.reset({ index: 0, routes: [{ name: 'CatalogMain' }] });
   };
 
   useEffect(() => {
-    const onBackPress = () => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
       handleGoHome();
       return true;
-    };
-    const backHandler = BackHandler.addEventListener('hardwareBackPress', onBackPress);
-    return () => backHandler.remove();
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const getPaymentLabel = (pm: string) => {
-    if (pm === 'naqd') return t('checkout_pay_cash');
-    if (pm === 'nasiya') return t('checkout_pay_debt');
-    return t('checkout_pay_bank');
-  };
+  const orderItems = order?.items || [];
 
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
-        {/* Minimalist Success Icon */}
-        <View style={styles.iconCircle}>
-          <CheckCircle2 size={44} color={colors.success} strokeWidth={2} />
-        </View>
-
-        <Text style={styles.title}>{t('order_success_title')}</Text>
-        <Text style={styles.subtitle}>{t('checkout_confirm_msg')}</Text>
-
-        {/* Document Receipt Card */}
-        {order && (
-          <View style={styles.detailsCard}>
-            <View style={styles.detailRow}>
-              <Text style={styles.label}>{t('order_success_sub')}</Text>
-              <Text style={styles.orderIdBadge}>#{order.id.slice(-8).toUpperCase()}</Text>
-            </View>
-
-            <View style={styles.detailRow}>
-              <Text style={styles.label}>{t('checkout_client')}</Text>
-              <Text style={styles.value} numberOfLines={1}>{order.shopName}</Text>
-            </View>
-
-            <View style={styles.detailRow}>
-              <Text style={styles.label}>{t('checkout_pay_method')}:</Text>
-              <Text
-                style={[
-                  styles.value,
-                  order.paymentMethod === 'nasiya' && { color: colors.danger },
-                ]}
-              >
-                {getPaymentLabel(order.paymentMethod)}
-              </Text>
-            </View>
-
-            {order.deliveryDate ? (
-              <View style={styles.detailRow}>
-                <Text style={styles.label}>
-                  {lang === 'ru' ? 'Дата доставки:' : 'Yetkazish:'}
-                </Text>
-                <Text style={styles.value}>{order.deliveryDate}</Text>
-              </View>
-            ) : null}
-
-            <View style={styles.divider} />
-
-            <View style={styles.detailRow}>
-              <Text style={styles.finalLabel}>{t('checkout_total_final')}</Text>
-              <Text style={styles.finalAmount}>
-                {order.finalAmount.toLocaleString(numLocale)} {t('currency')}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Action Buttons */}
-        <View style={styles.actionsContainer}>
-          <TouchableOpacity
-            style={styles.pdfButton}
-            onPress={handleSharePdf}
-            disabled={isGeneratingPdf}
-            activeOpacity={0.8}
-          >
-            {isGeneratingPdf ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
-            ) : (
-              <>
-                <Printer size={16} color="#FFFFFF" />
-                <Text style={styles.pdfButtonText}>{t('order_print_receipt')}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-
-          <View style={styles.secondaryButtonsRow}>
-            <TouchableOpacity
-              style={styles.newOrderButton}
+    <Screen
+      edges={['top', 'left', 'right']}
+      footer={
+        <>
+          <Button
+            title={L({ uz: 'Chekni chop etish', uz_cyrl: 'Чекни чоп этиш', ru: 'Распечатать чек' })}
+            icon={Printer}
+            size="lg"
+            loading={printing}
+            disabled={!order}
+            onPress={handlePrint}
+          />
+          <Row gap={space.sm}>
+            <Button
+              title={L({ uz: 'Yangi buyurtma', uz_cyrl: 'Янги буюртма', ru: 'Новый заказ' })}
+              icon={ShoppingBag}
+              variant="secondary"
               onPress={handleNewOrder}
-              activeOpacity={0.8}
-            >
-              <ShoppingBag size={15} color={colors.primary} />
-              <Text style={styles.newOrderText} numberOfLines={1}>{t('order_new_btn')}</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.homeButton}
+              style={styles.flex}
+            />
+            <Button
+              title={L({ uz: 'Bosh sahifa', uz_cyrl: 'Бош саҳифа', ru: 'Главная' })}
+              icon={Home}
+              variant="outline"
               onPress={handleGoHome}
-              activeOpacity={0.8}
-            >
-              <Home size={15} color={colors.textSecondary} />
-              <Text style={styles.homeButtonText} numberOfLines={1}>{t('order_back_home')}</Text>
-            </TouchableOpacity>
-          </View>
+              style={styles.flex}
+            />
+          </Row>
+        </>
+      }
+    >
+      <View style={styles.hero}>
+        <View style={styles.heroIcon}>
+          <Check size={34} color={colors.success} strokeWidth={2.6} />
         </View>
+        <AppText variant="h2" align="center" lines={2}>
+          {L({ uz: 'Buyurtma qabul qilindi', uz_cyrl: 'Буюртма қабул қилинди', ru: 'Заказ принят' })}
+        </AppText>
+        <AppText variant="small" align="center" lines={3}>
+          {L({
+            uz: 'Hujjat telefonda saqlandi va ofisga yuborish navbatiga qoʻyildi.',
+            uz_cyrl: 'Ҳужжат телефонда сақланди ва офисга юбориш навбатига қўйилди.',
+            ru: 'Документ сохранён на телефоне и поставлен в очередь на отправку в офис.',
+          })}
+        </AppText>
       </View>
-    </SafeAreaView>
+
+      {order ? (
+        <Card>
+          <Row gap={space.sm}>
+            <AppText variant="label" lines={1} style={styles.flex}>
+              {L({ uz: 'Yuk xati', uz_cyrl: 'Юк хати', ru: 'Накладная' })}
+            </AppText>
+            <Badge label={`#${order.id.slice(-8).toUpperCase()}`} tone="primary" />
+          </Row>
+
+          <View>
+            <AppText variant="title" lines={2}>
+              {order.shopName}
+            </AppText>
+            {shop?.address ? (
+              <AppText variant="small" lines={2}>
+                {shop.address}
+              </AppText>
+            ) : null}
+          </View>
+
+          <KeyValue
+            label={L(COMMON.payment)}
+            value={<Badge label={L(PAYMENT_LABELS[order.paymentMethod])} tone={PAYMENT_TONE[order.paymentMethod]} />}
+          />
+          {order.deliveryDate ? (
+            <KeyValue
+              label={L({ uz: 'Yetkazish', uz_cyrl: 'Етказиш', ru: 'Доставка' })}
+              value={formatDayLong(order.deliveryDate, lang)}
+            />
+          ) : null}
+
+          {orderItems.length > 0 ? (
+            <>
+              <Divider style={styles.divider} />
+              {orderItems.map((it) => (
+                <View key={it.id} style={styles.itemRow}>
+                  <View style={styles.flex}>
+                    <AppText variant="body" lines={2}>
+                      {it.productName}
+                    </AppText>
+                    <AppText variant="caption" lines={1}>
+                      {`${formatNumber(it.quantity)} ${L(UNIT_LABELS[it.unit])} × ${formatMoney(it.unitPrice, lang)}`}
+                    </AppText>
+                  </View>
+                  <Money amount={it.totalPrice} variant="body" style={styles.itemMoney} />
+                </View>
+              ))}
+            </>
+          ) : null}
+
+          <Divider style={styles.divider} />
+          {order.discountAmount > 0 ? (
+            <>
+              <KeyValue label={L({ uz: 'Summa', uz_cyrl: 'Сумма', ru: 'Сумма' })} value={<Money amount={order.totalAmount} variant="body" />} />
+              <KeyValue
+                label={L(COMMON.discount)}
+                value={<Money amount={-order.discountAmount} variant="body" color={colors.danger} />}
+              />
+            </>
+          ) : null}
+          <KeyValue strong label={L(COMMON.total)} value={<Money amount={order.finalAmount} variant="title" color={colors.primaryDark} />} />
+        </Card>
+      ) : null}
+    </Screen>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
-  content: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-  },
-  iconCircle: {
+  flex: { flex: 1, minWidth: 0 },
+  hero: { alignItems: 'center', gap: space.sm, paddingTop: space.xl, paddingBottom: space.sm, paddingHorizontal: space.lg },
+  heroIcon: {
     width: 68,
     height: 68,
     borderRadius: 34,
     backgroundColor: colors.successLight,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 12,
+    marginBottom: space.xs,
   },
-  title: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 4,
-    marginBottom: 16,
-    paddingHorizontal: 16,
-  },
-  detailsCard: {
-    width: '100%',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    gap: 8,
-    marginBottom: 16,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  label: {
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  value: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: colors.text,
-  },
-  orderIdBadge: {
-    fontSize: 11,
-    fontWeight: '700',
-    color: colors.primary,
-    backgroundColor: colors.primaryLight,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-  },
-  divider: {
-    height: 1,
-    backgroundColor: colors.borderSubtle,
-    marginVertical: 4,
-  },
-  finalLabel: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: colors.text,
-  },
-  finalAmount: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: colors.primary,
-  },
-  actionsContainer: {
-    width: '100%',
-    gap: 8,
-  },
-  pdfButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  pdfButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  secondaryButtonsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  newOrderButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.primaryBorder,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  newOrderText: {
-    color: colors.primary,
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  homeButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  homeButtonText: {
-    color: colors.textSecondary,
-    fontSize: 12,
-    fontWeight: '500',
-  },
+  divider: { marginVertical: space.xs },
+  itemRow: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md, paddingVertical: 2 },
+  itemMoney: { flexShrink: 1, maxWidth: '45%' },
 });
