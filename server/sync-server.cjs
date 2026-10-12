@@ -9,6 +9,7 @@ const path = require('path');
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'sync_db.json');
+const SEED_PRODUCTS = require('./seed-products.cjs');
 
 const INITIAL_DATA = {
   orders: [],
@@ -19,6 +20,10 @@ const INITIAL_DATA = {
   clients: [],
   // Shops added from the mobile app that are not on a route yet
   shops: [],
+  // Warehouse: { id, code, name, ..., stockDona }
+  products: SEED_PRODUCTS,
+  // Returned goods: { id, orderId, lineCode, routeDay, salesDate, reason, items[], total, createdAt }
+  returns: [],
 };
 
 // Orders and payments reference a shop by id: a route client or a shop added from the mobile app
@@ -36,21 +41,49 @@ function loadDatabase() {
     saveDatabase(INITIAL_DATA);
     return JSON.parse(JSON.stringify(INITIAL_DATA));
   }
+  let db;
   try {
-    const raw = fs.readFileSync(DB_FILE, 'utf8');
-    const db = JSON.parse(raw);
-    if (!Array.isArray(db.lines)) db.lines = [];
-    if (!Array.isArray(db.clients)) db.clients = [];
-    return db;
+    db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
   } catch (e) {
-    console.error('Error reading DB, resetting to initial:', e.message);
-    saveDatabase(INITIAL_DATA);
-    return JSON.parse(JSON.stringify(INITIAL_DATA));
+    // Never wipe the database on a bad read: keep a copy and fail the request instead
+    const backup = `${DB_FILE}.broken-${Date.now()}`;
+    fs.copyFileSync(DB_FILE, backup);
+    console.error(`Error reading DB (copy saved to ${backup}):`, e.message);
+    throw new Error('Database file could not be read');
   }
+  if (!Array.isArray(db.lines)) db.lines = [];
+  if (!Array.isArray(db.clients)) db.clients = [];
+  if (!Array.isArray(db.shops)) db.shops = [];
+  if (!Array.isArray(db.returns)) db.returns = [];
+  if (!Array.isArray(db.products)) db.products = JSON.parse(JSON.stringify(SEED_PRODUCTS));
+  return db;
 }
 
 function saveDatabase(data) {
-  fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2), 'utf8');
+  // Write to a temp file and rename, so a crash mid-write cannot leave a half-written database
+  const tmp = `${DB_FILE}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
+  fs.renameSync(tmp, DB_FILE);
+}
+
+// Local calendar date (server time zone) as YYYY-MM-DD
+function localDate(value) {
+  const d = new Date(value);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// Quantity in pieces (dona) for stock. Weight units cannot be converted, so they return null.
+function toDona(product, unit, quantity) {
+  const perUnit = { dona: 1, blok: product.itemsPerBlock || 1, korobka: product.itemsPerBox || 1 }[unit];
+  return perUnit ? quantity * perUnit : null;
+}
+
+function changeStock(db, productId, unit, quantity, sign) {
+  const product = db.products.find((p) => p.id === productId);
+  if (!product) return;
+  const pieces = toDona(product, unit, quantity);
+  if (pieces != null) product.stockDona = Math.max(0, (product.stockDona || 0) + sign * pieces);
 }
 
 function setCorsHeaders(res) {
@@ -107,14 +140,232 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
-    // GET /api/v1/orders
+    // GET /api/v1/orders — each order gets its shop's route (lineCode, routeDay, shopNum) for reports
     if (req.method === 'GET' && pathname === '/api/v1/orders') {
       const db = loadDatabase();
+      const clientsById = new Map(db.clients.map((c) => [c.id, c]));
+      const orders = db.orders.map((o) => {
+        const c = clientsById.get(o.shopId);
+        return c ? { ...o, lineCode: c.lineCode, routeDay: c.day, shopNum: c.num } : o;
+      });
       return jsonResponse(res, 200, {
         success: true,
-        count: db.orders.length,
-        orders: db.orders,
+        count: orders.length,
+        orders,
       });
+    }
+
+    // POST /api/v1/orders/:id/status — { status } changed on the website
+    const statusMatch = pathname.match(/^\/api\/v1\/orders\/([^/]+)\/status$/);
+    if (req.method === 'POST' && statusMatch) {
+      const { status } = await parseBody(req);
+      if (!['new', 'confirmed', 'delivered', 'cancelled'].includes(status)) {
+        return jsonResponse(res, 400, { error: 'Unknown status' });
+      }
+      const db = loadDatabase();
+      const order = db.orders.find((o) => o.id === statusMatch[1]);
+      if (!order) return jsonResponse(res, 404, { error: 'Order not found' });
+      order.status = status;
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, order });
+    }
+
+    // GET /api/v1/products — warehouse catalogue with stock
+    if (req.method === 'GET' && pathname === '/api/v1/products') {
+      const db = loadDatabase();
+      return jsonResponse(res, 200, { success: true, products: db.products });
+    }
+
+    // POST /api/v1/products — add or update a product
+    if (req.method === 'POST' && pathname === '/api/v1/products') {
+      const product = await parseBody(req);
+      if (!product || !product.id || !product.name) return jsonResponse(res, 400, { error: 'id and name are required' });
+      const db = loadDatabase();
+      const index = db.products.findIndex((p) => p.id === product.id);
+      if (index >= 0) db.products[index] = { ...db.products[index], ...product };
+      else db.products.unshift(product);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, products: db.products });
+    }
+
+    // POST /api/v1/products/:id/stock — { stockDona } set by hand (stock count)
+    const stockMatch = pathname.match(/^\/api\/v1\/products\/([^/]+)\/stock$/);
+    if (req.method === 'POST' && stockMatch) {
+      const { stockDona } = await parseBody(req);
+      const db = loadDatabase();
+      const product = db.products.find((p) => p.id === stockMatch[1]);
+      if (!product || !(stockDona >= 0)) return jsonResponse(res, 400, { error: 'Unknown product or bad stock' });
+      product.stockDona = Math.round(stockDona);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, products: db.products });
+    }
+
+    // POST /api/v1/returns — goods brought back by the delivery driver
+    // { orderId, reason, items: [{ productId, unit, quantity }] }
+    if (req.method === 'POST' && pathname === '/api/v1/returns') {
+      const body = await parseBody(req);
+      const db = loadDatabase();
+      const order = db.orders.find((o) => o.id === body.orderId);
+      if (!order) return jsonResponse(res, 404, { error: 'Order not found' });
+
+      // Already returned quantity per order line
+      const returnedQty = (productId, unit) =>
+        db.returns
+          .filter((r) => r.orderId === order.id)
+          .flatMap((r) => r.items)
+          .filter((i) => i.productId === productId && i.unit === unit)
+          .reduce((sum, i) => sum + i.quantity, 0);
+
+      const items = [];
+      for (const wanted of body.items || []) {
+        const line = (order.items || []).find((i) => i.productId === wanted.productId && i.unit === wanted.unit);
+        const quantity = Number(wanted.quantity);
+        if (!line || !(quantity > 0)) continue;
+        const left = line.quantity - returnedQty(line.productId, line.unit);
+        if (quantity > left) {
+          return jsonResponse(res, 400, { error: `${line.productName}: faqat ${left} ta qaytarish mumkin` });
+        }
+        items.push({
+          productId: line.productId,
+          productName: line.productName,
+          unit: line.unit,
+          quantity,
+          unitPrice: line.unitPrice,
+          totalPrice: Math.round(quantity * line.unitPrice),
+        });
+      }
+      if (items.length === 0) return jsonResponse(res, 400, { error: 'Qaytariladigan tovar tanlanmagan' });
+
+      const shop = findShop(db, order.shopId);
+      const client = db.clients.find((c) => c.id === order.shopId);
+      const total = items.reduce((sum, i) => sum + i.totalPrice, 0);
+      const ret = {
+        id: `ret_${Date.now()}`,
+        orderId: order.id,
+        shopId: order.shopId,
+        shopName: order.shopName,
+        lineCode: client ? client.lineCode : null,
+        routeDay: client ? client.day : null,
+        salesDate: localDate(order.createdAt), // counted against the day the order was taken
+        reason: String(body.reason || '').trim() || 'Boshqa',
+        items,
+        total,
+        createdAt: new Date().toISOString(),
+      };
+
+      for (const i of items) changeStock(db, i.productId, i.unit, i.quantity, +1);
+      // A nasiya shop does not owe for goods it did not keep
+      if (shop && order.paymentMethod === 'nasiya') shop.debtBalance = Math.max(0, (shop.debtBalance || 0) - total);
+      order.returnedAmount = (order.returnedAmount || 0) + total;
+
+      db.returns.unshift(ret);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, return: ret, order });
+    }
+
+    // GET /api/v1/returns[?month=YYYY-MM][&line=4-3][&order=<id>]
+    if (req.method === 'GET' && pathname === '/api/v1/returns') {
+      const db = loadDatabase();
+      const month = url.searchParams.get('month');
+      const lineCode = url.searchParams.get('line');
+      const orderId = url.searchParams.get('order');
+      const returns = db.returns.filter(
+        (r) =>
+          (!month || r.salesDate.startsWith(month)) &&
+          (!lineCode || r.lineCode === lineCode) &&
+          (!orderId || r.orderId === orderId)
+      );
+      return jsonResponse(res, 200, { success: true, returns });
+    }
+
+    // DELETE /api/v1/returns/:id — undo a return entered by mistake
+    const returnMatch = pathname.match(/^\/api\/v1\/returns\/([^/]+)$/);
+    if (req.method === 'DELETE' && returnMatch) {
+      const db = loadDatabase();
+      const ret = db.returns.find((r) => r.id === returnMatch[1]);
+      if (!ret) return jsonResponse(res, 404, { error: 'Return not found' });
+      const order = db.orders.find((o) => o.id === ret.orderId);
+      const shop = findShop(db, ret.shopId);
+      for (const i of ret.items) changeStock(db, i.productId, i.unit, i.quantity, -1);
+      if (shop && order && order.paymentMethod === 'nasiya') shop.debtBalance = (shop.debtBalance || 0) + ret.total;
+      if (order) order.returnedAmount = Math.max(0, (order.returnedAmount || 0) - ret.total);
+      db.returns = db.returns.filter((r) => r.id !== ret.id);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true });
+    }
+
+    // GET /api/v1/stats/monthly?month=YYYY-MM — per line and day: sales, returns, net; return-free streaks
+    if (req.method === 'GET' && pathname === '/api/v1/stats/monthly') {
+      const db = loadDatabase();
+      const month = url.searchParams.get('month') || localDate(Date.now()).slice(0, 7);
+      const lineOf = new Map(db.clients.map((c) => [c.id, c.lineCode]));
+      const today = localDate(Date.now());
+
+      const lines = db.lines.map((line) => {
+        // Cancelled orders are not sales
+        const orders = db.orders.filter((o) => o.status !== 'cancelled' && lineOf.get(o.shopId) === line.code);
+        const returns = db.returns.filter((r) => r.lineCode === line.code);
+
+        const days = {};
+        const cell = (date) => (days[date] ||= { orders: 0, gross: 0, returns: 0, net: 0 });
+        for (const o of orders) {
+          const date = localDate(o.createdAt);
+          if (!date.startsWith(month)) continue;
+          const c = cell(date);
+          c.orders += 1;
+          c.gross += o.finalAmount || 0;
+        }
+        for (const r of returns) {
+          if (!r.salesDate.startsWith(month)) continue;
+          cell(r.salesDate).returns += r.total;
+        }
+        const totals = { orders: 0, gross: 0, returns: 0, net: 0 };
+        for (const c of Object.values(days)) {
+          c.net = c.gross - c.returns;
+          totals.orders += c.orders;
+          totals.gross += c.gross;
+          totals.returns += c.returns;
+          totals.net += c.net;
+        }
+
+        // Streak: consecutive sales days (before today, all time) without any return
+        const returnDays = new Set(returns.map((r) => r.salesDate));
+        const salesDays = [...new Set(orders.map((o) => localDate(o.createdAt)))].filter((d) => d < today).sort();
+        let current = 0;
+        let best = 0;
+        for (const d of salesDays) {
+          current = returnDays.has(d) ? 0 : current + 1;
+          best = Math.max(best, current);
+        }
+        const lastReturnDate = [...returnDays].sort().pop() || null;
+
+        return { code: line.code, days, totals, streak: { current, best, lastReturnDate } };
+      });
+
+      return jsonResponse(res, 200, { success: true, month, lines });
+    }
+
+    // GET /api/v1/settings — company requisites shown on invoices
+    if (req.method === 'GET' && pathname === '/api/v1/settings') {
+      const db = loadDatabase();
+      return jsonResponse(res, 200, { success: true, settings: db.settings || {} });
+    }
+
+    // POST /api/v1/settings
+    if (req.method === 'POST' && pathname === '/api/v1/settings') {
+      const body = await parseBody(req);
+      const db = loadDatabase();
+      const allowed = ['companyName', 'address', 'phone', 'inn', 'bankAccount', 'bankMfo'];
+      db.settings = { ...(db.settings || {}) };
+      for (const key of allowed) {
+        if (typeof body[key] === 'string') db.settings[key] = body[key].trim();
+      }
+      // Return-free streak bonus: days in a row without returns, and the bonus amount
+      for (const key of ['bonusStreakDays', 'bonusAmount']) {
+        if (body[key] !== undefined && Number(body[key]) >= 0) db.settings[key] = Math.round(Number(body[key]));
+      }
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, settings: db.settings });
     }
 
     // GET /api/v1/shops
@@ -137,11 +388,27 @@ const server = http.createServer(async (req, res) => {
       for (const order of itemsToSync) {
         if (!order || !order.id) continue;
         const existsIndex = db.orders.findIndex((o) => o.id === order.id);
+
+        // A phone clock running ahead would put the order on a future day:
+        // anything stamped more than 5 minutes ahead gets the server's receive time
+        const stamped = Date.parse(order.createdAt);
+        if (!Number.isFinite(stamped) || stamped > Date.now() + 5 * 60 * 1000) {
+          if (order.createdAt) order.clientCreatedAt = order.createdAt;
+          order.createdAt = new Date().toISOString();
+        }
+
         if (existsIndex >= 0) {
-          db.orders[existsIndex] = { ...db.orders[existsIndex], ...order };
+          // The first accepted timestamp stays (re-syncs must not move the order to another day)
+          const { createdAt, clientCreatedAt, ...rest } = order;
+          db.orders[existsIndex] = { ...db.orders[existsIndex], ...rest };
         } else {
           db.orders.unshift(order);
           addedCount++;
+
+          // Sold goods leave the warehouse
+          for (const item of order.items || []) {
+            changeStock(db, item.productId, item.unit, item.quantity, -1);
+          }
 
           // If nasiya, increment shop debt
           if (order.shopId && (order.paymentMethod === 'nasiya' || order.paymentMethod === 'debt')) {
@@ -316,18 +583,6 @@ const server = http.createServer(async (req, res) => {
       db.clients = db.clients.filter((c) => c.id !== clientMatch[1]);
       saveDatabase(db);
       return jsonResponse(res, 200, { success: true, clients: db.clients });
-    }
-
-    // POST /api/v1/reset (Delete orders and set debts to 0; lines, clients and shops are kept)
-    if (req.method === 'POST' && pathname === '/api/v1/reset') {
-      const db = loadDatabase();
-      db.orders = [];
-      for (const s of [...db.clients, ...db.shops]) {
-        if (s.debtBalance) s.debtBalance = 0;
-      }
-      saveDatabase(db);
-      console.log('-> Database reset to 0 by client request');
-      return jsonResponse(res, 200, { success: true, message: 'Database reset to 0 successfully' });
     }
 
     // 404 Not Found
