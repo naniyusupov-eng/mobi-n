@@ -1,399 +1,486 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import clsx from 'clsx';
+import { AlertCircle, CreditCard, MapPin, Route, Search, Store, Wallet } from 'lucide-react';
 import { Client, Line } from '../types';
-import { Search, MapPin, Route, Store, QrCode, X, CreditCard } from 'lucide-react';
-import { useLanguage } from '../context/LanguageContext';
-import { LineQRModal } from '../components/LineQRModal';
+import {
+  Button,
+  Card,
+  EmptyState,
+  Field,
+  Modal,
+  Money,
+  Pill,
+  SearchInput,
+  Segmented,
+  Select,
+  Table,
+  Td,
+  Th,
+  formatSum,
+} from '../components/ui';
+import { useToday } from '../hooks/useNow';
+import { weekdayOf } from '../utils/format';
 
 const API = 'http://localhost:3000/api/v1';
 
 const DAYS = [
-  { day: 1, label: 'Dushanba' },
-  { day: 2, label: 'Seshanba' },
-  { day: 3, label: 'Chorshanba' },
-  { day: 4, label: 'Payshanba' },
-  { day: 5, label: 'Juma' },
-  { day: 6, label: 'Shanba' },
+  { day: 1, short: 'Du', label: 'Dushanba' },
+  { day: 2, short: 'Se', label: 'Seshanba' },
+  { day: 3, short: 'Ch', label: 'Chorshanba' },
+  { day: 4, short: 'Pa', label: 'Payshanba' },
+  { day: 5, short: 'Ju', label: 'Juma' },
+  { day: 6, short: 'Sh', label: 'Shanba' },
 ];
 
+// Route day of a Tashkent date: 1 = Dushanba ... 6 = Shanba, null on Sunday
+const routeDayOf = (day: string) => weekdayOf(day) || null;
 
-export const Clients: React.FC = () => {
-  const { t, lang } = useLanguage();
-  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
-  const [clients, setClients] = useState<Client[]>([]);
+/** Shop number: 30 -> "30", 30.5 -> "30a" */
+const formatNum = (n?: number) => (n == null ? '—' : Number.isInteger(n) ? String(n) : `${Math.floor(n)}a`);
+
+const QUICK_AMOUNTS = [50_000, 100_000, 200_000, 500_000];
+
+interface ClientsProps {
+  initialRoute?: { line: string; day: number } | null;
+  highlightShopId?: string;
+}
+
+export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId }) => {
+  const today = routeDayOf(useToday()); // live: switches at midnight
   const [lines, setLines] = useState<Line[]>([]);
+  const [line, setLine] = useState(initialRoute?.line || '');
+  const [day, setDay] = useState<number>(initialRoute?.day || 0);
+  const [shops, setShops] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
   const [search, setSearch] = useState('');
-  const [lineFilter, setLineFilter] = useState('');
-  const [dayFilter, setDayFilter] = useState<number | ''>('');
-  const [qrLine, setQrLine] = useState<Line | null>(null);
-  const [debt, setDebt] = useState({ total: 0, count: 0 });
-  const [paymentClient, setPaymentClient] = useState<Client | null>(null);
-  const [payAmount, setPayAmount] = useState('');
 
-  const loadDebts = () =>
-    fetch(`${API}/debts`)
-      .then((r) => r.json())
-      .then((d) => setDebt({ total: d.totalDebt || 0, count: d.count || 0 }))
-      .catch(() => {});
+  const [paymentShop, setPaymentShop] = useState<Client | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [paying, setPaying] = useState(false);
+
+  const [highlightId, setHighlightId] = useState(highlightShopId || '');
+  const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
 
   useEffect(() => {
-    Promise.all([
-      fetch(`${API}/clients`).then((r) => r.json()),
-      fetch(`${API}/lines`).then((r) => r.json()),
-    ])
-      .then(([c, l]) => {
-        setClients(c.clients || []);
-        setLines(l.lines || []);
-        setError('');
-      })
-      .catch(() => setError('Maʼlumotlarni yuklab boʻlmadi. Birozdan soʻng sahifani yangilang.'));
-    loadDebts();
+    fetch(`${API}/lines`)
+      .then((r) => r.json())
+      .then((d) => setLines(d.lines || []))
+      .catch(() => setError('Liniyalarni yuklab boʻlmadi. Birozdan soʻng sahifani yangilang.'));
   }, []);
 
-  // Shops are shown only for one route at a time: a line and a week day must both be chosen
-  const isRouteSelected = Boolean(lineFilter && dayFilter);
+  const isRouteSelected = Boolean(line && day);
 
-  const routeRef = useRef<HTMLDivElement>(null);
+  // Reload the route every time it is opened so debts synced from the mobile app are current
   useEffect(() => {
     setSearch('');
-    if (!lineFilter || !dayFilter) return;
-    // The line cards take most of the screen, so bring the opened route into view
-    routeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    // Reload the route so debts synced from the mobile app are current
-    fetch(`${API}/clients?line=${encodeURIComponent(lineFilter)}&day=${dayFilter}`)
+    if (!line || !day) {
+      setShops([]);
+      return;
+    }
+    let alive = true;
+    setLoading(true);
+    fetch(`${API}/clients?line=${encodeURIComponent(line)}&day=${day}`)
       .then((r) => r.json())
       .then((d) => {
-        const fresh = new Map<string, Client>((d.clients || []).map((c: Client) => [c.id, c]));
-        setClients((prev) => prev.map((c) => fresh.get(c.id) || c));
+        if (!alive) return;
+        setShops(d.clients || []);
+        setError('');
       })
-      .catch(() => {});
-  }, [lineFilter, dayFilter]);
+      .catch(() => alive && setError('Marshrut doʻkonlarini yuklab boʻlmadi. Qaytadan urinib koʻring.'))
+      .finally(() => alive && setLoading(false));
+    return () => {
+      alive = false;
+    };
+  }, [line, day]);
 
-  const handleConfirmPayment = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const routeShops = useMemo(() => [...shops].sort((a, b) => (a.num ?? 0) - (b.num ?? 0)), [shops]);
+
+  const visibleShops = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return routeShops;
+    const qDigits = q.replace(/\s/g, '');
+    return routeShops.filter(
+      (c) =>
+        c.name.toLowerCase().includes(q) ||
+        (c.ownerName || '').toLowerCase().includes(q) ||
+        (c.phone || '').replace(/\s/g, '').includes(qDigits) ||
+        (c.address || '').toLowerCase().includes(q) ||
+        formatNum(c.num) === q
+    );
+  }, [routeShops, search]);
+
+  const routeDebt = useMemo(() => {
+    let sum = 0;
+    let count = 0;
+    for (const c of shops) {
+      if ((c.debtBalance || 0) > 0) {
+        sum += c.debtBalance!;
+        count += 1;
+      }
+    }
+    return { sum, count };
+  }, [shops]);
+
+  // Bring the shop picked from the global search into view once its route has loaded (once)
+  const scrolledTo = useRef('');
+  useEffect(() => {
+    if (!highlightId || loading || scrolledTo.current === highlightId) return;
+    const row = rowRefs.current.get(highlightId);
+    if (!row) return;
+    scrolledTo.current = highlightId;
+    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [highlightId, loading, visibleShops]);
+
+  const openRoute = (code: string, d?: number) => {
+    setLine(code);
+    setDay(d ?? (day || today || 1));
+    setHighlightId('');
+  };
+
+  const openPayment = (c: Client) => {
+    setPaymentShop(c);
+    setPayAmount(String(c.debtBalance || ''));
+  };
+
+  const closePayment = () => {
+    setPaymentShop(null);
+    setPayAmount('');
+  };
+
+  const handleConfirmPayment = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     const amount = Number(payAmount);
-    if (!paymentClient || amount <= 0) return;
+    if (!paymentShop || !(amount > 0)) return;
+    setPaying(true);
     try {
       const res = await fetch(`${API}/payments/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopId: paymentClient.id, amount }),
+        body: JSON.stringify({ shopId: paymentShop.id, amount }),
       }).then((r) => r.json());
-      if (res.shop) setClients((prev) => prev.map((c) => (c.id === res.shop.id ? res.shop : c)));
-      loadDebts();
-      setPaymentClient(null);
-      setPayAmount('');
+      if (res.shop) setShops((prev) => prev.map((c) => (c.id === res.shop.id ? { ...c, ...res.shop } : c)));
+      setError('');
+      closePayment();
     } catch {
       setError('Toʻlovni saqlab boʻlmadi. Qaytadan urinib koʻring.');
+    } finally {
+      setPaying(false);
     }
   };
 
-  const filteredClients = useMemo(() => {
-    if (!lineFilter || !dayFilter) return [];
-    const q = search.toLowerCase();
-    return clients
-      .filter((c) => {
-        if (c.lineCode !== lineFilter || c.day !== dayFilter) return false;
-        return (
-          !q ||
-          c.name.toLowerCase().includes(q) ||
-          (c.ownerName || '').toLowerCase().includes(q) ||
-          (c.phone || '').replace(/\s/g, '').includes(q.replace(/\s/g, '')) ||
-          (c.address || '').toLowerCase().includes(q)
-        );
-      })
-      .sort((a, b) => (a.num || 0) - (b.num || 0));
-  }, [clients, search, lineFilter, dayFilter]);
-
-  const countFor = (lineCode: string, day?: number) =>
-    clients.filter((c) => c.lineCode === lineCode && (!day || c.day === day)).length;
+  const currentDebt = paymentShop?.debtBalance || 0;
+  const amountNum = Number(payAmount) || 0;
+  const dayLabel = DAYS.find((d) => d.day === day)?.label;
 
   return (
-    <div className="space-y-3.5">
+    <div className="space-y-5">
       {error && (
-        <div className="px-3.5 py-2.5 rounded-lg border border-rose-200 bg-rose-50 text-xs text-rose-700">{error}</div>
-      )}
-
-      {/* 1. Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
-          <div>
-            <span className="text-xs font-normal text-slate-500 block">Jami doʻkonlar</span>
-            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">{clients.length} ta</span>
-          </div>
-          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
-            <Store className="w-4 h-4 stroke-[1.8]" />
-          </div>
-        </div>
-
-        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
-          <div>
-            <span className="text-xs font-normal text-slate-500 block">Liniyalar</span>
-            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">{lines.length} ta</span>
-          </div>
-          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
-            <Route className="w-4 h-4 stroke-[1.8]" />
-          </div>
-        </div>
-
-        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-amber-300 transition flex items-center justify-between shadow-2xs">
-          <div>
-            <span className="text-xs font-normal text-slate-500 block">
-              Umumiy qarz <span className="text-slate-400">• {debt.count} ta doʻkon</span>
-            </span>
-            <span className="text-xl font-semibold text-amber-700 tabular-nums mt-0.5 block">
-              {debt.total.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
-            </span>
-          </div>
-          <div className="w-8 h-8 rounded-md bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center">
-            <CreditCard className="w-4 h-4 stroke-[1.8]" />
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Lines with QR */}
-      {lines.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2.5">
-          {lines.map((line) => (
-            <div
-              key={line.id}
-              className={`bg-white rounded-lg border p-3 shadow-2xs transition ${
-                lineFilter === line.code ? 'border-sky-400' : 'border-slate-200/70 hover:border-sky-300'
-              }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                <button
-                  onClick={() => {
-                    setLineFilter(lineFilter === line.code ? '' : line.code);
-                    setDayFilter('');
-                  }}
-                  className="flex items-center gap-2"
-                >
-                  <span className="text-sm font-semibold font-mono text-sky-800 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded">
-                    {line.code}
-                  </span>
-                  <span className="text-[11px] text-slate-500 tabular-nums">{countFor(line.code)} ta doʻkon</span>
-                </button>
-                <button
-                  onClick={() => setQrLine(line)}
-                  className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 hover:bg-sky-50 hover:text-sky-900 hover:border-sky-200 text-slate-700 rounded-md text-xs border border-slate-200/80 transition"
-                >
-                  <QrCode className="w-3.5 h-3.5 text-sky-600 stroke-[1.6]" />
-                  <span>QR kod</span>
-                </button>
-              </div>
-              <div className="mt-2.5 grid grid-cols-6 gap-1">
-                {DAYS.map((d) => {
-                  const active = lineFilter === line.code && dayFilter === d.day;
-                  return (
-                    <button
-                      key={d.day}
-                      title={`${line.code}-${d.day} • ${d.label}`}
-                      onClick={() => {
-                        setLineFilter(line.code);
-                        setDayFilter(active ? '' : d.day);
-                      }}
-                      className={`py-1 rounded text-center border transition ${
-                        active
-                          ? 'bg-sky-600 border-sky-600 text-white'
-                          : 'bg-slate-50 border-slate-100 text-slate-600 hover:border-sky-300'
-                      }`}
-                    >
-                      <span className="block text-[9px] font-mono opacity-70">
-                        {line.code}-{d.day}
-                      </span>
-                      <span className="block text-[11px] font-medium tabular-nums">{countFor(line.code, d.day)}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+        <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl2 bg-rose-50 text-sm text-rose-600">
+          <AlertCircle className="w-[18px] h-[18px] shrink-0" />
+          <span className="min-w-0">{error}</span>
         </div>
       )}
 
-      {/* 3. Shops of the selected route (line + week day) */}
-      {!isRouteSelected ? (
-        <div className="bg-white rounded-lg border border-dashed border-slate-300 py-8 text-center shadow-2xs">
-          <Route className="w-5 h-5 text-slate-300 mx-auto mb-2 stroke-[1.6]" />
-          <p className="text-xs text-slate-500">
-            {lineFilter ? (
-              <>
-                <span className="font-mono font-semibold text-sky-800">{lineFilter}</span> liniya uchun hafta kunini tanlang
-              </>
-            ) : (
-              'Doʻkonlarni koʻrish uchun liniya va hafta kunini tanlang'
-            )}
-          </p>
-        </div>
-      ) : (
-      <>
-      <div ref={routeRef} className="scroll-mt-4 bg-white p-2.5 rounded-lg border border-slate-200/70 flex flex-wrap items-center gap-2 shadow-2xs">
-        <span className="text-sm font-semibold font-mono text-sky-800 bg-sky-50 border border-sky-100 px-2 py-0.5 rounded">
-          {lineFilter}-{dayFilter}
-        </span>
-        <span className="text-xs text-slate-600">{DAYS.find((d) => d.day === dayFilter)?.label}</span>
-        <div className="relative w-full sm:w-72 sm:ml-2">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400 stroke-[1.6]" />
-          <input
-            type="text"
-            placeholder="Nomi, egasi, telefon yoki manzil"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-slate-50/70 border border-slate-200/70 rounded-md text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:bg-white"
+      {/* Route toolbar: stays on top while scrolling the shops */}
+      <div className="sticky top-0 z-10 -mx-1 px-1 pt-1 pb-1 bg-canvas">
+        <Card padded={false} className="p-3 flex flex-wrap items-center gap-3">
+          <Select
+            value={line}
+            onChange={(e) => {
+              setLine(e.target.value);
+              if (e.target.value && !day) setDay(today || 1);
+              setHighlightId('');
+            }}
+            className="w-[170px] font-semibold"
+            aria-label="Liniya"
+          >
+            <option value="">Liniyani tanlang</option>
+            {lines.map((l) => (
+              <option key={l.id} value={l.code}>
+                {l.code} liniya
+              </option>
+            ))}
+          </Select>
+
+          <Segmented
+            value={day}
+            onChange={(d) => {
+              setDay(d);
+              setHighlightId('');
+            }}
+            options={DAYS.map((d) => ({
+              key: d.day,
+              label: (
+                <span title={d.label}>
+                  <span className="xl:hidden">{d.short}</span>
+                  <span className="hidden xl:inline">{d.label}</span>
+                  {d.day === today ? <span className="ml-1 opacity-70">•</span> : null}
+                </span>
+              ),
+            }))}
           />
-        </div>
-        <span className="ml-auto text-[11px] text-slate-400 tabular-nums">{filteredClients.length} ta doʻkon</span>
-        <button
-          onClick={() => {
-            setDayFilter('');
-            setSearch('');
-          }}
-          title="Yopish"
-          className="p-1 text-slate-400 hover:text-slate-700"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+
+          <SearchInput
+            icon={Search}
+            value={search}
+            onChange={setSearch}
+            placeholder="Nomi, egasi, telefon yoki manzil"
+            className="flex-1 min-w-[220px]"
+          />
+        </Card>
       </div>
 
-      {/* 4. Clients Table */}
-      <div className="bg-white rounded-lg border border-slate-200/70 overflow-hidden shadow-2xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-slate-400 font-medium text-[11px]">
-                <th className="py-2.5 px-3.5 w-12 text-center">№</th>
-                <th className="py-2.5 px-3.5">{t('col_shop_name')}</th>
-                <th className="py-2.5 px-3.5">Ism-familiya</th>
-                <th className="py-2.5 px-3.5">{t('col_phone')}</th>
-                <th className="py-2.5 px-3.5">{t('col_address')}</th>
-                <th className="py-2.5 px-3.5 text-right">{t('col_debt')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredClients.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-400">
-                    {search ? 'Qidiruv boʻyicha doʻkon topilmadi' : 'Bu marshrutda doʻkonlar yoʻq'}
-                  </td>
-                </tr>
-              )}
-              {filteredClients.map((c) => (
-                <tr key={c.id} className="hover:bg-sky-50/20 transition">
-                  <td className="py-2.5 px-3.5 text-center text-slate-500 font-mono tabular-nums">{c.num == null ? '—' : Number.isInteger(c.num) ? c.num : `${Math.floor(c.num)}a`}</td>
-                  <td className="py-2.5 px-3.5 font-medium text-slate-900">
-                    {c.name}
-                    {c.notes && (
-                      <span className="ml-1.5 px-1.5 py-0.5 bg-amber-50 text-amber-700 border border-amber-100 rounded text-[10px] font-normal whitespace-nowrap">
-                        {c.notes}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3.5 text-slate-600">{c.ownerName || <span className="text-slate-300">—</span>}</td>
-                  <td className="py-2.5 px-3.5 text-slate-500 tabular-nums">
-                    {c.phone ? (
-                      c.phone.split(', ').map((p) => (
-                        <a key={p} href={`tel:${p.replace(/\s/g, '')}`} className="block whitespace-nowrap hover:text-sky-700">
-                          {p}
-                        </a>
-                      ))
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3.5 text-slate-400">
-                    <div className="flex items-center gap-1.5">
-                      {c.latitude != null && c.longitude != null && (
-                        <a
-                          href={`https://yandex.uz/maps/?pt=${c.longitude},${c.latitude}&z=17&l=map`}
-                          target="_blank"
-                          rel="noreferrer"
-                          title="Xaritada ochish"
-                          className="text-sky-600 hover:text-sky-800 shrink-0"
-                        >
-                          <MapPin className="w-3.5 h-3.5 stroke-[1.6]" />
-                        </a>
+      {!isRouteSelected ? (
+        <Card>
+          <EmptyState
+            icon={Route}
+            title={line ? `${line} liniya uchun hafta kunini tanlang` : 'Liniya va hafta kunini tanlang'}
+            hint="Doʻkonlar marshrut boʻyicha koʻrsatiladi: avval liniyani, soʻng hafta kunini tanlang."
+            action={
+              lines.length > 0 ? (
+                <div className="flex flex-wrap justify-center gap-2 max-w-xl">
+                  {lines.map((l) => (
+                    <button
+                      key={l.id}
+                      type="button"
+                      onClick={() => openRoute(l.code)}
+                      className={clsx(
+                        'h-9 px-4 rounded-full text-[13px] font-semibold tabular-nums transition',
+                        l.code === line ? 'bg-brand-500 text-white' : 'bg-brand-50 text-brand-500 hover:bg-brand-100'
                       )}
-                      <span>{c.address}</span>
-                    </div>
-                  </td>
-                  <td className="py-2.5 px-3.5 text-right whitespace-nowrap">
-                    {(c.debtBalance || 0) > 0 ? (
-                      <div className="flex items-center justify-end gap-2">
-                        <span className="font-medium text-rose-600 tabular-nums">
-                          {c.debtBalance!.toLocaleString(numLocale)} {t('som')}
-                        </span>
-                        <button
-                          onClick={() => {
-                            setPaymentClient(c);
-                            setPayAmount(String(c.debtBalance));
-                          }}
-                          title={t('btn_accept_payment')}
-                          className="p-1 bg-sky-50 hover:bg-sky-100 text-sky-700 rounded border border-sky-200/70 transition"
-                        >
-                          <CreditCard className="w-3.5 h-3.5 stroke-[1.6]" />
-                        </button>
-                      </div>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      </>
-      )}
-
-      {/* Payment Modal */}
-      {paymentClient && (
-        <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-lg border border-slate-200/80 shadow-lg max-w-sm w-full p-5">
-            <h3 className="text-sm font-semibold text-slate-900 mb-0.5">{t('modal_payment_title')}</h3>
-            <p className="text-xs text-slate-400 font-normal mb-3.5">
-              {paymentClient.name} • {t('current_debt')}{' '}
-              <span className="text-rose-600 font-medium tabular-nums">
-                {(paymentClient.debtBalance || 0).toLocaleString(numLocale)} {t('som')}
-              </span>
-            </p>
-            <form onSubmit={handleConfirmPayment} className="space-y-3.5">
-              <div>
-                <label className="block text-xs font-normal text-slate-600 mb-1">{t('payment_amount')}</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={payAmount}
-                  onChange={(e) => setPayAmount(e.target.value)}
-                  className="w-full px-3 py-1.5 bg-slate-50/70 border border-slate-200/80 rounded-md text-sm font-normal text-slate-900 outline-none focus:border-slate-400 tabular-nums"
-                  required
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setPaymentClient(null)}
-                  className="px-3 py-1.5 text-xs font-normal text-slate-500 hover:text-slate-800 rounded-md"
-                >
-                  {t('btn_cancel')}
-                </button>
-                <button
-                  type="submit"
-                  className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs rounded-md transition"
-                >
-                  {t('btn_save_payment')}
-                </button>
-              </div>
-            </form>
+                    >
+                      {l.code}
+                    </button>
+                  ))}
+                </div>
+              ) : undefined
+            }
+          />
+        </Card>
+      ) : (
+        <>
+          {/* Route summary */}
+          <div className="flex flex-wrap items-center gap-2">
+            <Pill tone="brand" className="text-[13px] px-3 py-1.5">
+              <Route className="w-3.5 h-3.5" />
+              {line}-{day}
+            </Pill>
+            <Pill className="text-[13px] px-3 py-1.5">{dayLabel}</Pill>
+            <Pill className="text-[13px] px-3 py-1.5">
+              <Store className="w-3.5 h-3.5" />
+              {routeShops.length} ta doʻkon
+            </Pill>
+            {routeDebt.sum > 0 ? (
+              <Pill tone="red" className="text-[13px] px-3 py-1.5">
+                <Wallet className="w-3.5 h-3.5" />
+                Qarz: {formatSum(routeDebt.sum)} soʻm • {routeDebt.count} ta
+              </Pill>
+            ) : (
+              <Pill tone="green" className="text-[13px] px-3 py-1.5">
+                Qarz yoʻq
+              </Pill>
+            )}
+            {search && (
+              <span className="ml-auto text-[13px] text-ink-400 tabular-nums">Topildi: {visibleShops.length} ta</span>
+            )}
           </div>
-        </div>
+
+          <Card padded={false} className="p-3 md:p-4">
+            {loading && shops.length === 0 ? (
+              <div className="py-12 text-center text-sm text-ink-400">Yuklanmoqda…</div>
+            ) : visibleShops.length === 0 ? (
+              <EmptyState
+                icon={search ? Search : Store}
+                title={search ? 'Qidiruv boʻyicha doʻkon topilmadi' : 'Bu marshrutda doʻkonlar yoʻq'}
+                hint={search ? 'Boshqa soʻz bilan qidirib koʻring.' : undefined}
+                action={
+                  search ? (
+                    <Button variant="secondary" size="sm" onClick={() => setSearch('')}>
+                      Qidiruvni tozalash
+                    </Button>
+                  ) : undefined
+                }
+              />
+            ) : (
+              <Table>
+                <thead>
+                  <tr>
+                    <Th align="center" className="w-14">
+                      №
+                    </Th>
+                    <Th>Doʻkon nomi</Th>
+                    <Th>Ism-familiya</Th>
+                    <Th>Telefon</Th>
+                    <Th>Manzil</Th>
+                    <Th align="right">Qarz</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleShops.map((c) => {
+                    const highlighted = c.id === highlightId;
+                    const phones = (c.phone || '')
+                      .split(/,\s*/)
+                      .map((p) => p.trim())
+                      .filter(Boolean);
+                    return (
+                      <tr
+                        key={c.id}
+                        ref={(el) => {
+                          if (el) rowRefs.current.set(c.id, el);
+                          else rowRefs.current.delete(c.id);
+                        }}
+                        className={clsx(
+                          'transition align-top',
+                          highlighted ? 'bg-brand-50 ring-2 ring-inset ring-brand-200' : 'hover:bg-ink-100/40'
+                        )}
+                      >
+                        <Td align="center" className="font-semibold text-ink-500 tabular-nums">
+                          {formatNum(c.num)}
+                        </Td>
+                        <Td className="min-w-[180px] max-w-[280px]">
+                          <div className="font-semibold text-ink-900 break-words">{c.name}</div>
+                          {c.notes ? (
+                            <Pill tone="amber" className="mt-1 max-w-full" title={c.notes}>
+                              <span className="truncate">{c.notes}</span>
+                            </Pill>
+                          ) : null}
+                        </Td>
+                        <Td className="min-w-[140px] max-w-[220px] break-words">
+                          {c.ownerName || <span className="text-ink-400">—</span>}
+                        </Td>
+                        <Td className="tabular-nums">
+                          {phones.length > 0 ? (
+                            phones.map((p) => (
+                              <a
+                                key={p}
+                                href={`tel:${p.replace(/\s/g, '')}`}
+                                className="block whitespace-nowrap text-ink-700 hover:text-brand-500"
+                              >
+                                {p}
+                              </a>
+                            ))
+                          ) : (
+                            <span className="text-ink-400">—</span>
+                          )}
+                        </Td>
+                        <Td className="min-w-[180px] max-w-[300px]">
+                          <div className="flex items-start gap-2">
+                            {c.latitude != null && c.longitude != null ? (
+                              <a
+                                href={`https://yandex.uz/maps/?pt=${c.longitude},${c.latitude}&z=17&l=map`}
+                                target="_blank"
+                                rel="noreferrer"
+                                title="Xaritada ochish"
+                                className="w-7 h-7 -my-0.5 rounded-full bg-brand-50 text-brand-500 hover:bg-brand-100 flex items-center justify-center shrink-0"
+                              >
+                                <MapPin className="w-3.5 h-3.5" strokeWidth={2} />
+                              </a>
+                            ) : null}
+                            <span className="min-w-0 break-words text-ink-500">{c.address || '—'}</span>
+                          </div>
+                        </Td>
+                        <Td align="right" className="whitespace-nowrap">
+                          {(c.debtBalance || 0) > 0 ? (
+                            <div className="flex items-center justify-end gap-2.5">
+                              <Money value={c.debtBalance!} className="font-bold text-rose-600" />
+                              <Button size="sm" variant="secondary" icon={CreditCard} onClick={() => openPayment(c)}>
+                                Toʻlov
+                              </Button>
+                            </div>
+                          ) : (
+                            <span className="text-ink-400">—</span>
+                          )}
+                        </Td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+            )}
+          </Card>
+        </>
       )}
 
-      <LineQRModal line={qrLine} clientsCount={qrLine ? countFor(qrLine.code) : 0} onClose={() => setQrLine(null)} />
+      {/* Payment modal */}
+      <Modal
+        open={Boolean(paymentShop)}
+        onClose={closePayment}
+        width="sm"
+        title="Toʻlov qabul qilish"
+        subtitle={paymentShop?.name}
+        footer={
+          <>
+            <Button variant="ghost" onClick={closePayment}>
+              Bekor qilish
+            </Button>
+            <Button icon={Wallet} onClick={() => handleConfirmPayment()} disabled={paying || amountNum <= 0}>
+              Toʻlovni saqlash
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleConfirmPayment} className="space-y-4">
+          <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl2 bg-rose-50">
+            <span className="text-sm text-ink-700">Joriy qarz</span>
+            <Money value={currentDebt} className="font-bold text-rose-600" />
+          </div>
+          <Field
+            label="Toʻlov summasi"
+            type="number"
+            min={1}
+            inputMode="numeric"
+            suffix="soʻm"
+            value={payAmount}
+            onChange={(e) => setPayAmount(e.target.value)}
+            className="tabular-nums font-semibold"
+            hint={
+              amountNum > 0 && currentDebt > 0
+                ? amountNum >= currentDebt
+                  ? 'Qarz toʻliq yopiladi'
+                  : `Qoladigan qarz: ${formatSum(currentDebt - amountNum)} soʻm`
+                : undefined
+            }
+            autoFocus
+            required
+          />
+          <div className="flex flex-wrap gap-2">
+            <QuickAmount active={amountNum === currentDebt} onClick={() => setPayAmount(String(currentDebt))}>
+              Toʻliq qarz
+            </QuickAmount>
+            {currentDebt >= 2 && (
+              <QuickAmount
+                active={amountNum === Math.round(currentDebt / 2)}
+                onClick={() => setPayAmount(String(Math.round(currentDebt / 2)))}
+              >
+                Yarmi
+              </QuickAmount>
+            )}
+            {QUICK_AMOUNTS.filter((a) => a < currentDebt).map((a) => (
+              <QuickAmount key={a} active={amountNum === a} onClick={() => setPayAmount(String(a))}>
+                {formatSum(a)}
+              </QuickAmount>
+            ))}
+          </div>
+          {/* Enter in the amount field submits */}
+          <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+        </form>
+      </Modal>
     </div>
   );
 };
+
+const QuickAmount: React.FC<{ children: React.ReactNode; active: boolean; onClick: () => void }> = ({ children, active, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={clsx(
+      'h-9 px-3.5 rounded-full text-[13px] font-semibold tabular-nums whitespace-nowrap transition',
+      active ? 'bg-brand-500 text-white' : 'bg-ink-100/70 text-ink-700 hover:bg-brand-50 hover:text-brand-500'
+    )}
+  >
+    {children}
+  </button>
+);
 
 export default Clients;

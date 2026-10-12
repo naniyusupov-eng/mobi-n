@@ -4,7 +4,8 @@
 
 @layer base {
   body {
-    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    font-feature-settings: 'cv11', 'ss01';
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
@@ -13,6 +14,11 @@
   /* Sharp tabular numerals for currency & counters */
   .tabular-nums, table, [data-tabular] {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Column headers stay on one line; the table scrolls sideways on narrow screens */
+  th {
+    white-space: nowrap;
   }
 }
 

@@ -1,244 +1,183 @@
-import React, { useState, useMemo } from 'react';
-import { Order, OrderStatus } from '../types';
-import {
-  Search,
-  Eye,
-  ShoppingBag,
-  Banknote,
-  Calculator,
-} from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Inbox, Receipt, Search, SearchX } from 'lucide-react';
+import { Order, OrderStatus, PaymentMethod } from '../types';
 import { useLanguage } from '../context/LanguageContext';
-import { formatDate, formatDateTime } from '../utils/format';
+import { dayKey, formatDate, formatDateTime } from '../utils/format';
+import { PeriodPicker, inPeriod, usePeriod } from '../components/PeriodPicker';
+import { Button, Card, EmptyState, Money, Pill, SearchInput, Segmented, Table, Td, Th, Tone } from '../components/ui';
 
 interface OrdersProps {
   orders: Order[];
   onViewOrder: (order: Order) => void;
 }
 
+type Filter = 'all' | 'new' | 'confirmed' | 'delivered';
+
+const STATUS_META: Record<OrderStatus, { label: string; tone: Tone }> = {
+  new: { label: 'Yangi', tone: 'amber' },
+  confirmed: { label: 'Tasdiqlangan', tone: 'brand' },
+  delivered: { label: 'Yetkazilgan', tone: 'green' },
+  cancelled: { label: 'Bekor qilingan', tone: 'red' },
+};
+
+const PAYMENT_META: Record<PaymentMethod, { label: string; tone: Tone }> = {
+  naqd: { label: 'Naqd', tone: 'green' },
+  nasiya: { label: 'Nasiya', tone: 'red' },
+  otkazma: { label: 'Oʻtkazma', tone: 'brand' },
+};
+
 export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
-  const { t, lang } = useLanguage();
+  const { lang } = useLanguage();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<Filter>('all');
+  const [period, setPeriod] = usePeriod('all');
 
   const filteredOrders = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return orders.filter((o) => {
-      const matchText =
-        !search ||
-        o.id.toLowerCase().includes(search.toLowerCase()) ||
-        o.shopName.toLowerCase().includes(search.toLowerCase());
-
-      if (!matchText) return false;
+      if (q && !o.id.toLowerCase().includes(q) && !o.shopName.toLowerCase().includes(q)) return false;
       if (statusFilter !== 'all' && o.status !== statusFilter) return false;
-      return true;
+      return inPeriod(dayKey(o.createdAt), period);
     });
-  }, [orders, search, statusFilter]);
+  }, [orders, search, statusFilter, period]);
 
   const totalSum = filteredOrders.reduce((sum, o) => sum + o.finalAmount, 0);
 
+  // Status counts within the chosen period
   const counts = useMemo(() => {
+    const inP = orders.filter((o) => inPeriod(dayKey(o.createdAt), period));
     return {
-      all: orders.length,
-      new: orders.filter((o) => o.status === 'new').length,
-      confirmed: orders.filter((o) => o.status === 'confirmed').length,
-      delivered: orders.filter((o) => o.status === 'delivered').length,
+      all: inP.length,
+      new: inP.filter((o) => o.status === 'new').length,
+      confirmed: inP.filter((o) => o.status === 'confirmed').length,
+      delivered: inP.filter((o) => o.status === 'delivered').length,
     };
-  }, [orders]);
+  }, [orders, period]);
 
-  const filterTabs = [
-    { id: 'all', label: t('tab_all'), count: counts.all },
-    { id: 'new', label: t('tab_new'), count: counts.new },
-    { id: 'confirmed', label: t('tab_confirmed'), count: counts.confirmed },
-    { id: 'delivered', label: t('tab_delivered'), count: counts.delivered },
-  ];
-
-  const avgCheck = filteredOrders.length > 0 ? Math.round(totalSum / filteredOrders.length) : 0;
-
-  const getStatusLabel = (st: OrderStatus) => {
-    switch (st) {
-      case 'new':
-        return t('status_new');
-      case 'confirmed':
-        return t('status_confirmed');
-      case 'delivered':
-        return t('status_delivered');
-      case 'cancelled':
-        return t('status_cancelled');
-    }
-  };
-
-  const getPaymentLabel = (method: string) => {
-    switch (method) {
-      case 'naqd':
-        return t('pay_cash');
-      case 'nasiya':
-        return t('pay_debt');
-      default:
-        return t('pay_bank');
-    }
-  };
-
-  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
+  const tab = (label: string, n: number) => (
+    <span className="inline-flex items-center gap-1.5">
+      {label}
+      <span className="tabular-nums opacity-70">{n}</span>
+    </span>
+  );
 
   return (
-    <div className="space-y-3.5">
-      {/* 1. Summary Metrics Bar (Moved to Top for Macro Overview) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
-          <div>
-            <span className="text-xs font-normal text-slate-500 block">{t('total_orders_count')}</span>
-            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">{filteredOrders.length}</span>
-          </div>
-          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
-            <ShoppingBag className="w-4 h-4 stroke-[1.8]" />
-          </div>
-        </div>
-
-        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
-          <div>
-            <span className="text-xs font-normal text-slate-500 block">{t('displayed_sum')}</span>
-            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">
-              {totalSum.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
-            </span>
-          </div>
-          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
-            <Banknote className="w-4 h-4 stroke-[1.8]" />
-          </div>
-        </div>
-
-        <div className="bg-white px-4 py-3 rounded-lg border border-slate-200/70 hover:border-sky-300 transition flex items-center justify-between shadow-2xs">
-          <div>
-            <span className="text-xs font-normal text-slate-500 block">{t('col_avg_check')}</span>
-            <span className="text-xl font-semibold text-slate-900 tabular-nums mt-0.5 block">
-              {avgCheck.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
-            </span>
-          </div>
-          <div className="w-8 h-8 rounded-md bg-sky-50 text-sky-600 border border-sky-100 flex items-center justify-center">
-            <Calculator className="w-4 h-4 stroke-[1.8]" />
-          </div>
+    <div className="space-y-5">
+      {/* Toolbar */}
+      <div className="flex flex-wrap items-center gap-3">
+        <SearchInput
+          icon={Search}
+          value={search}
+          onChange={setSearch}
+          placeholder="ID yoki doʻkon nomi"
+          className="flex-1 min-w-[14rem] max-w-sm [&_input]:bg-white [&_input]:shadow-card"
+        />
+        <Segmented<Filter>
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { key: 'all', label: tab('Barchasi', counts.all) },
+            { key: 'new', label: tab('Yangi', counts.new) },
+            { key: 'confirmed', label: tab('Tasdiqlangan', counts.confirmed) },
+            { key: 'delivered', label: tab('Yetkazilgan', counts.delivered) },
+          ]}
+        />
+        <PeriodPicker value={period} onChange={setPeriod} />
+        <div className="flex items-center gap-2 ml-auto">
+          <Pill tone="gray" className="py-1.5 px-3 text-[13px]">
+            <span className="tabular-nums">{filteredOrders.length}</span> ta
+          </Pill>
+          <Pill tone="brand" className="py-1.5 px-3 text-[13px]">
+            <Money value={totalSum} />
+          </Pill>
         </div>
       </div>
 
-      {/* 2. Search & Filter Toolbar */}
-      <div className="bg-white p-2.5 rounded-lg border border-slate-200/70 flex flex-col sm:flex-row items-center justify-between gap-2.5 shadow-2xs">
-        {/* Search */}
-        <div className="relative w-full sm:w-80">
-          <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400 stroke-[1.6]" />
-          <input
-            type="text"
-            placeholder={t('search_orders_placeholder')}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 bg-slate-50/70 border border-slate-200/70 rounded-md text-xs font-normal text-slate-800 placeholder:text-slate-400 outline-none focus:border-sky-400 focus:bg-white focus:ring-1 focus:ring-sky-100 transition"
-          />
-        </div>
-
-        {/* Status Pills with Counters */}
-        <div className="flex items-center gap-1.5 w-full sm:w-auto overflow-x-auto">
-          {filterTabs.map((tab) => {
-            const isActive = statusFilter === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id)}
-                className={`px-3 py-1 rounded-md text-xs transition flex items-center gap-1.5 ${
-                  isActive
-                    ? 'bg-sky-50 text-sky-900 border border-sky-300 font-medium'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-normal border border-transparent'
-                }`}
-              >
-                <span>{tab.label}</span>
-                <span
-                  className={`text-[10px] px-1.5 py-0.2 rounded-full tabular-nums ${
-                    isActive ? 'bg-sky-100 text-sky-800 font-medium' : 'bg-slate-100 text-slate-500 font-normal'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Orders Table Card */}
-      <div className="bg-white rounded-lg border border-slate-200/70 overflow-hidden shadow-2xs">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse">
+      <Card padded={false} className="p-2 md:p-3">
+        {filteredOrders.length === 0 ? (
+          orders.length === 0 ? (
+            <EmptyState
+              icon={Inbox}
+              title="Hali buyurtmalar yoʻq"
+              hint="Mobil ilovadan yuborilgan buyurtmalar shu yerda chiqadi."
+            />
+          ) : (
+            <EmptyState icon={SearchX} title="Buyurtma topilmadi" hint="Qidiruv yoki filtrni oʻzgartirib koʻring." />
+          )
+        ) : (
+          <Table>
             <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-100 text-slate-400 font-medium text-[11px]">
-                <th className="py-2.5 px-3.5">{t('col_order_id')}</th>
-                <th className="py-2.5 px-3.5">{t('col_date')}</th>
-                <th className="py-2.5 px-3.5">{t('col_client')}</th>
-                <th className="py-2.5 px-3.5">{t('col_payment_type')}</th>
-                <th className="py-2.5 px-3.5 text-right">{t('col_sum')}</th>
-                <th className="py-2.5 px-3.5 text-center">{t('col_status')}</th>
-                <th className="py-2.5 px-3.5 text-right">{t('col_actions')}</th>
+              <tr>
+                <Th>№</Th>
+                <Th>Sana</Th>
+                <Th>Doʻkon</Th>
+                <Th>Toʻlov</Th>
+                <Th align="right">Summa</Th>
+                <Th align="center">Holat</Th>
+                <Th align="right" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100">
-              {filteredOrders.map((order) => (
-                <tr key={order.id} className="hover:bg-sky-50/20 transition">
-                  <td className="py-2.5 px-3.5">
-                    <span className="font-mono text-[10px] font-normal text-sky-700 bg-sky-50 border border-sky-200/70 px-1.5 py-0.5 rounded">
-                      #{order.id.slice(-6).toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3.5 text-slate-500 font-normal">
-                    <div>
-                      {formatDateTime(order.createdAt, lang)}
-                    </div>
-                    {order.deliveryDate && (
-                      <div className="text-[10px] text-sky-700 bg-sky-50 px-1.5 py-0.2 rounded font-normal mt-0.5 inline-block border border-sky-100">
-                        Yetkazish: {formatDate(order.deliveryDate, lang)}
+            <tbody>
+              {filteredOrders.map((order) => {
+                const status = STATUS_META[order.status] || STATUS_META.new;
+                const pay = PAYMENT_META[order.paymentMethod] || PAYMENT_META.otkazma;
+                const returned = order.returnedAmount || 0;
+                return (
+                  <tr
+                    key={order.id}
+                    onClick={() => onViewOrder(order)}
+                    className="cursor-pointer transition hover:bg-brand-50/40"
+                  >
+                    <Td className="whitespace-nowrap">
+                      <span className="font-mono text-[13px] font-semibold text-brand-500">
+                        #{order.id.slice(-6).toUpperCase()}
+                      </span>
+                    </Td>
+                    <Td className="whitespace-nowrap">
+                      <div className="text-ink-700">{formatDateTime(order.createdAt, lang)}</div>
+                      {order.deliveryDate && (
+                        <div className="text-xs text-ink-400 mt-0.5">Yetkazish: {formatDate(order.deliveryDate, lang)}</div>
+                      )}
+                    </Td>
+                    <Td className="max-w-[18rem]">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="font-semibold text-ink-900 truncate">{order.shopName}</span>
+                        {order.lineCode && (
+                          <Pill tone="gray" className="px-2 py-0.5 text-[11px] shrink-0">
+                            {order.lineCode}-{order.routeDay}
+                          </Pill>
+                        )}
                       </div>
-                    )}
-                  </td>
-                  <td className="py-2.5 px-3.5">
-                    <div className="font-medium text-slate-900">{order.shopName}</div>
-                    <div className="text-[11px] text-slate-400 font-normal">{order.shopAddress}</div>
-                  </td>
-                  <td className="py-2.5 px-3.5">
-                    <span
-                      className={`font-normal ${
-                        order.paymentMethod === 'nasiya' ? 'text-rose-600' : 'text-slate-600'
-                      }`}
-                    >
-                      {getPaymentLabel(order.paymentMethod)}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3.5 text-right font-medium text-slate-900 tabular-nums">
-                    {order.finalAmount.toLocaleString(numLocale)} {t('som')}
-                  </td>
-                  <td className="py-2.5 px-3.5 text-center">
-                    <span
-                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-normal ${
-                        order.status === 'new'
-                          ? 'bg-amber-50 text-amber-700 border border-amber-200/60'
-                          : order.status === 'confirmed'
-                          ? 'bg-sky-50 text-sky-700 border border-sky-200/60'
-                          : order.status === 'delivered'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200/60'
-                      }`}
-                    >
-                      {getStatusLabel(order.status)}
-                    </span>
-                  </td>
-                  <td className="py-2.5 px-3.5 text-right">
-                    <button
-                      onClick={() => onViewOrder(order)}
-                      className="px-2.5 py-1 text-sky-800 hover:text-sky-950 bg-sky-50 hover:bg-sky-100 rounded font-medium text-xs transition inline-flex items-center gap-1 border border-sky-200/70"
-                    >
-                      <Eye className="w-3.5 h-3.5 stroke-[1.6]" />
-                      <span>{t('btn_view_invoice')}</span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                      {order.shopAddress && <div className="text-xs text-ink-400 truncate mt-0.5">{order.shopAddress}</div>}
+                    </Td>
+                    <Td>
+                      <Pill tone={pay.tone}>{pay.label}</Pill>
+                    </Td>
+                    <Td align="right" className="whitespace-nowrap">
+                      <Money value={order.finalAmount} className="font-bold text-ink-900" />
+                      {returned > 0 && (
+                        <div className="text-xs text-rose-600 mt-0.5">
+                          -<Money value={returned} /> vozvrat
+                        </div>
+                      )}
+                    </Td>
+                    <Td align="center">
+                      <Pill tone={status.tone}>{status.label}</Pill>
+                    </Td>
+                    <Td align="right">
+                      <span onClick={(e) => e.stopPropagation()}>
+                        <Button size="sm" variant="secondary" icon={Receipt} onClick={() => onViewOrder(order)}>
+                          Chek
+                        </Button>
+                      </span>
+                    </Td>
+                  </tr>
+                );
+              })}
             </tbody>
-          </table>
-        </div>
-      </div>
+          </Table>
+        )}
+      </Card>
     </div>
   );
 };

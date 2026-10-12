@@ -50,6 +50,61 @@ export interface Order {
   deliveryDate?: string;
   createdAt: string;
   items: OrderItem[];
+  // Route of the order's shop, added by the server for reports
+  lineCode?: string;
+  routeDay?: number;
+  shopNum?: number;
+  returnedAmount?: number; // value of goods brought back (vozvrat)
+}
+
+// Goods brought back by the delivery driver; counted against the day the order was taken
+export interface ReturnItem {
+  productId: string;
+  productName: string;
+  unit: PackagingUnit;
+  quantity: number;
+  unitPrice: number;
+  totalPrice: number;
+}
+
+export interface OrderReturn {
+  id: string;
+  orderId: string;
+  shopId: string;
+  shopName: string;
+  lineCode: string | null;
+  routeDay: number | null;
+  salesDate: string; // YYYY-MM-DD
+  reason: string;
+  items: ReturnItem[];
+  total: number;
+  createdAt: string;
+}
+
+export interface DayStats {
+  orders: number;
+  gross: number;
+  returns: number;
+  net: number;
+}
+
+export interface LineMonthStats {
+  code: string;
+  days: Record<string, DayStats>; // key: YYYY-MM-DD
+  totals: DayStats;
+  streak: { current: number; best: number; lastReturnDate: string | null };
+}
+
+// Company requisites printed on invoices (Settings page)
+export interface CompanySettings {
+  companyName?: string;
+  address?: string;
+  phone?: string;
+  inn?: string;
+  bankAccount?: string;
+  bankMfo?: string;
+  bonusStreakDays?: number; // days in a row without returns that earn a bonus
+  bonusAmount?: number;
 }
 
 // Liniya, masalan '4-3'. QR kod liniyaniki: istalgan agent skanerlab shu liniyaga ulanadi.

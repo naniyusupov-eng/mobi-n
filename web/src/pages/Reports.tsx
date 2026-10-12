@@ -1,133 +1,67 @@
-import React from 'react';
-import { Order } from '../types';
-import { useLanguage } from '../context/LanguageContext';
+import React, { useMemo, useState } from 'react';
+import { CompanySettings, Order } from '../types';
+import { Period, PeriodPicker, usePeriod } from '../components/PeriodPicker';
+import { Segmented } from '../components/ui';
+import { MonthlySales } from './reports/MonthlySales';
+import { LineOrders } from './reports/LineOrders';
+import { ReturnsTab } from './reports/ReturnsTab';
+
+type Tab = 'monthly' | 'line' | 'returns';
+
+const TABS: { key: Tab; label: string }[] = [
+  { key: 'monthly', label: 'Oylik savdo' },
+  { key: 'line', label: 'Liniya buyurtmalari' },
+  { key: 'returns', label: 'Vozvratlar' },
+];
 
 interface ReportsProps {
   orders: Order[];
+  company: CompanySettings;
+  onViewOrder: (order: Order) => void;
 }
 
-export const Reports: React.FC<ReportsProps> = ({ orders }) => {
-  const { t, lang } = useLanguage();
-  const numLocale = lang === 'ru' ? 'ru-RU' : 'uz-UZ';
+export const Reports: React.FC<ReportsProps> = ({ orders, company, onViewOrder }) => {
+  const [tab, setTab] = useState<Tab>('monthly');
+  // Each tab keeps its own period; all of them follow the real calendar
+  const [monthPeriod, setMonthPeriod] = usePeriod('month');
+  const [linePeriod, setLinePeriod] = usePeriod('month');
+  const [returnsPeriod, setReturnsPeriod] = usePeriod('month');
+  const [lineCode, setLineCode] = useState('');
 
-  const totalRevenue = orders.reduce((sum, o) => sum + o.finalAmount, 0);
-  const cashRevenue = orders
-    .filter((o) => o.paymentMethod === 'naqd')
-    .reduce((sum, o) => sum + o.finalAmount, 0);
-  const debtRevenue = orders
-    .filter((o) => o.paymentMethod === 'nasiya')
-    .reduce((sum, o) => sum + o.finalAmount, 0);
-  const bankRevenue = orders
-    .filter((o) => o.paymentMethod === 'otkazma')
-    .reduce((sum, o) => sum + o.finalAmount, 0);
+  // A click in the monthly table opens that line's orders for the clicked day (or month)
+  const openLineOrders = (code: string, period: Period) => {
+    setLineCode(code);
+    setLinePeriod(period);
+    setTab('line');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
-  // Sales per product from order lines, best sellers first
-  const productSales = Object.values(
-    orders.reduce<Record<string, { name: string; total: number; orders: number }>>((acc, o) => {
-      for (const item of o.items || []) {
-        const row = (acc[item.productName] ||= { name: item.productName, total: 0, orders: 0 });
-        row.total += item.totalPrice;
-        row.orders += 1;
-      }
-      return acc;
-    }, {})
-  ).sort((a, b) => b.total - a.total);
+  // Reload stats when orders or returns change (orders are polled every few seconds)
+  const refreshKey = useMemo(
+    () => `${orders.length}:${orders.reduce((s, o) => s + o.finalAmount + (o.returnedAmount || 0), 0)}`,
+    [orders]
+  );
 
   return (
-    <div className="space-y-4">
-      {/* Revenue Structure Cards */}
-      <div>
-        <h3 className="text-xs font-semibold text-slate-900 mb-2.5">{t('rev_structure')}</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="bg-white p-4 rounded-lg border border-slate-200/70 hover:border-sky-300 transition shadow-2xs">
-            <span className="text-xs text-slate-400 font-normal">{t('rev_total')}</span>
-            <div className="text-xl font-semibold text-slate-900 mt-1 tabular-nums">
-              {totalRevenue.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
-            </div>
-            <div className="w-full h-1 bg-sky-50 rounded-full overflow-hidden mt-3">
-              <div className="h-full bg-sky-500 rounded-full w-full" />
-            </div>
-            <span className="text-[11px] text-slate-400 font-normal mt-1.5 block">
-              {t('sales_volume_100')}
-            </span>
-          </div>
-
-          <div className="bg-white p-4 rounded-lg border border-slate-200/70 hover:border-sky-300 transition shadow-2xs">
-            <span className="text-xs text-slate-400 font-normal">{t('rev_cash')}</span>
-            <div className="text-xl font-semibold text-slate-900 mt-1 tabular-nums">
-              {cashRevenue.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
-            </div>
-            <div className="w-full h-1 bg-sky-50 rounded-full overflow-hidden mt-3">
-              <div
-                className="h-full bg-sky-500 rounded-full"
-                style={{ width: `${totalRevenue > 0 ? (cashRevenue / totalRevenue) * 100 : 0}%` }}
-              />
-            </div>
-            <span className="text-[11px] text-sky-700 font-normal mt-1.5 block tabular-nums">
-              {totalRevenue > 0 ? ((cashRevenue / totalRevenue) * 100).toFixed(0) : 0}% {t('share')}
-            </span>
-          </div>
-
-          <div className="bg-white p-4 rounded-lg border border-slate-200/70 hover:border-amber-300 transition shadow-2xs">
-            <span className="text-xs text-slate-400 font-normal">{t('rev_debt')}</span>
-            <div className="text-xl font-semibold text-slate-900 mt-1 tabular-nums">
-              {debtRevenue.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
-            </div>
-            <div className="w-full h-1 bg-amber-50 rounded-full overflow-hidden mt-3">
-              <div
-                className="h-full bg-amber-500 rounded-full"
-                style={{ width: `${totalRevenue > 0 ? (debtRevenue / totalRevenue) * 100 : 0}%` }}
-              />
-            </div>
-            <span className="text-[11px] text-amber-700 font-normal mt-1.5 block tabular-nums">
-              {totalRevenue > 0 ? ((debtRevenue / totalRevenue) * 100).toFixed(0) : 0}% {t('share')}
-            </span>
-          </div>
-
-          <div className="bg-white p-4 rounded-lg border border-slate-200/70 hover:border-sky-300 transition shadow-2xs">
-            <span className="text-xs text-slate-400 font-normal">{t('rev_bank')}</span>
-            <div className="text-xl font-semibold text-slate-900 mt-1 tabular-nums">
-              {bankRevenue.toLocaleString(numLocale)} <span className="text-xs font-normal text-slate-400">{t('som')}</span>
-            </div>
-            <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden mt-3">
-              <div
-                className="h-full bg-slate-500 rounded-full"
-                style={{ width: `${totalRevenue > 0 ? (bankRevenue / totalRevenue) * 100 : 0}%` }}
-              />
-            </div>
-            <span className="text-[11px] text-slate-500 font-normal mt-1.5 block tabular-nums">
-              {totalRevenue > 0 ? ((bankRevenue / totalRevenue) * 100).toFixed(0) : 0}% {t('share')}
-            </span>
-          </div>
-        </div>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Segmented options={TABS} value={tab} onChange={setTab} />
+        {tab === 'monthly' && <PeriodPicker kinds={['month']} value={monthPeriod} onChange={setMonthPeriod} />}
+        {tab === 'line' && <PeriodPicker value={linePeriod} onChange={setLinePeriod} />}
+        {tab === 'returns' && <PeriodPicker kinds={['month', 'day']} value={returnsPeriod} onChange={setReturnsPeriod} />}
       </div>
 
-      {/* Top Confectionery Products */}
-      <div className="bg-white rounded-lg border border-slate-200/70 p-4 shadow-2xs">
-        <h3 className="text-xs font-semibold text-slate-900 mb-3">
-          {t('product_turnover')}
-        </h3>
-        {productSales.length === 0 ? (
-          <div className="py-6 text-center text-xs text-slate-400">Hali sotuvlar yoʻq</div>
-        ) : (
-          <div className="space-y-2.5">
-            {productSales.map((p) => (
-              <div key={p.name} className="space-y-1">
-                <div className="flex items-center justify-between gap-3 text-xs">
-                  <span className="font-medium text-slate-900 truncate">{p.name}</span>
-                  <span className="shrink-0 tabular-nums">
-                    <span className="font-medium text-slate-900">{p.total.toLocaleString(numLocale)} {t('som')}</span>
-                    <span className="text-[10px] text-slate-400 ml-2">{p.orders} ta buyurtmada</span>
-                  </span>
-                </div>
-                <div className="w-full h-1 bg-sky-50 rounded-full overflow-hidden">
-                  <div className="h-full bg-sky-500 rounded-full" style={{ width: `${(p.total / productSales[0].total) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      {tab === 'monthly' && monthPeriod.kind === 'month' && (
+        <MonthlySales month={monthPeriod.month} company={company} refreshKey={refreshKey} onOpen={openLineOrders} />
+      )}
+      {tab === 'line' && <LineOrders
+          orders={orders}
+          period={linePeriod}
+          lineFilter={lineCode}
+          onLineChange={setLineCode}
+          onViewOrder={onViewOrder}
+        />}
+      {tab === 'returns' && <ReturnsTab period={returnsPeriod} refreshKey={refreshKey} />}
     </div>
   );
 };
