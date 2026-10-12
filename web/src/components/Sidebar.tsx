@@ -2,7 +2,6 @@ import React from 'react';
 import clsx from 'clsx';
 import {
   Home,
-  Receipt,
   Route,
   Store,
   Package,
@@ -11,11 +10,10 @@ import {
   LucideIcon,
 } from 'lucide-react';
 
-export type NavPage = 'dashboard' | 'orders' | 'lines' | 'clients' | 'products' | 'reports' | 'settings';
+export type NavPage = 'dashboard' | 'lines' | 'clients' | 'products' | 'reports' | 'settings';
 
 export const PAGE_TITLES: Record<NavPage, string> = {
   dashboard: 'Asosiy',
-  orders: 'Buyurtmalar',
   lines: 'Liniyalar',
   clients: 'Klientlar',
   products: 'Tovarlar',
@@ -25,7 +23,6 @@ export const PAGE_TITLES: Record<NavPage, string> = {
 
 const MENU: { id: NavPage; icon: LucideIcon }[] = [
   { id: 'dashboard', icon: Home },
-  { id: 'orders', icon: Receipt },
   { id: 'lines', icon: Route },
   { id: 'clients', icon: Store },
   { id: 'products', icon: Package },
@@ -41,7 +38,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, newOrdersCount }) => {
   const item = (id: NavPage, Icon: LucideIcon) => {
     const active = activePage === id;
-    const badge = id === 'orders' && newOrdersCount > 0 ? newOrdersCount : 0;
+    const badge = id === 'dashboard' && newOrdersCount > 0 ? newOrdersCount : 0; // new orders are on the main page
     return (
       <button
         key={id}

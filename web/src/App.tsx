@@ -128,14 +128,23 @@ export default function App() {
           orders={orders}
           newOrdersCount={newOrdersCount}
           onPick={handleSearchPick}
-          onBell={() => navigate('orders')}
+          onBell={() => {
+            // New orders live on the main page, under today's figures
+            navigate('dashboard');
+            window.setTimeout(() => document.getElementById('orders')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+          }}
         />
 
-        <main className="flex-1 overflow-y-auto px-5 lg:px-8 pt-4 pb-10">
+        <main className="flex-1 overflow-y-auto [scrollbar-gutter:stable] px-5 lg:px-8 pt-4 pb-10">
           {page === 'dashboard' && (
-            <Dashboard orders={orders} totalDebt={debt.total} debtorsCount={debt.count} />
+            <div className="space-y-6">
+              <Dashboard orders={orders} totalDebt={debt.total} debtorsCount={debt.count} />
+              <section id="orders" className="space-y-3 scroll-mt-4">
+                <h2 className="px-1 text-[19px] font-bold tracking-tight text-ink-900">Buyurtmalar</h2>
+                <Orders orders={orders} onViewOrder={setInvoiceOrder} />
+              </section>
+            </div>
           )}
-          {page === 'orders' && <Orders orders={orders} onViewOrder={setInvoiceOrder} />}
           {page === 'lines' && <Lines onOpenRoute={(line, day) => navigate('clients', { line, day })} />}
           {page === 'clients' && (
             <Clients

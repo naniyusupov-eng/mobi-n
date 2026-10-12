@@ -30,7 +30,7 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
   const { lang } = useLanguage();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<Filter>('all');
-  const [period, setPeriod] = usePeriod('all');
+  const [period, setPeriod] = usePeriod('day'); // main page: today's orders by default
 
   const filteredOrders = useMemo(() => {
     const q = search.trim().toLowerCase();
