@@ -15,17 +15,30 @@ const WEEKDAYS: Record<Language, string[]> = {
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
+// Displayed dates and times use the business time zone too, whatever the computer's zone
+const partsFmt = new Intl.DateTimeFormat('en-GB', {
+  timeZone: 'Asia/Tashkent', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+});
+const tashkentParts = (value: string | Date) => {
+  const p = Object.fromEntries(partsFmt.formatToParts(new Date(value)).map((x) => [x.type, x.value]));
+  return { day: Number(p.day), month: Number(p.month) - 1, hour: p.hour, minute: p.minute };
+};
+
 /** "3 okt" */
 export const formatDate = (value: string | Date, lang: Language) => {
-  const d = new Date(value);
-  return `${d.getDate()} ${MONTHS[lang][d.getMonth()]}`;
+  const d = tashkentParts(value);
+  return `${d.day} ${MONTHS[lang][d.month]}`;
 };
 
 /** "3 okt, 23:43" */
 export const formatDateTime = (value: string | Date, lang: Language) => {
-  const d = new Date(value);
-  return `${formatDate(d, lang)}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const d = tashkentParts(value);
+  return `${d.day} ${MONTHS[lang][d.month]}, ${d.hour}:${d.minute}`;
 };
+
+/** "4-3-1", or just "4-3" when the shop has no route day */
+export const routeLabel = (lineCode?: string | null, routeDay?: number | null) =>
+  lineCode ? (routeDay ? `${lineCode}-${routeDay}` : lineCode) : '';
 
 /** "Shanba, 10 okt" */
 export const formatToday = (lang: Language) => formatWeekdayDay(dayKey(), lang);
@@ -53,9 +66,11 @@ export const shiftMonth = (month: string, n: number) => {
 };
 
 /** Short money for narrow cells: 164 000 -> "164k", 1 250 000 -> "1,3 mln" */
-export const compactMoney = (n: number) => {
-  if (Math.abs(n) >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '').replace('.', ',')} mln`;
-  if (Math.abs(n) >= 1_000) return `${Math.round(n / 1_000)}k`;
+export const compactMoney = (n: number, lang: Language = 'uz') => {
+  const latin = lang === 'uz';
+  if (Math.abs(n) >= 1_000_000)
+    return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '').replace('.', ',')} ${latin ? 'mln' : 'млн'}`;
+  if (Math.abs(n) >= 1_000) return `${Math.round(n / 1_000)}${latin ? 'k' : 'к'}`;
   return String(n);
 };
 

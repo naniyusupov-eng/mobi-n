@@ -20,17 +20,71 @@ import {
 } from '../components/ui';
 import { useToday } from '../hooks/useNow';
 import { weekdayOf } from '../utils/format';
+import { COMMON, Tri, WEEKDAY_LABELS, WEEKDAY_SHORT, fmt, useL } from '../i18n/tri';
 
 const API = 'http://localhost:3000/api/v1';
 
-const DAYS = [
-  { day: 1, short: 'Du', label: 'Dushanba' },
-  { day: 2, short: 'Se', label: 'Seshanba' },
-  { day: 3, short: 'Ch', label: 'Chorshanba' },
-  { day: 4, short: 'Pa', label: 'Payshanba' },
-  { day: 5, short: 'Ju', label: 'Juma' },
-  { day: 6, short: 'Sh', label: 'Shanba' },
-];
+const DAYS = [1, 2, 3, 4, 5, 6].map((day) => ({ day, short: WEEKDAY_SHORT[day], label: WEEKDAY_LABELS[day] }));
+
+const T = {
+  linesLoadError: {
+    uz: 'Liniyalarni yuklab boʻlmadi. Birozdan soʻng sahifani yangilang.',
+    uz_cyrl: 'Линияларни юклаб бўлмади. Бироздан сўнг саҳифани янгиланг.',
+    ru: 'Не удалось загрузить линии. Обновите страницу чуть позже.',
+  },
+  shopsLoadError: {
+    uz: 'Marshrut doʻkonlarini yuklab boʻlmadi. Qaytadan urinib koʻring.',
+    uz_cyrl: 'Маршрут дўконларини юклаб бўлмади. Қайтадан уриниб кўринг.',
+    ru: 'Не удалось загрузить магазины маршрута. Попробуйте ещё раз.',
+  },
+  paymentSaveError: {
+    uz: 'Toʻlovni saqlab boʻlmadi. Qaytadan urinib koʻring.',
+    uz_cyrl: 'Тўловни сақлаб бўлмади. Қайтадан уриниб кўринг.',
+    ru: 'Не удалось сохранить оплату. Попробуйте ещё раз.',
+  },
+  pickLineOption: { uz: 'Liniyani tanlang', uz_cyrl: 'Линияни танланг', ru: 'Выберите линию' },
+  lineName: { uz: '{code} liniya', uz_cyrl: '{code} линия', ru: 'Линия {code}' },
+  searchPlaceholder: {
+    uz: 'Nomi, egasi, telefon yoki manzil',
+    uz_cyrl: 'Номи, эгаси, телефон ёки манзил',
+    ru: 'Название, владелец, телефон или адрес',
+  },
+  pickDayForLine: {
+    uz: '{code} liniya uchun hafta kunini tanlang',
+    uz_cyrl: '{code} линия учун ҳафта кунини танланг',
+    ru: 'Выберите день недели для линии {code}',
+  },
+  pickLineAndDay: { uz: 'Liniya va hafta kunini tanlang', uz_cyrl: 'Линия ва ҳафта кунини танланг', ru: 'Выберите линию и день недели' },
+  pickHint: {
+    uz: 'Doʻkonlar marshrut boʻyicha koʻrsatiladi: avval liniyani, soʻng hafta kunini tanlang.',
+    uz_cyrl: 'Дўконлар маршрут бўйича кўрсатилади: аввал линияни, сўнг ҳафта кунини танланг.',
+    ru: 'Магазины показываются по маршруту: сначала выберите линию, затем день недели.',
+  },
+  shopCount: { uz: '{n} ta doʻkon', uz_cyrl: '{n} та дўкон', ru: 'Магазинов: {n}' },
+  routeDebt: { uz: 'Qarz: {sum} soʻm • {n} ta', uz_cyrl: 'Қарз: {sum} сўм • {n} та', ru: 'Долг: {sum} сум • {n}' },
+  noDebt: { uz: 'Qarz yoʻq', uz_cyrl: 'Қарз йўқ', ru: 'Долгов нет' },
+  found: { uz: 'Topildi: {n} ta', uz_cyrl: 'Топилди: {n} та', ru: 'Найдено: {n}' },
+  notFound: {
+    uz: 'Qidiruv boʻyicha doʻkon topilmadi',
+    uz_cyrl: 'Қидирув бўйича дўкон топилмади',
+    ru: 'По запросу магазины не найдены',
+  },
+  emptyRoute: { uz: 'Bu marshrutda doʻkonlar yoʻq', uz_cyrl: 'Бу маршрутда дўконлар йўқ', ru: 'На этом маршруте нет магазинов' },
+  tryOther: { uz: 'Boshqa soʻz bilan qidirib koʻring.', uz_cyrl: 'Бошқа сўз билан қидириб кўринг.', ru: 'Попробуйте другой запрос.' },
+  clearSearch: { uz: 'Qidiruvni tozalash', uz_cyrl: 'Қидирувни тозалаш', ru: 'Очистить поиск' },
+  shopName: { uz: 'Doʻkon nomi', uz_cyrl: 'Дўкон номи', ru: 'Название магазина' },
+  fullName: { uz: 'Ism-familiya', uz_cyrl: 'Исм-фамилия', ru: 'Имя и фамилия' },
+  address: { uz: 'Manzil', uz_cyrl: 'Манзил', ru: 'Адрес' },
+  openMap: { uz: 'Xaritada ochish', uz_cyrl: 'Харитада очиш', ru: 'Открыть на карте' },
+  acceptPayment: { uz: 'Toʻlov qabul qilish', uz_cyrl: 'Тўлов қабул қилиш', ru: 'Принять оплату' },
+  savePayment: { uz: 'Toʻlovni saqlash', uz_cyrl: 'Тўловни сақлаш', ru: 'Сохранить оплату' },
+  currentDebt: { uz: 'Joriy qarz', uz_cyrl: 'Жорий қарз', ru: 'Текущий долг' },
+  paymentAmount: { uz: 'Toʻlov summasi', uz_cyrl: 'Тўлов суммаси', ru: 'Сумма оплаты' },
+  debtClosed: { uz: 'Qarz toʻliq yopiladi', uz_cyrl: 'Қарз тўлиқ ёпилади', ru: 'Долг будет погашен полностью' },
+  remainingDebt: { uz: 'Qoladigan qarz: {sum} soʻm', uz_cyrl: 'Қоладиган қарз: {sum} сўм', ru: 'Остаток долга: {sum} сум' },
+  fullDebt: { uz: 'Toʻliq qarz', uz_cyrl: 'Тўлиқ қарз', ru: 'Весь долг' },
+  half: { uz: 'Yarmi', uz_cyrl: 'Ярми', ru: 'Половина' },
+} satisfies Record<string, Tri>;
 
 // Route day of a Tashkent date: 1 = Dushanba ... 6 = Shanba, null on Sunday
 const routeDayOf = (day: string) => weekdayOf(day) || null;
@@ -46,13 +100,14 @@ interface ClientsProps {
 }
 
 export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId }) => {
+  const L = useL();
   const today = routeDayOf(useToday()); // live: switches at midnight
   const [lines, setLines] = useState<Line[]>([]);
   const [line, setLine] = useState(initialRoute?.line || '');
   const [day, setDay] = useState<number>(initialRoute?.day || 0);
   const [shops, setShops] = useState<Client[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Tri | null>(null);
   const [search, setSearch] = useState('');
 
   const [paymentShop, setPaymentShop] = useState<Client | null>(null);
@@ -66,7 +121,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
     fetch(`${API}/lines`)
       .then((r) => r.json())
       .then((d) => setLines(d.lines || []))
-      .catch(() => setError('Liniyalarni yuklab boʻlmadi. Birozdan soʻng sahifani yangilang.'));
+      .catch(() => setError(T.linesLoadError));
   }, []);
 
   const isRouteSelected = Boolean(line && day);
@@ -85,9 +140,9 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
       .then((d) => {
         if (!alive) return;
         setShops(d.clients || []);
-        setError('');
+        setError(null);
       })
-      .catch(() => alive && setError('Marshrut doʻkonlarini yuklab boʻlmadi. Qaytadan urinib koʻring.'))
+      .catch(() => alive && setError(T.shopsLoadError))
       .finally(() => alive && setLoading(false));
     return () => {
       alive = false;
@@ -151,19 +206,24 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
   const handleConfirmPayment = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const amount = Number(payAmount);
-    if (!paymentShop || !(amount > 0)) return;
+    // A second Enter while saving must not take the payment off twice
+    if (paying || !paymentShop || !(amount > 0)) return;
     setPaying(true);
     try {
       const res = await fetch(`${API}/payments/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ shopId: paymentShop.id, amount }),
-      }).then((r) => r.json());
+        // The id lets the server ignore a repeated request for the same payment
+        body: JSON.stringify({ id: `web_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, shopId: paymentShop.id, amount }),
+      }).then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      });
       if (res.shop) setShops((prev) => prev.map((c) => (c.id === res.shop.id ? { ...c, ...res.shop } : c)));
-      setError('');
+      setError(null);
       closePayment();
     } catch {
-      setError('Toʻlovni saqlab boʻlmadi. Qaytadan urinib koʻring.');
+      setError(T.paymentSaveError);
     } finally {
       setPaying(false);
     }
@@ -178,7 +238,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
       {error && (
         <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl2 bg-rose-50 text-sm text-rose-600">
           <AlertCircle className="w-[18px] h-[18px] shrink-0" />
-          <span className="min-w-0">{error}</span>
+          <span className="min-w-0">{L(error)}</span>
         </div>
       )}
 
@@ -193,12 +253,12 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
               setHighlightId('');
             }}
             className="w-[170px] font-semibold"
-            aria-label="Liniya"
+            aria-label={L(COMMON.line)}
           >
-            <option value="">Liniyani tanlang</option>
+            <option value="">{L(T.pickLineOption)}</option>
             {lines.map((l) => (
               <option key={l.id} value={l.code}>
-                {l.code} liniya
+                {fmt(L(T.lineName), { code: l.code })}
               </option>
             ))}
           </Select>
@@ -212,9 +272,9 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
             options={DAYS.map((d) => ({
               key: d.day,
               label: (
-                <span title={d.label}>
-                  <span className="xl:hidden">{d.short}</span>
-                  <span className="hidden xl:inline">{d.label}</span>
+                <span title={L(d.label)}>
+                  <span className="xl:hidden">{L(d.short)}</span>
+                  <span className="hidden xl:inline">{L(d.label)}</span>
                   {d.day === today ? <span className="ml-1 opacity-70">•</span> : null}
                 </span>
               ),
@@ -225,7 +285,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
             icon={Search}
             value={search}
             onChange={setSearch}
-            placeholder="Nomi, egasi, telefon yoki manzil"
+            placeholder={L(T.searchPlaceholder)}
             className="flex-1 min-w-[220px]"
           />
         </Card>
@@ -235,8 +295,8 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
         <Card>
           <EmptyState
             icon={Route}
-            title={line ? `${line} liniya uchun hafta kunini tanlang` : 'Liniya va hafta kunini tanlang'}
-            hint="Doʻkonlar marshrut boʻyicha koʻrsatiladi: avval liniyani, soʻng hafta kunini tanlang."
+            title={line ? fmt(L(T.pickDayForLine), { code: line }) : L(T.pickLineAndDay)}
+            hint={L(T.pickHint)}
             action={
               lines.length > 0 ? (
                 <div className="flex flex-wrap justify-center gap-2 max-w-xl">
@@ -266,38 +326,38 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
               <Route className="w-3.5 h-3.5" />
               {line}-{day}
             </Pill>
-            <Pill className="text-[13px] px-3 py-1.5">{dayLabel}</Pill>
+            <Pill className="text-[13px] px-3 py-1.5">{dayLabel ? L(dayLabel) : null}</Pill>
             <Pill className="text-[13px] px-3 py-1.5">
               <Store className="w-3.5 h-3.5" />
-              {routeShops.length} ta doʻkon
+              {fmt(L(T.shopCount), { n: routeShops.length })}
             </Pill>
             {routeDebt.sum > 0 ? (
               <Pill tone="red" className="text-[13px] px-3 py-1.5">
                 <Wallet className="w-3.5 h-3.5" />
-                Qarz: {formatSum(routeDebt.sum)} soʻm • {routeDebt.count} ta
+                {fmt(L(T.routeDebt), { sum: formatSum(routeDebt.sum), n: routeDebt.count })}
               </Pill>
             ) : (
               <Pill tone="green" className="text-[13px] px-3 py-1.5">
-                Qarz yoʻq
+                {L(T.noDebt)}
               </Pill>
             )}
             {search && (
-              <span className="ml-auto text-[13px] text-ink-400 tabular-nums">Topildi: {visibleShops.length} ta</span>
+              <span className="ml-auto text-[13px] text-ink-400 tabular-nums">{fmt(L(T.found), { n: visibleShops.length })}</span>
             )}
           </div>
 
           <Card padded={false} className="p-3 md:p-4">
             {loading && shops.length === 0 ? (
-              <div className="py-12 text-center text-sm text-ink-400">Yuklanmoqda…</div>
+              <div className="py-12 text-center text-sm text-ink-400">{L(COMMON.loading)}</div>
             ) : visibleShops.length === 0 ? (
               <EmptyState
                 icon={search ? Search : Store}
-                title={search ? 'Qidiruv boʻyicha doʻkon topilmadi' : 'Bu marshrutda doʻkonlar yoʻq'}
-                hint={search ? 'Boshqa soʻz bilan qidirib koʻring.' : undefined}
+                title={search ? L(T.notFound) : L(T.emptyRoute)}
+                hint={search ? L(T.tryOther) : undefined}
                 action={
                   search ? (
                     <Button variant="secondary" size="sm" onClick={() => setSearch('')}>
-                      Qidiruvni tozalash
+                      {L(T.clearSearch)}
                     </Button>
                   ) : undefined
                 }
@@ -309,11 +369,11 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
                     <Th align="center" className="w-14">
                       №
                     </Th>
-                    <Th>Doʻkon nomi</Th>
-                    <Th>Ism-familiya</Th>
-                    <Th>Telefon</Th>
-                    <Th>Manzil</Th>
-                    <Th align="right">Qarz</Th>
+                    <Th>{L(T.shopName)}</Th>
+                    <Th>{L(T.fullName)}</Th>
+                    <Th>{L(COMMON.phone)}</Th>
+                    <Th>{L(T.address)}</Th>
+                    <Th align="right">{L(COMMON.debt)}</Th>
                   </tr>
                 </thead>
                 <tbody>
@@ -371,7 +431,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
                                 href={`https://yandex.uz/maps/?pt=${c.longitude},${c.latitude}&z=17&l=map`}
                                 target="_blank"
                                 rel="noreferrer"
-                                title="Xaritada ochish"
+                                title={L(T.openMap)}
                                 className="w-7 h-7 -my-0.5 rounded-full bg-brand-50 text-brand-500 hover:bg-brand-100 flex items-center justify-center shrink-0"
                               >
                                 <MapPin className="w-3.5 h-3.5" strokeWidth={2} />
@@ -385,7 +445,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
                             <div className="flex items-center justify-end gap-2.5">
                               <Money value={c.debtBalance!} className="font-bold text-rose-600" />
                               <Button size="sm" variant="secondary" icon={CreditCard} onClick={() => openPayment(c)}>
-                                Toʻlov
+                                {L(COMMON.payment)}
                               </Button>
                             </div>
                           ) : (
@@ -407,38 +467,38 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
         open={Boolean(paymentShop)}
         onClose={closePayment}
         width="sm"
-        title="Toʻlov qabul qilish"
+        title={L(T.acceptPayment)}
         subtitle={paymentShop?.name}
         footer={
           <>
             <Button variant="ghost" onClick={closePayment}>
-              Bekor qilish
+              {L(COMMON.cancel)}
             </Button>
             <Button icon={Wallet} onClick={() => handleConfirmPayment()} disabled={paying || amountNum <= 0}>
-              Toʻlovni saqlash
+              {L(T.savePayment)}
             </Button>
           </>
         }
       >
         <form onSubmit={handleConfirmPayment} className="space-y-4">
           <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl2 bg-rose-50">
-            <span className="text-sm text-ink-700">Joriy qarz</span>
+            <span className="text-sm text-ink-700">{L(T.currentDebt)}</span>
             <Money value={currentDebt} className="font-bold text-rose-600" />
           </div>
           <Field
-            label="Toʻlov summasi"
+            label={L(T.paymentAmount)}
             type="number"
             min={1}
             inputMode="numeric"
-            suffix="soʻm"
+            suffix={L(COMMON.som)}
             value={payAmount}
             onChange={(e) => setPayAmount(e.target.value)}
             className="tabular-nums font-semibold"
             hint={
               amountNum > 0 && currentDebt > 0
                 ? amountNum >= currentDebt
-                  ? 'Qarz toʻliq yopiladi'
-                  : `Qoladigan qarz: ${formatSum(currentDebt - amountNum)} soʻm`
+                  ? L(T.debtClosed)
+                  : fmt(L(T.remainingDebt), { sum: formatSum(currentDebt - amountNum) })
                 : undefined
             }
             autoFocus
@@ -446,14 +506,14 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
           />
           <div className="flex flex-wrap gap-2">
             <QuickAmount active={amountNum === currentDebt} onClick={() => setPayAmount(String(currentDebt))}>
-              Toʻliq qarz
+              {L(T.fullDebt)}
             </QuickAmount>
             {currentDebt >= 2 && (
               <QuickAmount
                 active={amountNum === Math.round(currentDebt / 2)}
                 onClick={() => setPayAmount(String(Math.round(currentDebt / 2)))}
               >
-                Yarmi
+                {L(T.half)}
               </QuickAmount>
             )}
             {QUICK_AMOUNTS.filter((a) => a < currentDebt).map((a) => (

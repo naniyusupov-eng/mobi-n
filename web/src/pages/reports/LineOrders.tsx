@@ -3,11 +3,21 @@ import clsx from 'clsx';
 import { Banknote, Eye, Landmark, NotebookPen, Wallet } from 'lucide-react';
 import { Line, Order, OrderStatus } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
-import { dayKey, formatDateTime, formatDay, formatMonth } from '../../utils/format';
+import { dayKey, formatDateTime, formatDay, formatMonth, routeLabel } from '../../utils/format';
 import { Period, inPeriod } from '../../components/PeriodPicker';
 import { Button, Card, CardTitle, IconCircle, Money, Pill, Table, Td, Th, Tone, TONE } from '../../components/ui';
+import { COMMON, fmt, useL } from '../../i18n/tri';
 
 const API = 'http://localhost:3000/api/v1';
+
+const T = {
+  allTime: { uz: 'Butun davr', uz_cyrl: 'Бутун давр', ru: 'Весь период' },
+  allChip: { uz: 'Barchasi', uz_cyrl: 'Барчаси', ru: 'Все' },
+  ordersAndReceipts: { uz: 'Buyurtmalar va cheklar', uz_cyrl: 'Буюртмалар ва чеклар', ru: 'Заказы и чеки' },
+  nPcs: { uz: '{n} ta', uz_cyrl: '{n} та', ru: '{n} шт' },
+  nShops: { uz: '{n} ta doʻkon', uz_cyrl: '{n} та дўкон', ru: '{n} магазинов' },
+  empty: { uz: 'Bu davrda buyurtmalar yoʻq', uz_cyrl: 'Бу даврда буюртмалар йўқ', ru: 'За этот период заказов нет' },
+};
 
 const STATUS_TONE: Record<OrderStatus, Tone> = {
   new: 'amber',
@@ -56,6 +66,7 @@ interface Debtor {
 // Orders and receipts of all lines or one line for a period, amounts after returns
 export const LineOrders: React.FC<LineOrdersProps> = ({ orders, period, lineFilter, onLineChange: setLineFilter, onViewOrder }) => {
   const { t, lang } = useLanguage();
+  const L = useL();
 
   const [lines, setLines] = useState<Line[]>([]);
   const [debtors, setDebtors] = useState<Debtor[]>([]);
@@ -98,21 +109,21 @@ export const LineOrders: React.FC<LineOrdersProps> = ({ orders, period, lineFilt
   const lineDebt = lineDebtors.reduce((sum, d) => sum + d.debtBalance, 0);
   const avgCheck = scoped.length > 0 ? Math.round(totalRevenue / scoped.length) : 0;
   const periodLabel =
-    period.kind === 'day' ? formatDay(period.day, lang) : period.kind === 'month' ? formatMonth(period.month, lang) : 'Butun davr';
-  const scopeLabel = lineFilter || 'Barcha liniyalar';
+    period.kind === 'day' ? formatDay(period.day, lang) : period.kind === 'month' ? formatMonth(period.month, lang) : L(T.allTime);
+  const scopeLabel = lineFilter || L(COMMON.allLines);
 
   return (
     <div className="space-y-5">
       {/* Line & day selector */}
       <Card>
         <div className="flex items-start gap-3">
-          <span className="w-12 shrink-0 pt-2 text-[13px] font-medium text-ink-400">Liniya</span>
+          <span className="w-12 shrink-0 pt-2 text-[13px] font-medium text-ink-400">{L(COMMON.line)}</span>
           <div className="flex flex-wrap gap-2 min-w-0">
             <Chip
               active={!lineFilter}
               onClick={() => setLineFilter('')}
             >
-              Barchasi
+              {L(T.allChip)}
             </Chip>
             {lines.map((l) => (
               <Chip key={l.id} active={lineFilter === l.code} onClick={() => setLineFilter(l.code)}>
@@ -157,33 +168,33 @@ export const LineOrders: React.FC<LineOrdersProps> = ({ orders, period, lineFilt
           <CardTitle
             title={
               <span className="flex items-center gap-2">
-                Buyurtmalar va cheklar <Pill tone="brand">{scopeLabel}</Pill> <Pill tone="gray">{periodLabel}</Pill>
+                {L(T.ordersAndReceipts)} <Pill tone="brand">{scopeLabel}</Pill> <Pill tone="gray">{periodLabel}</Pill>
               </span>
             }
           />
           <div className="flex flex-wrap gap-2 mb-4">
             <Pill tone="gray">
-              Buyurtmalar: <span className="text-ink-900">{scoped.length} ta</span>
+              {L(COMMON.orders)}: <span className="text-ink-900">{fmt(L(T.nPcs), { n: scoped.length })}</span>
             </Pill>
             <Pill tone="brand">
               {t('col_avg_check')}: <Money value={avgCheck} />
             </Pill>
             <Pill tone="red">
-              Vozvrat: <Money value={totalReturns} />
+              {L(COMMON.returns)}: <Money value={totalReturns} />
             </Pill>
             <Pill tone="amber">
-              Qarz: <Money value={lineDebt} /> <span className="opacity-70">({lineDebtors.length} ta doʻkon)</span>
+              {L(COMMON.debt)}: <Money value={lineDebt} /> <span className="opacity-70">({fmt(L(T.nShops), { n: lineDebtors.length })})</span>
             </Pill>
           </div>
           <Table>
             <thead>
               <tr>
                 <Th>{t('col_date')}</Th>
-                <Th>Marshrut</Th>
+                <Th>{L(COMMON.route)}</Th>
                 <Th>{t('col_client')}</Th>
                 <Th>{t('col_payment_type')}</Th>
                 <Th align="right">{t('col_sum')}</Th>
-                <Th align="right">Vozvrat</Th>
+                <Th align="right">{L(COMMON.returns)}</Th>
                 <Th align="center">{t('col_status')}</Th>
                 <Th align="right" />
               </tr>
@@ -192,7 +203,7 @@ export const LineOrders: React.FC<LineOrdersProps> = ({ orders, period, lineFilt
               {scoped.length === 0 && (
                 <tr>
                   <Td colSpan={8} align="center" className="py-10 text-ink-400">
-                    Bu davrda buyurtmalar yoʻq
+                    {L(T.empty)}
                   </Td>
                 </tr>
               )}
@@ -201,7 +212,7 @@ export const LineOrders: React.FC<LineOrdersProps> = ({ orders, period, lineFilt
                   <Td className="whitespace-nowrap text-ink-500">{formatDateTime(order.createdAt, lang)}</Td>
                   <Td className="whitespace-nowrap">
                     <Pill tone="brand">
-                      {order.lineCode}-{order.routeDay}
+                      {routeLabel(order.lineCode, order.routeDay) || '—'}
                     </Pill>
                     {order.shopNum != null && <span className="ml-2 text-ink-400">№{formatShopNum(order.shopNum)}</span>}
                   </Td>
@@ -242,7 +253,7 @@ export const LineOrders: React.FC<LineOrdersProps> = ({ orders, period, lineFilt
                   </Td>
                   <Td align="right">
                     <Button variant="secondary" size="sm" icon={Eye} onClick={() => onViewOrder(order)}>
-                      Chek
+                      {L(COMMON.receipt)}
                     </Button>
                   </Td>
                 </tr>

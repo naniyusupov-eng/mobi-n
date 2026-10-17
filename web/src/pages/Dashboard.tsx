@@ -5,6 +5,21 @@ import { useLanguage } from '../context/LanguageContext';
 import { dayKey, formatWeekdayDay, shiftDay } from '../utils/format';
 import { useToday } from '../hooks/useNow';
 import { HeroCard, HeroPill, Money, StatCard } from '../components/ui';
+import { COMMON, Tri, fmt, useL } from '../i18n/tri';
+
+const T = {
+  todayNet: { uz: 'Bugungi sof savdo', uz_cyrl: 'Бугунги соф савдо', ru: 'Чистые продажи за сегодня' },
+  noYesterday: { uz: 'kecha savdo yoʻq', uz_cyrl: 'кеча савдо йўқ', ru: 'вчера продаж не было' },
+  vsYesterday: { uz: '{n}% kechagidan', uz_cyrl: '{n}% кечагидан', ru: '{n}% ко вчера' },
+  ordersCount: { uz: '{n} ta buyurtma', uz_cyrl: '{n} та буюртма', ru: 'заказов: {n}' },
+  returnNote: {
+    uz: 'savdoning {p}% • {n} buyurtma',
+    uz_cyrl: 'савдонинг {p}% • {n} буюртма',
+    ru: '{p}% продаж • заказов: {n}',
+  },
+  debt: { uz: 'Qarzdorlik', uz_cyrl: 'Қарздорлик', ru: 'Задолженность' },
+  debtors: { uz: '{n} ta doʻkonda', uz_cyrl: '{n} та дўконда', ru: 'у {n} магазинов' },
+} satisfies Record<string, Tri>;
 
 interface DashboardProps {
   orders: Order[];
@@ -16,6 +31,7 @@ const net = (o: Order) => o.finalAmount - (o.returnedAmount || 0);
 
 export const Dashboard: React.FC<DashboardProps> = ({ orders, totalDebt, debtorsCount }) => {
   const { lang } = useLanguage();
+  const L = useL();
   const today = useToday(); // Tashkent day; rolls over by itself at midnight
 
   // Today's figures (cancelled orders excluded) and yesterday's net for the trend
@@ -52,40 +68,39 @@ export const Dashboard: React.FC<DashboardProps> = ({ orders, totalDebt, debtors
     <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
       <HeroCard
         icon={TrendingUp}
-        label="Bugungi sof savdo"
+        label={L(T.todayNet)}
         value={<Money value={stats.todayNet} />}
         badge={<HeroPill>{formatWeekdayDay(today, lang)}</HeroPill>}
       >
         <HeroPill solid>
           {trend === null ? (
-            'kecha savdo yoʻq'
+            L(T.noYesterday)
           ) : (
             <>
               {trend >= 0 ? <ArrowUpRight className="w-3.5 h-3.5" /> : <ArrowDownRight className="w-3.5 h-3.5" />}
-              {trend >= 0 ? '+' : ''}
-              {trend}% kechagidan
+              {fmt(L(T.vsYesterday), { n: `${trend >= 0 ? '+' : ''}${trend}` })}
             </>
           )}
         </HeroPill>
         <HeroPill>
           <ShoppingBag className="w-3.5 h-3.5" />
-          {stats.todayCount} ta buyurtma
+          {fmt(L(T.ordersCount), { n: stats.todayCount })}
         </HeroPill>
       </HeroCard>
       <StatCard
         icon={RotateCcw}
         tone="red"
-        label="Vozvrat"
+        label={L(COMMON.returns)}
         value={<Money value={stats.todayReturned} />}
-        note={`savdoning ${returnShare}% • ${stats.todayReturnOrders} buyurtma`}
+        note={fmt(L(T.returnNote), { p: returnShare, n: stats.todayReturnOrders })}
         className="min-w-0"
       />
       <StatCard
         icon={Wallet}
         tone="amber"
-        label="Qarzdorlik"
+        label={L(T.debt)}
         value={<Money value={totalDebt} />}
-        note={`${debtorsCount} ta doʻkonda`}
+        note={fmt(L(T.debtors), { n: debtorsCount })}
         className="min-w-0"
       />
     </div>

@@ -6,15 +6,20 @@ import { formatSum } from './ui';
 import { useLanguage } from '../context/LanguageContext';
 import { useNow } from '../hooks/useNow';
 import { BUSINESS_TZ, dayKey, formatWeekdayDay } from '../utils/format';
+import { COMMON, useL } from '../i18n/tri';
 
 const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: BUSINESS_TZ, hour: '2-digit', minute: '2-digit' });
 
 /** Live business date and time (Tashkent) */
 const LiveClock: React.FC = () => {
   const { lang } = useLanguage();
+  const L = useL();
   const now = useNow(10_000);
   return (
-    <div className="hidden xl:flex items-center gap-2 h-12 px-4 rounded-full bg-white shadow-card shrink-0 text-sm" title="Toshkent vaqti">
+    <div
+      className="hidden xl:flex items-center gap-2 h-12 px-4 rounded-full bg-white shadow-card shrink-0 text-sm"
+      title={L({ uz: 'Toshkent vaqti', uz_cyrl: 'Тошкент вақти', ru: 'Ташкентское время' })}
+    >
       <CalendarDays className="w-4 h-4 text-brand-500" />
       <span className="font-medium text-ink-700 whitespace-nowrap">{formatWeekdayDay(dayKey(now), lang)}</span>
       <span className="font-semibold text-ink-900 tabular-nums">{timeFmt.format(now)}</span>
@@ -40,6 +45,7 @@ const shopNum = (n?: number) => (n == null ? '' : Number.isInteger(n) ? `№${n}
 
 /** Top bar: page title, global search (shops and orders), new-orders bell, admin */
 export const Header: React.FC<HeaderProps> = ({ title, orders, newOrdersCount, onPick, onBell }) => {
+  const L = useL();
   const [query, setQuery] = useState('');
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -137,7 +143,7 @@ export const Header: React.FC<HeaderProps> = ({ title, orders, newOrdersCount, o
             setOpen(true);
           }}
           onKeyDown={onKeyDown}
-          placeholder="Doʻkon, telefon yoki buyurtma"
+          placeholder={L({ uz: 'Doʻkon, telefon yoki buyurtma', uz_cyrl: 'Дўкон, телефон ёки буюртма', ru: 'Магазин, телефон или заказ' })}
           className="w-full h-12 pl-11 pr-16 rounded-xl2 bg-white shadow-card text-[15px] text-ink-900 placeholder:text-ink-400 outline-none focus:ring-4 focus:ring-brand-50"
         />
         <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-medium text-ink-400 border border-ink-200 rounded-md px-1.5 py-0.5">
@@ -147,9 +153,11 @@ export const Header: React.FC<HeaderProps> = ({ title, orders, newOrdersCount, o
         {open && query.trim().length >= 2 ? (
           <div className="absolute left-0 right-0 top-[calc(100%+8px)] z-40 bg-white rounded-xl2 shadow-pop p-2 max-h-[420px] overflow-y-auto">
             {clients === null ? (
-              <div className="px-3 py-4 text-sm text-ink-400">Yuklanmoqda…</div>
+              <div className="px-3 py-4 text-sm text-ink-400">{L(COMMON.loading)}</div>
             ) : results.length === 0 ? (
-              <div className="px-3 py-4 text-sm text-ink-400">Hech narsa topilmadi</div>
+              <div className="px-3 py-4 text-sm text-ink-400">
+                {L({ uz: 'Hech narsa topilmadi', uz_cyrl: 'Ҳеч нарса топилмади', ru: 'Ничего не найдено' })}
+              </div>
             ) : (
               results.map((r, i) => {
                 const isClient = r.kind === 'client';
@@ -180,7 +188,7 @@ export const Header: React.FC<HeaderProps> = ({ title, orders, newOrdersCount, o
                           ? [r.client.lineCode && r.client.day ? `${r.client.lineCode}-${r.client.day}` : '', shopNum(r.client.num), r.client.phone]
                               .filter(Boolean)
                               .join(' • ')
-                          : `Buyurtma #${r.order.id.slice(-6).toUpperCase()} • ${formatSum(r.order.finalAmount)} soʻm`}
+                          : `${L({ uz: 'Buyurtma', uz_cyrl: 'Буюртма', ru: 'Заказ' })} #${r.order.id.slice(-6).toUpperCase()} • ${formatSum(r.order.finalAmount)} ${L(COMMON.som)}`}
                       </span>
                     </span>
                   </button>
@@ -195,7 +203,7 @@ export const Header: React.FC<HeaderProps> = ({ title, orders, newOrdersCount, o
 
       <button
         onClick={onBell}
-        title="Yangi buyurtmalar"
+        title={L({ uz: 'Yangi buyurtmalar', uz_cyrl: 'Янги буюртмалар', ru: 'Новые заказы' })}
         className="relative w-12 h-12 rounded-full bg-white shadow-card text-ink-500 hover:text-ink-900 flex items-center justify-center shrink-0"
       >
         <Bell className="w-5 h-5" />
@@ -206,7 +214,7 @@ export const Header: React.FC<HeaderProps> = ({ title, orders, newOrdersCount, o
         ) : null}
       </button>
       <div
-        title="Administrator"
+        title={L({ uz: 'Administrator', uz_cyrl: 'Администратор', ru: 'Администратор' })}
         className="w-12 h-12 rounded-full bg-brand-500 text-white font-bold flex items-center justify-center shrink-0"
       >
         A

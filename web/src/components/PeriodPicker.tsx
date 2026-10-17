@@ -4,6 +4,7 @@ import { CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useToday } from '../hooks/useNow';
 import { WEEKDAYS_SHORT, formatDay, formatMonth, monthName, shiftDay, shiftMonth, weekdayOf } from '../utils/format';
+import { COMMON, Tri, useL } from '../i18n/tri';
 
 export type Period = { kind: 'all' } | { kind: 'month'; month: string } | { kind: 'day'; day: string };
 export type PeriodKind = Period['kind'];
@@ -37,7 +38,21 @@ export const usePeriod = (initial: PeriodKind = 'month') => {
   return [period, setPeriod] as const;
 };
 
-const KIND_LABEL:Record<PeriodKind, string> = { all: 'Hammasi', month: 'Oy', day: 'Kun' };
+const KIND_LABEL: Record<PeriodKind, Tri> = {
+  all: COMMON.all,
+  month: { uz: 'Oy', uz_cyrl: 'Ой', ru: 'Месяц' },
+  day: { uz: 'Kun', uz_cyrl: 'Кун', ru: 'День' },
+};
+
+const T = {
+  prevMonth: { uz: 'Oldingi oy', uz_cyrl: 'Олдинги ой', ru: 'Предыдущий месяц' },
+  nextMonth: { uz: 'Keyingi oy', uz_cyrl: 'Кейинги ой', ru: 'Следующий месяц' },
+  prevYear: { uz: 'Oldingi yil', uz_cyrl: 'Олдинги йил', ru: 'Предыдущий год' },
+  nextYear: { uz: 'Keyingi yil', uz_cyrl: 'Кейинги йил', ru: 'Следующий год' },
+  prevDay: { uz: 'Oldingi kun', uz_cyrl: 'Олдинги кун', ru: 'Предыдущий день' },
+  nextDay: { uz: 'Keyingi kun', uz_cyrl: 'Кейинги кун', ru: 'Следующий день' },
+  thisMonth: { uz: 'Shu oy', uz_cyrl: 'Шу ой', ru: 'Этот месяц' },
+} satisfies Record<string, Tri>;
 
 const navBtn =
   'w-9 h-9 rounded-xl flex items-center justify-center text-ink-500 hover:bg-ink-100 hover:text-ink-900 transition disabled:opacity-30 disabled:pointer-events-none';
@@ -47,6 +62,7 @@ const navBtn =
 // Monday-first month grid; future days are disabled
 const DayGrid: React.FC<{ value: string; today: string; onPick: (day: string) => void }> = ({ value, today, onPick }) => {
   const { lang } = useLanguage();
+  const L = useL();
   const [view, setView] = useState(value.slice(0, 7));
   const first = `${view}-01`;
   const lead = (weekdayOf(first) + 6) % 7; // empty cells before the 1st
@@ -61,7 +77,7 @@ const DayGrid: React.FC<{ value: string; today: string; onPick: (day: string) =>
   return (
     <div className="w-[296px]">
       <div className="flex items-center justify-between mb-2">
-        <button type="button" className={navBtn} onClick={() => setView(shiftMonth(view, -1))} title="Oldingi oy">
+        <button type="button" className={navBtn} onClick={() => setView(shiftMonth(view, -1))} title={L(T.prevMonth)}>
           <ChevronLeft className="w-[18px] h-[18px]" />
         </button>
         <span className="text-sm font-semibold text-ink-900">{formatMonth(view, lang)}</span>
@@ -70,7 +86,7 @@ const DayGrid: React.FC<{ value: string; today: string; onPick: (day: string) =>
           className={navBtn}
           onClick={() => setView(shiftMonth(view, 1))}
           disabled={view >= today.slice(0, 7)}
-          title="Keyingi oy"
+          title={L(T.nextMonth)}
         >
           <ChevronRight className="w-[18px] h-[18px]" />
         </button>
@@ -111,7 +127,7 @@ const DayGrid: React.FC<{ value: string; today: string; onPick: (day: string) =>
         onClick={() => onPick(today)}
         className="mt-2 w-full h-9 rounded-xl text-[13px] font-semibold text-brand-500 hover:bg-brand-50 transition"
       >
-        Bugun
+        {L(COMMON.today)}
       </button>
     </div>
   );
@@ -120,17 +136,18 @@ const DayGrid: React.FC<{ value: string; today: string; onPick: (day: string) =>
 // Year header with 12 months; future months are disabled
 const MonthGrid: React.FC<{ value: string; today: string; onPick: (month: string) => void }> = ({ value, today, onPick }) => {
   const { lang } = useLanguage();
+  const L = useL();
   const [year, setYear] = useState(Number(value.slice(0, 4)));
   const thisMonth = today.slice(0, 7);
 
   return (
     <div className="w-[296px]">
       <div className="flex items-center justify-between mb-2">
-        <button type="button" className={navBtn} onClick={() => setYear(year - 1)} title="Oldingi yil">
+        <button type="button" className={navBtn} onClick={() => setYear(year - 1)} title={L(T.prevYear)}>
           <ChevronLeft className="w-[18px] h-[18px]" />
         </button>
         <span className="text-sm font-semibold text-ink-900 tabular-nums">{year}</span>
-        <button type="button" className={navBtn} onClick={() => setYear(year + 1)} disabled={year >= Number(today.slice(0, 4))} title="Keyingi yil">
+        <button type="button" className={navBtn} onClick={() => setYear(year + 1)} disabled={year >= Number(today.slice(0, 4))} title={L(T.nextYear)}>
           <ChevronRight className="w-[18px] h-[18px]" />
         </button>
       </div>
@@ -162,7 +179,7 @@ const MonthGrid: React.FC<{ value: string; today: string; onPick: (month: string
         onClick={() => onPick(thisMonth)}
         className="mt-2 w-full h-9 rounded-xl text-[13px] font-semibold text-brand-500 hover:bg-brand-50 transition"
       >
-        Shu oy
+        {L(T.thisMonth)}
       </button>
     </div>
   );
@@ -180,6 +197,7 @@ interface PeriodPickerProps {
 /** [Hammasi | Oy | Kun]  ‹ 📅 12 okt 2026 › — the label opens a real calendar */
 export const PeriodPicker: React.FC<PeriodPickerProps> = ({ value, onChange, kinds = ['all', 'month', 'day'] }) => {
   const { lang } = useLanguage();
+  const L = useL();
   const today = useToday();
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
@@ -220,7 +238,7 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({ value, onChange, kin
       ? formatMonth(value.month, lang)
       : value.kind === 'day'
       ? value.day === today
-        ? `Bugun, ${formatDay(value.day, lang)}`
+        ? `${L(COMMON.today)}, ${formatDay(value.day, lang)}`
         : formatDay(value.day, lang)
       : '';
 
@@ -238,7 +256,7 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({ value, onChange, kin
                 k === value.kind ? 'bg-brand-500 text-white' : 'text-ink-500 hover:text-ink-900 hover:bg-ink-100'
               )}
             >
-              {KIND_LABEL[k]}
+              {L(KIND_LABEL[k])}
             </button>
           ))}
         </div>
@@ -246,7 +264,7 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({ value, onChange, kin
 
       {value.kind !== 'all' && (
         <div ref={boxRef} className="relative inline-flex items-center gap-1 p-1 bg-white rounded-xl2 shadow-card">
-          <button type="button" onClick={() => step(-1)} title={value.kind === 'day' ? 'Oldingi kun' : 'Oldingi oy'} className={navBtn}>
+          <button type="button" onClick={() => step(-1)} title={L(value.kind === 'day' ? T.prevDay : T.prevMonth)} className={navBtn}>
             <ChevronLeft className="w-[18px] h-[18px]" />
           </button>
           <button
@@ -264,7 +282,7 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({ value, onChange, kin
             type="button"
             onClick={() => step(1)}
             disabled={atEnd}
-            title={value.kind === 'day' ? 'Keyingi kun' : 'Keyingi oy'}
+            title={L(value.kind === 'day' ? T.nextDay : T.nextMonth)}
             className={navBtn}
           >
             <ChevronRight className="w-[18px] h-[18px]" />

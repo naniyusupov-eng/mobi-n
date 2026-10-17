@@ -5,6 +5,7 @@
 import React, { useEffect } from 'react';
 import clsx from 'clsx';
 import { X, LucideIcon } from 'lucide-react';
+import { COMMON, useL } from '../i18n/tri';
 
 export type Tone = 'brand' | 'green' | 'red' | 'amber' | 'violet' | 'gray';
 
@@ -183,7 +184,9 @@ export const SearchInput: React.FC<{
   placeholder: string;
   className?: string;
   icon: LucideIcon;
-}> = ({ value, onChange, placeholder, className, icon: Icon }) => (
+}> = ({ value, onChange, placeholder, className, icon: Icon }) => {
+  const L = useL();
+  return (
   <div className={clsx('relative', className)}>
     <Icon className="w-[18px] h-[18px] absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none" />
     <input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className={clsx(fieldBase, 'pl-11 pr-10')} />
@@ -192,13 +195,14 @@ export const SearchInput: React.FC<{
         type="button"
         onClick={() => onChange('')}
         className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-full text-ink-400 hover:text-ink-700"
-        aria-label="Tozalash"
+        aria-label={L({ uz: 'Tozalash', uz_cyrl: 'Тозалаш', ru: 'Очистить' })}
       >
         <X className="w-4 h-4" />
       </button>
     ) : null}
   </div>
-);
+  );
+};
 
 export const Field: React.FC<
   React.InputHTMLAttributes<HTMLInputElement> & { label: string; hint?: string; suffix?: string }
@@ -352,6 +356,7 @@ export const Modal: React.FC<{
   footer?: React.ReactNode;
   width?: 'sm' | 'md' | 'lg';
 }> = ({ open, onClose, title, subtitle, children, footer, width = 'md' }) => {
+  const L = useL();
   useEffect(() => {
     if (!open) return;
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
@@ -377,7 +382,8 @@ export const Modal: React.FC<{
             type="button"
             onClick={onClose}
             className="w-9 h-9 rounded-full bg-ink-100 text-ink-500 hover:text-ink-900 flex items-center justify-center"
-            aria-label="Yopish"
+            aria-label={L(COMMON.close)}
+            title={L(COMMON.close)}
           >
             <X className="w-[18px] h-[18px]" />
           </button>
@@ -391,9 +397,12 @@ export const Modal: React.FC<{
 
 /** Money as "1 250 000 soʻm" (spaces as thousands separators) */
 export const formatSum = (n: number) => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ' ');
-export const Money: React.FC<{ value: number; className?: string; unit?: boolean }> = ({ value, className, unit = true }) => (
-  <span className={clsx('tabular-nums whitespace-nowrap', className)}>
-    {formatSum(value)}
-    {unit ? <span className="text-[0.8em] font-medium opacity-60"> soʻm</span> : null}
-  </span>
-);
+export const Money: React.FC<{ value: number; className?: string; unit?: boolean }> = ({ value, className, unit = true }) => {
+  const L = useL();
+  return (
+    <span className={clsx('tabular-nums whitespace-nowrap', className)}>
+      {formatSum(value)}
+      {unit ? <span className="text-[0.8em] font-medium opacity-60"> {L(COMMON.som)}</span> : null}
+    </span>
+  );
+};

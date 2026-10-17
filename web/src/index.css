@@ -46,6 +46,16 @@
   #print-section, #print-section * {
     visibility: visible;
   }
+  /* The invoice sits in a fixed, height-capped modal inside a screen-high app shell;
+     release those limits so a long invoice continues onto the next pages */
+  html, body, #root, #root * {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .fixed:has(#print-section) {
+    position: static !important;
+  }
   #print-section {
     position: absolute;
     left: 0;

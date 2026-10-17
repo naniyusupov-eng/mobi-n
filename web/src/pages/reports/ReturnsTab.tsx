@@ -6,24 +6,51 @@ import { useLanguage } from '../../context/LanguageContext';
 import { formatDate, formatDateTime, formatDay, formatMonth } from '../../utils/format';
 import { Card, CardTitle, EmptyState, Money, Pill, Table, Td, Th, Tone, formatSum } from '../../components/ui';
 import { Period, inPeriod } from '../../components/PeriodPicker';
+import { COMMON, Tri, UNIT_LABELS, fmt, useL } from '../../i18n/tri';
 
 const API = 'http://localhost:3000/api/v1';
 
-/** Icon and colour for each return reason (reasons come from ReturnModal's RETURN_REASONS) */
-const reasonStyle = (reason: string): { icon: LucideIcon; tone: Tone } => {
+const T = {
+  shopClosed: { uz: 'Doʻkon yopiq', uz_cyrl: 'Дўкон ёпиқ', ru: 'Магазин закрыт' },
+  noMoney: { uz: 'Pul yetmadi', uz_cyrl: 'Пул етмади', ru: 'Не хватило денег' },
+  notNeeded: { uz: 'Kerak emas', uz_cyrl: 'Керак эмас', ru: 'Не нужно' },
+  undoConfirm: {
+    uz: '{shop}: {sum} soʻm vozvratni bekor qilasizmi? Tovar ombordan qayta ayiriladi.',
+    uz_cyrl: '{shop}: {sum} сўм возвратни бекор қиласизми? Товар омбордан қайта айирилади.',
+    ru: '{shop}: отменить возврат на {sum} сум? Товар снова будет списан со склада.',
+  },
+  returnsTitle: { uz: 'Vozvratlar', uz_cyrl: 'Возвратлар', ru: 'Возвраты' },
+  subtitle: {
+    uz: 'Xato kiritilgan vozvratni bekor qilish mumkin — tovar ombordan qayta ayiriladi',
+    uz_cyrl: 'Хато киритилган возвратни бекор қилиш мумкин — товар омбордан қайта айирилади',
+    ru: 'Ошибочный возврат можно отменить — товар снова будет списан со склада',
+  },
+  nPcs: { uz: '{n} ta', uz_cyrl: '{n} та', ru: '{n} шт' },
+  emptyDay: { uz: 'Bu kunda vozvrat yoʻq', uz_cyrl: 'Бу кунда возврат йўқ', ru: 'В этот день возвратов нет' },
+  emptyMonth: { uz: 'Bu oyda vozvrat yoʻq', uz_cyrl: 'Бу ойда возврат йўқ', ru: 'В этом месяце возвратов нет' },
+  salesDay: { uz: 'Savdo kuni', uz_cyrl: 'Савдо куни', ru: 'День продажи' },
+  reason: { uz: 'Sabab', uz_cyrl: 'Сабаб', ru: 'Причина' },
+  goods: { uz: 'Tovarlar', uz_cyrl: 'Товарлар', ru: 'Товары' },
+  entered: { uz: 'Kiritilgan', uz_cyrl: 'Киритилган', ru: 'Внесён' },
+  undo: { uz: 'Vozvratni bekor qilish', uz_cyrl: 'Возвратни бекор қилиш', ru: 'Отменить возврат' },
+};
+
+/** Icon, colour and translated label for each return reason (reasons come from ReturnModal's RETURN_REASONS) */
+const reasonStyle = (reason: string): { icon: LucideIcon; tone: Tone; label?: Tri } => {
   const r = reason.toLowerCase();
-  if (r.includes('yopiq')) return { icon: DoorClosed, tone: 'violet' };
-  if (r.includes('pul')) return { icon: Banknote, tone: 'amber' };
-  if (r.includes('kerak emas')) return { icon: PackageX, tone: 'red' };
+  if (r.includes('yopiq')) return { icon: DoorClosed, tone: 'violet', label: T.shopClosed };
+  if (r.includes('pul')) return { icon: Banknote, tone: 'amber', label: T.noMoney };
+  if (r.includes('kerak emas')) return { icon: PackageX, tone: 'red', label: T.notNeeded };
   return { icon: CircleHelp, tone: 'gray' };
 };
 
 const ReasonPill: React.FC<{ reason: string; children?: React.ReactNode }> = ({ reason, children }) => {
-  const { icon: Icon, tone } = reasonStyle(reason);
+  const L = useL();
+  const { icon: Icon, tone, label } = reasonStyle(reason);
   return (
     <Pill tone={tone}>
       <Icon className="w-3.5 h-3.5" />
-      {reason}
+      {label ? L(label) : reason}
       {children}
     </Pill>
   );
@@ -37,6 +64,7 @@ interface ReturnsTabProps {
 // Returns of a month or a day, by line, with reasons; a mistaken entry can be undone
 export const ReturnsTab: React.FC<ReturnsTabProps> = ({ period, refreshKey }) => {
   const { lang } = useLanguage();
+  const L = useL();
 
   const month = period.kind === 'day' ? period.day.slice(0, 7) : period.kind === 'month' ? period.month : '';
   const [lines, setLines] = useState<Line[]>([]);
@@ -54,15 +82,19 @@ export const ReturnsTab: React.FC<ReturnsTabProps> = ({ period, refreshKey }) =>
   }, []);
 
   useEffect(() => {
+    let alive = true; // ignore answers for a month or line that is no longer selected
     const line = lineFilter ? `&line=${encodeURIComponent(lineFilter)}` : '';
     fetch(`${API}/returns?month=${month}${line}`)
       .then((r) => r.json())
-      .then((d) => setMonthReturns(d.returns || []))
+      .then((d) => alive && setMonthReturns(d.returns || []))
       .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [month, lineFilter, reload, refreshKey]);
 
   const handleUndo = async (r: OrderReturn) => {
-    if (!window.confirm(`${r.shopName}: ${formatSum(r.total)} soʻm vozvratni bekor qilasizmi? Tovar ombordan qayta ayiriladi.`)) return;
+    if (!window.confirm(fmt(L(T.undoConfirm), { shop: r.shopName, sum: formatSum(r.total) }))) return;
     await fetch(`${API}/returns/${r.id}`, { method: 'DELETE' });
     setReload((n) => n + 1);
   };
@@ -86,7 +118,7 @@ export const ReturnsTab: React.FC<ReturnsTabProps> = ({ period, refreshKey }) =>
                   active ? 'bg-brand-500 text-white' : 'bg-white text-ink-700 shadow-card hover:text-brand-500'
                 )}
               >
-                {l.code || 'Barcha liniyalar'}
+                {l.code || L(COMMON.allLines)}
               </button>
             );
           })}
@@ -97,31 +129,31 @@ export const ReturnsTab: React.FC<ReturnsTabProps> = ({ period, refreshKey }) =>
         <CardTitle
           title={
             <span className="flex items-center gap-2">
-              Vozvratlar {lineFilter && <Pill tone="brand">{lineFilter}</Pill>}
+              {L(T.returnsTitle)} {lineFilter && <Pill tone="brand">{lineFilter}</Pill>}
               <Pill tone="gray">{periodLabel}</Pill>
             </span>
           }
-          subtitle="Xato kiritilgan vozvratni bekor qilish mumkin — tovar ombordan qayta ayiriladi"
+          subtitle={L(T.subtitle)}
           action={
             <span className="text-sm text-ink-500 whitespace-nowrap">
-              {returns.length} ta • <Money value={total} className="font-semibold text-rose-600" />
+              {fmt(L(T.nPcs), { n: returns.length })} • <Money value={total} className="font-semibold text-rose-600" />
             </span>
           }
         />
 
         {returns.length === 0 ? (
-          <EmptyState icon={RotateCcw} title={period.kind === 'day' ? 'Bu kunda vozvrat yoʻq' : 'Bu oyda vozvrat yoʻq'} />
+          <EmptyState icon={RotateCcw} title={L(period.kind === 'day' ? T.emptyDay : T.emptyMonth)} />
         ) : (
           <Table>
             <thead>
               <tr>
-                <Th>Savdo kuni</Th>
-                <Th>Marshrut</Th>
-                <Th>Doʻkon</Th>
-                <Th>Sabab</Th>
-                <Th>Tovarlar</Th>
-                <Th align="right">Summa</Th>
-                <Th>Kiritilgan</Th>
+                <Th>{L(T.salesDay)}</Th>
+                <Th>{L(COMMON.route)}</Th>
+                <Th>{L(COMMON.shop)}</Th>
+                <Th>{L(T.reason)}</Th>
+                <Th>{L(T.goods)}</Th>
+                <Th align="right">{L(COMMON.sum)}</Th>
+                <Th>{L(T.entered)}</Th>
                 <Th />
               </tr>
             </thead>
@@ -149,7 +181,7 @@ export const ReturnsTab: React.FC<ReturnsTabProps> = ({ period, refreshKey }) =>
                   <Td className="text-ink-500">
                     {r.items.map((i) => (
                       <div key={`${i.productId}-${i.unit}`} className="whitespace-nowrap">
-                        {i.productName} — {i.quantity} {i.unit}
+                        {i.productName} — {i.quantity} {UNIT_LABELS[i.unit] ? L(UNIT_LABELS[i.unit]) : i.unit}
                       </div>
                     ))}
                   </Td>
@@ -161,8 +193,8 @@ export const ReturnsTab: React.FC<ReturnsTabProps> = ({ period, refreshKey }) =>
                     <button
                       type="button"
                       onClick={() => handleUndo(r)}
-                      title="Vozvratni bekor qilish"
-                      aria-label="Vozvratni bekor qilish"
+                      title={L(T.undo)}
+                      aria-label={L(T.undo)}
                       className="w-9 h-9 rounded-full inline-flex items-center justify-center text-ink-400 hover:bg-rose-50 hover:text-rose-600 transition"
                     >
                       <Undo2 className="w-4 h-4" />

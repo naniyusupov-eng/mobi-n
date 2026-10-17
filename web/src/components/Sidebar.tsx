@@ -9,16 +9,17 @@ import {
   Settings,
   LucideIcon,
 } from 'lucide-react';
+import { Tri, useL } from '../i18n/tri';
 
 export type NavPage = 'dashboard' | 'lines' | 'clients' | 'products' | 'reports' | 'settings';
 
-export const PAGE_TITLES: Record<NavPage, string> = {
-  dashboard: 'Asosiy',
-  lines: 'Liniyalar',
-  clients: 'Klientlar',
-  products: 'Tovarlar',
-  reports: 'Hisobotlar',
-  settings: 'Sozlamalar',
+export const PAGE_TITLES: Record<NavPage, Tri> = {
+  dashboard: { uz: 'Asosiy', uz_cyrl: 'Асосий', ru: 'Главная' },
+  lines: { uz: 'Liniyalar', uz_cyrl: 'Линиялар', ru: 'Линии' },
+  clients: { uz: 'Klientlar', uz_cyrl: 'Клиентлар', ru: 'Клиенты' },
+  products: { uz: 'Tovarlar', uz_cyrl: 'Товарлар', ru: 'Товары' },
+  reports: { uz: 'Hisobotlar', uz_cyrl: 'Ҳисоботлар', ru: 'Отчёты' },
+  settings: { uz: 'Sozlamalar', uz_cyrl: 'Созламалар', ru: 'Настройки' },
 };
 
 const MENU: { id: NavPage; icon: LucideIcon }[] = [
@@ -36,6 +37,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, newOrdersCount }) => {
+  const L = useL();
   const item = (id: NavPage, Icon: LucideIcon) => {
     const active = activePage === id;
     const badge = id === 'dashboard' && newOrdersCount > 0 ? newOrdersCount : 0; // new orders are on the main page
@@ -43,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, newO
       <button
         key={id}
         onClick={() => onPageChange(id)}
-        title={PAGE_TITLES[id]}
+        title={L(PAGE_TITLES[id])}
         className={clsx(
           'relative w-full flex items-center gap-3 h-11 px-3.5 rounded-xl2 text-[15px] font-medium transition',
           'justify-center lg:justify-start',
@@ -51,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, newO
         )}
       >
         <Icon className="w-5 h-5 shrink-0" strokeWidth={2} />
-        <span className="hidden lg:inline">{PAGE_TITLES[id]}</span>
+        <span className="hidden lg:inline">{L(PAGE_TITLES[id])}</span>
         {badge ? (
           <>
             <span className="hidden lg:inline ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-bold flex items-center justify-center tabular-nums">
@@ -72,7 +74,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, newO
         </div>
         <div className="hidden lg:block min-w-0">
           <div className="text-[19px] font-bold tracking-tight text-ink-900 leading-tight">Mobi_R</div>
-          <div className="text-xs text-ink-400 truncate">Savdo boshqaruvi</div>
+          <div className="text-xs text-ink-400 truncate">
+            {L({ uz: 'Savdo boshqaruvi', uz_cyrl: 'Савдо бошқаруви', ru: 'Управление продажами' })}
+          </div>
         </div>
       </div>
 

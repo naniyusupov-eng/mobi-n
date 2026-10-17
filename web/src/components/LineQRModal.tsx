@@ -3,6 +3,28 @@ import { QRCodeSVG } from 'qrcode.react';
 import { Printer, Route, ScanLine } from 'lucide-react';
 import { Line } from '../types';
 import { Button, Modal, Pill } from './ui';
+import { COMMON, Tri, fmt, useL } from '../i18n/tri';
+
+const T = {
+  title: { uz: 'Liniya QR kodi', uz_cyrl: 'Линия QR коди', ru: 'QR-код линии' },
+  subtitle: {
+    uz: 'Agent mobil ilovada skanerlab liniyaga ulanadi',
+    uz_cyrl: 'Агент мобил иловада сканерлаб линияга уланади',
+    ru: 'Агент сканирует его в мобильном приложении и подключается к линии',
+  },
+  print: { uz: 'Chop etish', uz_cyrl: 'Чоп этиш', ru: 'Печать' },
+  line: { uz: 'liniya', uz_cyrl: 'линия', ru: 'линия' },
+  shopsRoute: {
+    uz: '{n} ta doʻkon • 6 kunlik marshrut',
+    uz_cyrl: '{n} та дўкон • 6 кунлик маршрут',
+    ru: '{n} магазинов • маршрут на 6 дней',
+  },
+  scanHint: {
+    uz: 'Mobi_R ilovasida skanerlang va liniyaga ulaning',
+    uz_cyrl: 'Mobi_R иловасида сканерланг ва линияга уланинг',
+    ru: 'Отсканируйте в приложении Mobi_R и подключитесь к линии',
+  },
+} satisfies Record<string, Tri>;
 
 interface LineQRModalProps {
   line: Line | null;
@@ -12,6 +34,7 @@ interface LineQRModalProps {
 
 // QR belongs to the line: any agent scans it in the mobile app and works with that line's routes.
 export const LineQRModal: React.FC<LineQRModalProps> = ({ line, clientsCount, onClose }) => {
+  const L = useL();
   if (!line) return null;
 
   // Payload is compatible with the mobile QRScannerScreen (needs id + name)
@@ -29,15 +52,15 @@ export const LineQRModal: React.FC<LineQRModalProps> = ({ line, clientsCount, on
       open
       onClose={onClose}
       width="sm"
-      title="Liniya QR kodi"
-      subtitle="Agent mobil ilovada skanerlab liniyaga ulanadi"
+      title={L(T.title)}
+      subtitle={L(T.subtitle)}
       footer={
         <>
           <Button variant="ghost" onClick={onClose} className="no-print">
-            Yopish
+            {L(COMMON.close)}
           </Button>
           <Button icon={Printer} onClick={() => window.print()} className="no-print">
-            Chop etish
+            {L(T.print)}
           </Button>
         </>
       }
@@ -50,17 +73,15 @@ export const LineQRModal: React.FC<LineQRModalProps> = ({ line, clientsCount, on
             </div>
             <div className="text-left min-w-0">
               <div className="text-[15px] font-bold leading-tight truncate">Mobi_R</div>
-              <div className="text-[11px] font-medium text-white/80 uppercase tracking-wide">Liniya QR kodi</div>
+              <div className="text-[11px] font-medium text-white/80 uppercase tracking-wide">{L(T.title)}</div>
             </div>
           </div>
 
           <div className="pt-5 px-5">
             <div className="text-[44px] leading-none font-bold tracking-tight tabular-nums text-ink-900">{line.code}</div>
             <div className="mt-2.5 flex flex-wrap justify-center gap-1.5">
-              <Pill tone="brand">liniya</Pill>
-              <Pill>
-                {clientsCount} ta doʻkon • 6 kunlik marshrut
-              </Pill>
+              <Pill tone="brand">{L(T.line)}</Pill>
+              <Pill>{fmt(L(T.shopsRoute), { n: clientsCount })}</Pill>
             </div>
           </div>
 
@@ -70,7 +91,7 @@ export const LineQRModal: React.FC<LineQRModalProps> = ({ line, clientsCount, on
 
           <div className="w-full bg-ink-100/70 py-2.5 px-4 text-[11px] font-medium text-ink-500 flex items-center justify-center gap-1.5">
             <ScanLine className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Mobi_R ilovasida skanerlang va liniyaga ulaning</span>
+            <span className="truncate">{L(T.scanHint)}</span>
           </div>
         </div>
       </div>

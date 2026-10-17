@@ -6,17 +6,54 @@ import { LineQRModal } from '../components/LineQRModal';
 import { Card, EmptyState, Money, Pill, StatCard, formatSum } from '../components/ui';
 import { useToday } from '../hooks/useNow';
 import { weekdayOf } from '../utils/format';
+import { COMMON, Tri, WEEKDAY_LABELS, WEEKDAY_SHORT, fmt, useL } from '../i18n/tri';
 
 const API = 'http://localhost:3000/api/v1';
 
-const DAYS = [
-  { day: 1, short: 'Du', label: 'Dushanba' },
-  { day: 2, short: 'Se', label: 'Seshanba' },
-  { day: 3, short: 'Ch', label: 'Chorshanba' },
-  { day: 4, short: 'Pa', label: 'Payshanba' },
-  { day: 5, short: 'Ju', label: 'Juma' },
-  { day: 6, short: 'Sh', label: 'Shanba' },
-];
+const DAYS = [1, 2, 3, 4, 5, 6].map((day) => ({ day, short: WEEKDAY_SHORT[day], label: WEEKDAY_LABELS[day] }));
+
+const T = {
+  totalShops: { uz: 'Jami doʻkonlar', uz_cyrl: 'Жами дўконлар', ru: 'Всего магазинов' },
+  byAllLines: { uz: 'Barcha liniyalar boʻyicha', uz_cyrl: 'Барча линиялар бўйича', ru: 'По всем линиям' },
+  lines: { uz: 'Liniyalar', uz_cyrl: 'Линиялар', ru: 'Линии' },
+  sixDayRoute: { uz: 'Har biri 6 kunlik marshrut', uz_cyrl: 'Ҳар бири 6 кунлик маршрут', ru: 'У каждой маршрут на 6 дней' },
+  totalDebt: { uz: 'Umumiy qarz', uz_cyrl: 'Умумий қарз', ru: 'Общий долг' },
+  debtorShops: { uz: '{n} ta doʻkon qarzdor', uz_cyrl: '{n} та дўкон қарздор', ru: 'Должников: {n}' },
+  countPcs: { uz: '{n} ta', uz_cyrl: '{n} та', ru: '{n}' },
+  sectionTitle: { uz: 'Liniyalar va marshrutlar', uz_cyrl: 'Линиялар ва маршрутлар', ru: 'Линии и маршруты' },
+  sectionHint: {
+    uz: 'Liniyani tanlang — hafta kunlari pastda ochiladi',
+    uz_cyrl: 'Линияни танланг — ҳафта кунлари пастда очилади',
+    ru: 'Выберите линию — дни недели откроются ниже',
+  },
+  sundayNoRoute: { uz: 'Yakshanba — marshrut yoʻq', uz_cyrl: 'Якшанба — маршрут йўқ', ru: 'Воскресенье — маршрута нет' },
+  noLines: { uz: 'Liniyalar yoʻq', uz_cyrl: 'Линиялар йўқ', ru: 'Линий нет' },
+  noLinesHint: {
+    uz: 'Serverda hali birorta liniya qoʻshilmagan.',
+    uz_cyrl: 'Серверда ҳали бирорта линия қўшилмаган.',
+    ru: 'На сервере пока не добавлено ни одной линии.',
+  },
+  pickLine: {
+    uz: 'Hafta kunlarini koʻrish uchun yuqoridan liniyani tanlang',
+    uz_cyrl: 'Ҳафта кунларини кўриш учун юқоридан линияни танланг',
+    ru: 'Выберите линию выше, чтобы увидеть дни недели',
+  },
+  lineWeekDays: { uz: '{code} liniya — hafta kunlari', uz_cyrl: '{code} линия — ҳафта кунлари', ru: 'Линия {code} — дни недели' },
+  hasDebtors: { uz: 'Qarzdor doʻkonlar bor', uz_cyrl: 'Қарздор дўконлар бор', ru: 'Есть магазины с долгом' },
+  lineName: { uz: '{code} liniya', uz_cyrl: '{code} линия', ru: 'Линия {code}' },
+  shopsPickDay: {
+    uz: '{n} ta doʻkon · hafta kunini tanlang',
+    uz_cyrl: '{n} та дўкон · ҳафта кунини танланг',
+    ru: 'Магазинов: {n} · выберите день недели',
+  },
+  qrTitle: {
+    uz: '{code} liniya QR kodi — agent shu kod bilan kiradi',
+    uz_cyrl: '{code} линия QR коди — агент шу код билан киради',
+    ru: 'QR-код линии {code} — агент входит по этому коду',
+  },
+  dayTitle: { uz: '{n} ta doʻkon', uz_cyrl: '{n} та дўкон', ru: 'магазинов: {n}' },
+  noDebt: { uz: 'Qarz yoʻq', uz_cyrl: 'Қарз йўқ', ru: 'Долгов нет' },
+} satisfies Record<string, Tri>;
 
 // Route day of a Tashkent date: 1 = Dushanba ... 6 = Shanba, null on Sunday
 const routeDayOf = (day: string) => weekdayOf(day) || null;
@@ -27,13 +64,14 @@ interface LineStats {
 }
 
 export const Lines: React.FC<{ onOpenRoute: (line: string, day: number) => void }> = ({ onOpenRoute }) => {
+  const L = useL();
   const today = routeDayOf(useToday()); // live: switches at midnight
   const [lines, setLines] = useState<Line[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [debtors, setDebtors] = useState<Client[]>([]);
   const [debt, setDebt] = useState({ total: 0, count: 0 });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [error, setError] = useState<Tri | null>(null);
   const [qrLine, setQrLine] = useState<Line | null>(null);
   const [openLine, setOpenLine] = useState<string | null>(null); // the card showing its week days
 
@@ -47,9 +85,9 @@ export const Lines: React.FC<{ onOpenRoute: (line: string, day: number) => void 
         if (!alive) return;
         setLines(l.lines || []);
         setClients(c.clients || []);
-        setError('');
+        setError(null);
       })
-      .catch(() => alive && setError('Maʼlumotlarni yuklab boʻlmadi. Birozdan soʻng sahifani yangilang.'))
+      .catch(() => alive && setError(COMMON.loadError))
       .finally(() => alive && setLoading(false));
     fetch(`${API}/debts`)
       .then((r) => r.json())
@@ -97,41 +135,52 @@ export const Lines: React.FC<{ onOpenRoute: (line: string, day: number) => void 
       {error && (
         <div className="flex items-center gap-2.5 px-4 py-3 rounded-xl2 bg-rose-50 text-sm text-rose-600">
           <AlertCircle className="w-[18px] h-[18px] shrink-0" />
-          <span className="min-w-0">{error}</span>
+          <span className="min-w-0">{L(error)}</span>
         </div>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <StatCard icon={Store} label="Jami doʻkonlar" value={`${formatSum(clients.length)} ta`} note="Barcha liniyalar boʻyicha" />
-        <StatCard icon={Route} tone="violet" label="Liniyalar" value={`${lines.length} ta`} note="Har biri 6 kunlik marshrut" />
+        <StatCard
+          icon={Store}
+          label={L(T.totalShops)}
+          value={fmt(L(T.countPcs), { n: formatSum(clients.length) })}
+          note={L(T.byAllLines)}
+        />
+        <StatCard
+          icon={Route}
+          tone="violet"
+          label={L(T.lines)}
+          value={fmt(L(T.countPcs), { n: lines.length })}
+          note={L(T.sixDayRoute)}
+        />
         <StatCard
           icon={CreditCard}
           tone="red"
-          label="Umumiy qarz"
+          label={L(T.totalDebt)}
           value={<Money value={debt.total} />}
-          note={`${debt.count} ta doʻkon qarzdor`}
+          note={fmt(L(T.debtorShops), { n: debt.count })}
         />
       </div>
 
       {/* Section header */}
       <div className="flex flex-wrap items-end justify-between gap-3 px-1">
         <div>
-          <h2 className="text-[19px] font-bold tracking-tight text-ink-900">Liniyalar va marshrutlar</h2>
-          <p className="text-sm text-ink-400 mt-0.5">Liniyani tanlang — hafta kunlari pastda ochiladi</p>
+          <h2 className="text-[19px] font-bold tracking-tight text-ink-900">{L(T.sectionTitle)}</h2>
+          <p className="text-sm text-ink-400 mt-0.5">{L(T.sectionHint)}</p>
         </div>
         <Pill tone={today ? 'brand' : 'gray'} className="py-1.5 px-3 text-[13px]">
           <CalendarDays className="w-3.5 h-3.5" />
-          Bugun: {today ? DAYS[today - 1].label : 'Yakshanba — marshrut yoʻq'}
+          {L(COMMON.today)}: {today ? L(WEEKDAY_LABELS[today]) : L(T.sundayNoRoute)}
         </Pill>
       </div>
 
       {loading ? (
         <Card>
-          <div className="py-12 text-center text-sm text-ink-400">Yuklanmoqda…</div>
+          <div className="py-12 text-center text-sm text-ink-400">{L(COMMON.loading)}</div>
         </Card>
       ) : lines.length === 0 ? (
         <Card>
-          <EmptyState icon={Route} title="Liniyalar yoʻq" hint="Serverda hali birorta liniya qoʻshilmagan." />
+          <EmptyState icon={Route} title={L(T.noLines)} hint={L(T.noLinesHint)} />
         </Card>
       ) : (
         <div className="space-y-4">
@@ -163,7 +212,7 @@ export const Lines: React.FC<{ onOpenRoute: (line: string, day: number) => void 
             />
           ) : (
             <div className="rounded-card border-2 border-dashed border-ink-200 py-8 lg:min-h-[227px] flex items-center justify-center text-center text-sm text-ink-400">
-              Hafta kunlarini koʻrish uchun yuqoridan liniyani tanlang
+              {L(T.pickLine)}
             </div>
           )}
         </div>
@@ -181,32 +230,35 @@ const LineTile: React.FC<{ line: Line; total: number; hasDebt: boolean; active: 
   hasDebt,
   active,
   onClick,
-}) => (
-  <button
-    type="button"
-    onClick={onClick}
-    aria-pressed={active}
-    title={`${line.code} liniya — hafta kunlari`}
-    className={clsx(
-      'relative rounded-card p-3.5 text-left transition',
-      active ? 'bg-brand-500 text-white shadow-pop' : 'bg-white shadow-card hover:shadow-pop hover:-translate-y-0.5'
-    )}
-  >
-    <div className={clsx('text-[20px] font-bold tabular-nums tracking-tight', active ? 'text-white' : 'text-brand-500')}>
-      {line.code}
-    </div>
-    <div className={clsx('mt-0.5 flex items-center gap-1 text-[12px] tabular-nums', active ? 'text-white/80' : 'text-ink-400')}>
-      <Store className="w-3 h-3" />
-      {formatSum(total)}
-    </div>
-    {hasDebt && (
-      <span
-        className={clsx('absolute top-3 right-3 w-1.5 h-1.5 rounded-full', active ? 'bg-white' : 'bg-rose-500')}
-        title="Qarzdor doʻkonlar bor"
-      />
-    )}
-  </button>
-);
+}) => {
+  const L = useL();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      title={fmt(L(T.lineWeekDays), { code: line.code })}
+      className={clsx(
+        'relative rounded-card p-3.5 text-left transition',
+        active ? 'bg-brand-500 text-white shadow-pop' : 'bg-white shadow-card hover:shadow-pop hover:-translate-y-0.5'
+      )}
+    >
+      <div className={clsx('text-[20px] font-bold tabular-nums tracking-tight', active ? 'text-white' : 'text-brand-500')}>
+        {line.code}
+      </div>
+      <div className={clsx('mt-0.5 flex items-center gap-1 text-[12px] tabular-nums', active ? 'text-white/80' : 'text-ink-400')}>
+        <Store className="w-3 h-3" />
+        {formatSum(total)}
+      </div>
+      {hasDebt && (
+        <span
+          className={clsx('absolute top-3 right-3 w-1.5 h-1.5 rounded-full', active ? 'bg-white' : 'bg-rose-500')}
+          title={L(T.hasDebtors)}
+        />
+      )}
+    </button>
+  );
+};
 
 interface LineDetailProps {
   line: Line;
@@ -220,6 +272,7 @@ interface LineDetailProps {
 
 /** The chosen line: six week days to open, today's route, debt and QR */
 const LineDetail: React.FC<LineDetailProps> = ({ line, stats: s, debt, today, onOpenRoute, onQR, onClose }) => {
+  const L = useL();
   const max = Math.max(1, ...s.byDay.slice(1));
   return (
     <Card className="space-y-4">
@@ -229,17 +282,17 @@ const LineDetail: React.FC<LineDetailProps> = ({ line, stats: s, debt, today, on
           {line.code}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="font-bold text-[16px] text-ink-900 truncate">{line.code} liniya</div>
+          <div className="font-bold text-[16px] text-ink-900 truncate">{fmt(L(T.lineName), { code: line.code })}</div>
           <div className="flex items-center gap-1.5 text-[13px] text-ink-400 tabular-nums">
             <Store className="w-3.5 h-3.5" />
-            {formatSum(s.total)} ta doʻkon · hafta kunini tanlang
+            {fmt(L(T.shopsPickDay), { n: formatSum(s.total) })}
           </div>
         </div>
         <LineDebt sum={debt?.sum || 0} count={debt?.count || 0} />
         <button
           type="button"
           onClick={onQR}
-          title={`${line.code} liniya QR kodi — agent shu kod bilan kiradi`}
+          title={fmt(L(T.qrTitle), { code: line.code })}
           className="h-10 px-3.5 rounded-full bg-ink-100 text-ink-700 hover:bg-brand-500 hover:text-white flex items-center gap-1.5 text-[13px] font-semibold transition shrink-0"
         >
           <QrCode className="w-4 h-4" /> QR
@@ -247,8 +300,8 @@ const LineDetail: React.FC<LineDetailProps> = ({ line, stats: s, debt, today, on
         <button
           type="button"
           onClick={onClose}
-          title="Yopish"
-          aria-label="Yopish"
+          title={L(COMMON.close)}
+          aria-label={L(COMMON.close)}
           className="w-10 h-10 rounded-full text-ink-400 hover:bg-ink-100 hover:text-ink-900 flex items-center justify-center transition shrink-0"
         >
           <X className="w-5 h-5" />
@@ -265,7 +318,7 @@ const LineDetail: React.FC<LineDetailProps> = ({ line, stats: s, debt, today, on
               key={d.day}
               type="button"
               onClick={() => onOpenRoute(line.code, d.day)}
-              title={`${line.code}-${d.day} • ${d.label} • ${count} ta doʻkon`}
+              title={`${line.code}-${d.day} • ${L(d.label)} • ${fmt(L(T.dayTitle), { n: count })}`}
               className={clsx(
                 'group min-w-0 rounded-xl2 p-3.5 text-left transition',
                 isToday ? 'bg-brand-500 text-white hover:bg-brand-600' : 'bg-ink-100/70 text-ink-900 hover:bg-brand-50',
@@ -273,12 +326,16 @@ const LineDetail: React.FC<LineDetailProps> = ({ line, stats: s, debt, today, on
               )}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className={clsx('text-[13px] font-semibold truncate', isToday ? 'text-white' : 'text-ink-700')}>{d.label}</span>
-                {isToday && <span className="text-[10px] font-bold uppercase tracking-wide bg-white/20 rounded-full px-1.5 py-0.5">Bugun</span>}
+                <span className={clsx('text-[13px] font-semibold truncate', isToday ? 'text-white' : 'text-ink-700')}>{L(d.label)}</span>
+                {isToday && (
+                  <span className="text-[10px] font-bold uppercase tracking-wide bg-white/20 rounded-full px-1.5 py-0.5">
+                    {L(COMMON.today)}
+                  </span>
+                )}
               </div>
               <div className="mt-1.5 flex items-baseline gap-1.5">
                 <span className="text-[22px] font-bold tabular-nums leading-none">{count}</span>
-                <span className={clsx('text-[12px]', isToday ? 'text-white/75' : 'text-ink-400')}>doʻkon</span>
+                <span className={clsx('text-[12px]', isToday ? 'text-white/75' : 'text-ink-400')}>{L(COMMON.shops)}</span>
               </div>
               <div className={clsx('mt-2 h-1 rounded-full overflow-hidden', isToday ? 'bg-white/25' : 'bg-ink-200/70')}>
                 <div className={clsx('h-full rounded-full', isToday ? 'bg-white' : 'bg-brand-500')} style={{ width: `${(count / max) * 100}%` }} />
@@ -299,17 +356,22 @@ const LineDetail: React.FC<LineDetailProps> = ({ line, stats: s, debt, today, on
   );
 };
 
-const LineDebt: React.FC<{ sum: number; count: number }> = ({ sum, count }) =>
-  sum > 0 ? (
-    <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 text-[13px] font-semibold whitespace-nowrap" title={`${count} ta doʻkon qarzdor`}>
+const LineDebt: React.FC<{ sum: number; count: number }> = ({ sum, count }) => {
+  const L = useL();
+  return sum > 0 ? (
+    <div
+      className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 text-[13px] font-semibold whitespace-nowrap"
+      title={fmt(L(T.debtorShops), { n: count })}
+    >
       <Wallet className="w-3.5 h-3.5" />
       <Money value={sum} />
       <span className="font-medium opacity-70">· {count}</span>
     </div>
   ) : (
     <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[13px] font-semibold whitespace-nowrap">
-      <CheckCircle2 className="w-3.5 h-3.5" /> Qarz yoʻq
+      <CheckCircle2 className="w-3.5 h-3.5" /> {L(T.noDebt)}
     </span>
   );
+};
 
 export default Lines;

@@ -7,10 +7,42 @@ import { useToday } from '../../hooks/useNow';
 import { WEEKDAYS_SHORT, compactMoney, formatDay, weekdayOf } from '../../utils/format';
 import { Period } from '../../components/PeriodPicker';
 import { Card, CardTitle, Money, Pill, StatCard, formatSum } from '../../components/ui';
+import { COMMON, fmt, useL } from '../../i18n/tri';
 
 const API = 'http://localhost:3000/api/v1';
 const EMPTY: DayStats = { orders: 0, gross: 0, returns: 0, net: 0 };
-const sum = (n: number) => `${formatSum(n)} soʻm`;
+
+const T = {
+  loadError: { uz: 'Statistikani yuklab boʻlmadi', uz_cyrl: 'Статистикани юклаб бўлмади', ru: 'Не удалось загрузить статистику' },
+  net: { uz: 'Sof', uz_cyrl: 'Соф', ru: 'Чистые' },
+  monthTotalLower: { uz: 'oy jami', uz_cyrl: 'ой жами', ru: 'итого за месяц' },
+  nOrders: { uz: '{n} ta buyurtma', uz_cyrl: '{n} та буюртма', ru: '{n} заказов' },
+  nPcs: { uz: '{n} ta', uz_cyrl: '{n} та', ru: '{n} шт' },
+  returnLower: { uz: 'vozvrat', uz_cyrl: 'возврат', ru: 'возврат' },
+  monthSales: { uz: 'Oy savdosi', uz_cyrl: 'Ой савдоси', ru: 'Продажи за месяц' },
+  shareOfSales: { uz: 'savdoning {n}%', uz_cyrl: 'савдонинг {n}%', ru: '{n}% от продаж' },
+  salesMinusReturns: { uz: 'savdo − vozvrat', uz_cyrl: 'савдо − возврат', ru: 'продажи − возвраты' },
+  bonusLines: { uz: 'Bonusga yetgan liniyalar', uz_cyrl: 'Бонусга етган линиялар', ru: 'Линии с бонусом' },
+  nDaysNoReturns: { uz: '{n} kun vozvratsiz', uz_cyrl: '{n} кун возвратсиз', ru: '{n} дн. без возвратов' },
+  tableTitle: {
+    uz: 'Liniyalar boʻyicha kunlik sof savdo',
+    uz_cyrl: 'Линиялар бўйича кунлик соф савдо',
+    ru: 'Чистые продажи по линиям за день',
+  },
+  tableSubtitle: {
+    uz: 'Summani bosing — oʻsha kungi buyurtmalar va cheklar ochiladi',
+    uz_cyrl: 'Суммани босинг — ўша кунги буюртмалар ва чеклар очилади',
+    ru: 'Нажмите на сумму — откроются заказы и чеки за этот день',
+  },
+  todayLower: { uz: 'bugun', uz_cyrl: 'бугун', ru: 'сегодня' },
+  dayWithReturns: { uz: 'vozvrat boʻlgan kun', uz_cyrl: 'возврат бўлган кун', ru: 'день с возвратом' },
+  monthTotalNet: { uz: 'Oy jami (sof)', uz_cyrl: 'Ой жами (соф)', ru: 'Итого за месяц (чистые)' },
+  monthOrders: { uz: 'oy buyurtmalari', uz_cyrl: 'ой буюртмалари', ru: 'заказы за месяц' },
+  streakHint: { uz: 'Vozvratsiz kunlar ketma-ketligi', uz_cyrl: 'Возвратсиз кунлар кетма-кетлиги', ru: 'Дней подряд без возвратов' },
+  days: { uz: 'kun', uz_cyrl: 'кун', ru: 'дн.' },
+  bonus: { uz: 'Bonus', uz_cyrl: 'Бонус', ru: 'Бонус' },
+  total: { uz: 'Jami', uz_cyrl: 'Жами', ru: 'Итого' },
+};
 
 // Two pinned columns (line + month total) stay visible while the days scroll under them
 const COL1 = 'w-[132px] min-w-[132px] left-0 pl-5 md:pl-6';
@@ -27,7 +59,9 @@ interface MonthlySalesProps {
 // Daily sales of every line for a month: the basis for monthly pay, with return-free streaks
 export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refreshKey, onOpen }) => {
   const { lang } = useLanguage();
+  const L = useL();
   const today = useToday();
+  const sum = (n: number) => `${formatSum(n)} ${L(COMMON.som)}`;
   const bonusDays = company.bonusStreakDays || 10;
 
   const [lines, setLines] = useState<LineMonthStats[]>([]);
@@ -37,14 +71,19 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
   const todayRef = useRef<HTMLTableCellElement>(null);
 
   useEffect(() => {
+    let alive = true; // a slower answer for a previous month must not overwrite this one
     fetch(`${API}/stats/monthly?month=${month}`)
       .then((r) => r.json())
       .then((d) => {
+        if (!alive) return;
         setLines(d.lines || []);
         setError('');
         setLoaded(true);
       })
-      .catch(() => setError('Statistikani yuklab boʻlmadi'));
+      .catch(() => alive && setError('load'));
+    return () => {
+      alive = false;
+    };
   }, [month, refreshKey, today]);
 
   const [y, m] = month.split('-').map(Number);
@@ -76,10 +115,10 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
   const bonusLines = lines.filter((l) => l.streak.current >= bonusDays);
   const returnShare = totals.gross > 0 ? (totals.returns / totals.gross) * 100 : 0;
 
-  const cellTitle = (code: string, date: string, c: DayStats) =>
-    `${code} • ${formatDay(date, lang)}\nSavdo: ${sum(c.gross)} (${c.orders} ta)\nVozvrat: ${sum(c.returns)}\nSof: ${sum(c.net)}`;
-  const totalTitle = (code: string, c: DayStats) =>
-    `${code} • oy jami\nSavdo: ${sum(c.gross)} (${c.orders} ta)\nVozvrat: ${sum(c.returns)}\nSof: ${sum(c.net)}`;
+  const statLines = (c: DayStats) =>
+    `${L(COMMON.sales)}: ${sum(c.gross)} (${fmt(L(T.nPcs), { n: c.orders })})\n${L(COMMON.returns)}: ${sum(c.returns)}\n${L(T.net)}: ${sum(c.net)}`;
+  const cellTitle = (code: string, date: string, c: DayStats) => `${code} • ${formatDay(date, lang)}\n${statLines(c)}`;
+  const totalTitle = (code: string, c: DayStats) => `${code} • ${L(T.monthTotalLower)}\n${statLines(c)}`;
 
   const dayCellCls = (d: string) =>
     clsx(
@@ -96,10 +135,10 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
       <div className="text-[11px] text-ink-400 whitespace-nowrap mt-0.5">
         {c.returns > 0 ? (
           <span className="text-rose-600">
-            −{compactMoney(c.returns)} vozvrat
+            −{compactMoney(c.returns, lang)} {L(T.returnLower)}
           </span>
         ) : (
-          `${c.orders} ta buyurtma`
+          fmt(L(T.nOrders), { n: c.orders })
         )}
       </div>
     </div>
@@ -116,27 +155,33 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
 
   return (
     <div className="space-y-5">
-      {error && <div className="px-4 py-3 rounded-xl2 bg-rose-50 text-sm text-rose-600">{error}</div>}
+      {error && <div className="px-4 py-3 rounded-xl2 bg-rose-50 text-sm text-rose-600">{L(T.loadError)}</div>}
 
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard icon={TrendingUp} tone="brand" label="Oy savdosi" value={<Money value={totals.gross} />} note={`${totals.orders} ta buyurtma`} />
+        <StatCard
+          icon={TrendingUp}
+          tone="brand"
+          label={L(T.monthSales)}
+          value={<Money value={totals.gross} />}
+          note={fmt(L(T.nOrders), { n: totals.orders })}
+        />
         <StatCard
           icon={RotateCcw}
           tone="red"
-          label="Vozvrat"
+          label={L(COMMON.returns)}
           value={<Money value={totals.returns} />}
-          note={`savdoning ${returnShare.toFixed(1).replace('.', ',')}%`}
+          note={fmt(L(T.shareOfSales), { n: returnShare.toFixed(1).replace('.', ',') })}
         />
-        <StatCard icon={Banknote} tone="green" label="Sof savdo" value={<Money value={totals.net} />} note="savdo − vozvrat" />
+        <StatCard icon={Banknote} tone="green" label={L(COMMON.netSales)} value={<Money value={totals.net} />} note={L(T.salesMinusReturns)} />
         <StatCard
           icon={Award}
           tone="amber"
-          label="Bonusga yetgan liniyalar"
-          value={`${bonusLines.length} ta`}
+          label={L(T.bonusLines)}
+          value={fmt(L(T.nPcs), { n: bonusLines.length })}
           note={
             <span className="block truncate">
-              {bonusDays} kun vozvratsiz
+              {fmt(L(T.nDaysNoReturns), { n: bonusDays })}
               {company.bonusAmount ? (
                 <>
                   {' • '}
@@ -152,15 +197,15 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
       <Card padded={false} className="overflow-hidden">
         <div className="px-5 md:px-6 pt-5 md:pt-6">
           <CardTitle
-            title="Liniyalar boʻyicha kunlik sof savdo"
-            subtitle="Summani bosing — oʻsha kungi buyurtmalar va cheklar ochiladi"
+            title={L(T.tableTitle)}
+            subtitle={L(T.tableSubtitle)}
             action={
               <div className="hidden md:flex items-center gap-4 text-xs text-ink-400 shrink-0">
                 <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-brand-500" /> bugun
+                  <span className="w-2.5 h-2.5 rounded bg-brand-500" /> {L(T.todayLower)}
                 </span>
                 <span className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> vozvrat boʻlgan kun
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> {L(T.dayWithReturns)}
                 </span>
               </div>
             }
@@ -170,8 +215,8 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
           <table className="w-full text-[13px] border-separate border-spacing-0">
             <thead>
               <tr>
-                <th className={clsx(thBase, COL1, 'sticky z-20 pr-4 text-left')}>Liniya</th>
-                <th className={clsx(thBase, COL2, 'sticky z-20 px-3 text-left')}>Oy jami (sof)</th>
+                <th className={clsx(thBase, COL1, 'sticky z-20 pr-4 text-left')}>{L(COMMON.line)}</th>
+                <th className={clsx(thBase, COL2, 'sticky z-20 px-3 text-left')}>{L(T.monthTotalNet)}</th>
                 {dates.map((d, i) => {
                   const isToday = d === today;
                   const sunday = weekdayOf(d) === 0;
@@ -206,7 +251,7 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
               {lines.length === 0 && (
                 <tr>
                   <td colSpan={daysInMonth + 2} className="py-10 text-center text-ink-400">
-                    {loaded ? 'Maʼlumot yoʻq' : 'Yuklanmoqda…'}
+                    {loaded ? L(COMMON.noData) : L(COMMON.loading)}
                   </td>
                 </tr>
               )}
@@ -216,17 +261,17 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
                   <tr key={l.code} className="group">
                     <td
                       onClick={() => onOpen(l.code, { kind: 'month', month })}
-                      title={`${l.code} — oy buyurtmalari`}
+                      title={`${l.code} — ${L(T.monthOrders)}`}
                       className={clsx(COL1, 'sticky z-10 pr-4 py-2.5 bg-white group-hover:bg-ink-100 border-b border-ink-100 whitespace-nowrap cursor-pointer')}
                     >
                       <div className="font-bold text-ink-900 group-hover:text-brand-500 transition">{l.code}</div>
                       {hasBonus ? (
-                        <Pill tone="amber" className="mt-1 !px-1.5 !py-0 text-[11px]" title={`${l.streak.current} kun vozvratsiz`}>
-                          <Award className="w-3 h-3" /> Bonus
+                        <Pill tone="amber" className="mt-1 !px-1.5 !py-0 text-[11px]" title={fmt(L(T.nDaysNoReturns), { n: l.streak.current })}>
+                          <Award className="w-3 h-3" /> {L(T.bonus)}
                         </Pill>
                       ) : l.streak.current > 0 ? (
-                        <div className="text-[11px] text-ink-400 mt-0.5" title="Vozvratsiz kunlar ketma-ketligi">
-                          {l.streak.current}/{bonusDays} kun
+                        <div className="text-[11px] text-ink-400 mt-0.5" title={L(T.streakHint)}>
+                          {l.streak.current}/{bonusDays} {L(T.days)}
                         </div>
                       ) : null}
                     </td>
@@ -249,7 +294,7 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
                           {c ? (
                             <>
                               <button type="button" onClick={() => onOpen(l.code, { kind: 'day', day: d })} className={dayBtn(c.returns > 0)}>
-                                {compactMoney(c.net)}
+                                {compactMoney(c.net, lang)}
                               </button>
                               {c.returns > 0 && <span className="absolute top-1.5 right-1 w-1.5 h-1.5 rounded-full bg-rose-500 pointer-events-none" />}
                             </>
@@ -270,10 +315,10 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
                     onClick={() => onOpen('', { kind: 'month', month })}
                     className={clsx(COL1, 'sticky z-10 pr-4 py-2.5 bg-brand-50 text-ink-900 cursor-pointer hover:text-brand-500')}
                   >
-                    Jami
+                    {L(T.total)}
                   </td>
                   <td
-                    title={totalTitle('Jami', totals)}
+                    title={totalTitle(L(T.total), totals)}
                     onClick={() => onOpen('', { kind: 'month', month })}
                     className={clsx(COL2, 'sticky z-10 px-3 py-2.5 bg-brand-50 cursor-pointer')}
                   >
@@ -284,7 +329,7 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
                     return (
                       <td
                         key={d}
-                        title={c.orders ? cellTitle('Jami', d, c) : undefined}
+                        title={c.orders ? cellTitle(L(T.total), d, c) : undefined}
                         className={clsx(
                           'px-1 py-2.5 text-center tabular-nums whitespace-nowrap text-ink-900',
                           d === today ? 'bg-brand-100' : 'bg-brand-50',
@@ -293,7 +338,7 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
                       >
                         {c.orders ? (
                           <button type="button" onClick={() => onOpen('', { kind: 'day', day: d })} className={dayBtn(false)}>
-                            {compactMoney(c.net)}
+                            {compactMoney(c.net, lang)}
                           </button>
                         ) : d > today ? null : <span className="text-ink-200">·</span>}
                       </td>

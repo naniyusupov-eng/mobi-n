@@ -11,6 +11,7 @@ import { Settings } from './pages/Settings';
 import { InvoiceModal } from './components/InvoiceModal';
 import { INITIAL_ORDERS, INITIAL_CATEGORIES } from './data/mockData';
 import { CompanySettings, Order, OrderStatus, Product } from './types';
+import { COMMON, useL } from './i18n/tri';
 
 const API = 'http://localhost:3000/api/v1';
 
@@ -23,6 +24,7 @@ export interface AppRoute {
 }
 
 export default function App() {
+  const L = useL();
   const [route, setRoute] = useState<AppRoute>({ page: 'dashboard' });
   const navigate = (page: NavPage, params: Omit<AppRoute, 'page'> = {}) => setRoute({ page, ...params });
 
@@ -124,7 +126,7 @@ export default function App() {
 
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <Header
-          title={PAGE_TITLES[page]}
+          title={L(PAGE_TITLES[page])}
           orders={orders}
           newOrdersCount={newOrdersCount}
           onPick={handleSearchPick}
@@ -140,7 +142,7 @@ export default function App() {
             <div className="space-y-6">
               <Dashboard orders={orders} totalDebt={debt.total} debtorsCount={debt.count} />
               <section id="orders" className="space-y-3 scroll-mt-4">
-                <h2 className="px-1 text-[19px] font-bold tracking-tight text-ink-900">Buyurtmalar</h2>
+                <h2 className="px-1 text-[19px] font-bold tracking-tight text-ink-900">{L(COMMON.orders)}</h2>
                 <Orders orders={orders} onViewOrder={setInvoiceOrder} />
               </section>
             </div>

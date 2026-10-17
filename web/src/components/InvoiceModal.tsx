@@ -4,8 +4,9 @@ import { X, Printer, RotateCcw } from 'lucide-react';
 import { CompanySettings, Order, OrderStatus } from '../types';
 import { ReturnModal } from './ReturnModal';
 import { useLanguage } from '../context/LanguageContext';
-import { formatDate, formatDateTime } from '../utils/format';
+import { formatDate, formatDateTime, routeLabel } from '../utils/format';
 import { Button, Pill, TONE, Tone, formatSum } from './ui';
+import { COMMON, Tri, UNIT_LABELS, useL } from '../i18n/tri';
 
 interface InvoiceModalProps {
   order: Order | null;
@@ -24,12 +25,23 @@ const STATUS_TONE: Record<OrderStatus, Tone> = {
 
 const PAYMENT_TONE: Record<string, Tone> = { naqd: 'green', nasiya: 'red', otkazma: 'brand' };
 
-const SumText: React.FC<{ value: number; className?: string }> = ({ value, className }) => (
-  <span className={clsx('tabular-nums whitespace-nowrap', className)}>{formatSum(value)} soʻm</span>
-);
+const T = {
+  delivery: { uz: 'Yetkazish', uz_cyrl: 'Етказиш', ru: 'Доставка' },
+  afterReturn: { uz: 'Vozvratdan keyin', uz_cyrl: 'Возвратдан кейин', ru: 'После возврата' },
+} satisfies Record<string, Tri>;
+
+const SumText: React.FC<{ value: number; className?: string }> = ({ value, className }) => {
+  const L = useL();
+  return (
+    <span className={clsx('tabular-nums whitespace-nowrap', className)}>
+      {formatSum(value)} {L(COMMON.som)}
+    </span>
+  );
+};
 
 export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, company, onClose, onStatusChange, onReturnSaved }) => {
   const { t, lang } = useLanguage();
+  const L = useL();
   const [showReturn, setShowReturn] = useState(false);
 
   // Escape closes the invoice (the return dialog handles its own Escape first)
@@ -97,7 +109,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, company, onCl
 
           <div className="flex items-center gap-2">
             <Button size="sm" variant="danger" icon={RotateCcw} onClick={() => setShowReturn(true)}>
-              Vozvrat
+              {L(COMMON.returns)}
             </Button>
             <Button size="sm" variant="primary" icon={Printer} onClick={handlePrint}>
               {t('btn_print_a4')}
@@ -106,7 +118,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, company, onCl
               type="button"
               onClick={onClose}
               className="w-9 h-9 rounded-full bg-ink-100 text-ink-500 hover:text-ink-900 flex items-center justify-center shrink-0"
-              aria-label="Yopish"
+              aria-label={L(COMMON.close)}
             >
               <X className="w-[18px] h-[18px]" />
             </button>
@@ -154,7 +166,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, company, onCl
                 <span className="font-bold text-ink-900 truncate">{order.shopName}</span>
                 {order.lineCode && (
                   <span className="text-[11px] font-semibold text-ink-500 bg-white rounded-full px-2 py-0.5 shrink-0">
-                    {order.lineCode}-{order.routeDay}
+                    {routeLabel(order.lineCode, order.routeDay)}
                   </span>
                 )}
               </div>
@@ -165,7 +177,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, company, onCl
               <span className="block text-xs text-ink-400 mb-1">{t('col_payment_type')}</span>
               <Pill tone={PAYMENT_TONE[order.paymentMethod] || 'gray'}>{paymentLabel}</Pill>
               {order.deliveryDate && (
-                <div className="text-xs text-ink-500 mt-1.5">Yetkazish: {formatDate(order.deliveryDate, lang)}</div>
+                <div className="text-xs text-ink-500 mt-1.5">{L(T.delivery)}: {formatDate(order.deliveryDate, lang)}</div>
               )}
             </div>
           </div>
@@ -187,7 +199,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, company, onCl
                 <tr key={idx} className="border-b border-ink-100">
                   <td className="py-2.5 px-3 text-ink-400">{idx + 1}</td>
                   <td className="py-2.5 px-3 text-ink-900 font-medium">{item.productName}</td>
-                  <td className="py-2.5 px-3 text-center text-xs text-ink-500">{item.unit}</td>
+                  <td className="py-2.5 px-3 text-center text-xs text-ink-500">{UNIT_LABELS[item.unit] ? L(UNIT_LABELS[item.unit]) : item.unit}</td>
                   <td className="py-2.5 px-3 text-center tabular-nums">{item.quantity}</td>
                   <td className="py-2.5 px-3 text-right tabular-nums whitespace-nowrap">{formatSum(item.unitPrice)}</td>
                   <td className="py-2.5 px-3 text-right font-semibold text-ink-900 tabular-nums whitespace-nowrap">
@@ -203,7 +215,7 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, company, onCl
             <div className="max-w-xs text-ink-500 text-[13px]">
               {order.notes && (
                 <p>
-                  <span className="text-ink-700 font-semibold">{t('invoice_notes')}:</span> {order.notes}
+                  <span className="text-ink-700 font-semibold">{t('invoice_notes')}</span> {order.notes}
                 </p>
               )}
             </div>
@@ -226,11 +238,11 @@ export const InvoiceModal: React.FC<InvoiceModalProps> = ({ order, company, onCl
               {returnedAmount > 0 && (
                 <>
                   <div className="flex justify-between gap-4 text-rose-600">
-                    <span>Vozvrat</span>
+                    <span>{L(COMMON.returns)}</span>
                     <SumText value={-returnedAmount} />
                   </div>
                   <div className="flex justify-between gap-4 text-[15px] font-bold text-brand-500 pt-2 border-t border-ink-200">
-                    <span>Vozvratdan keyin</span>
+                    <span>{L(T.afterReturn)}</span>
                     <SumText value={order.finalAmount - returnedAmount} />
                   </div>
                 </>

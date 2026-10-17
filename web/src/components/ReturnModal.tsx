@@ -2,12 +2,41 @@ import React, { useEffect, useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { AlertCircle, Minus, Plus } from 'lucide-react';
 import { Order, OrderReturn } from '../types';
-import { useLanguage } from '../context/LanguageContext';
 import { Button, Modal, Money, formatSum } from './ui';
+import { COMMON, Tri, UNIT_LABELS, useL } from '../i18n/tri';
 
 const API = 'http://localhost:3000/api/v1';
 
+/** Stored reason values: kept in Uzbek Latin, the server and reports match on them */
 export const RETURN_REASONS = ['Doʻkon yopiq', 'Pul yetmadi', 'Kerak emas', 'Boshqa'];
+
+/** Display labels for the stored reason values */
+export const RETURN_REASON_LABELS: Record<string, Tri> = {
+  'Doʻkon yopiq': { uz: 'Doʻkon yopiq', uz_cyrl: 'Дўкон ёпиқ', ru: 'Магазин закрыт' },
+  'Pul yetmadi': { uz: 'Pul yetmadi', uz_cyrl: 'Пул етмади', ru: 'Не хватило денег' },
+  'Kerak emas': { uz: 'Kerak emas', uz_cyrl: 'Керак эмас', ru: 'Не нужно' },
+  Boshqa: { uz: 'Boshqa', uz_cyrl: 'Бошқа', ru: 'Другое' },
+};
+
+const T = {
+  loadPrevError: {
+    uz: 'Oldingi vozvratlarni yuklab boʻlmadi',
+    uz_cyrl: 'Олдинги возвратларни юклаб бўлмади',
+    ru: 'Не удалось загрузить предыдущие возвраты',
+  },
+  enterQty: { uz: 'Qaytgan tovar sonini kiriting', uz_cyrl: 'Қайтган товар сонини киритинг', ru: 'Укажите количество возвращённого товара' },
+  saveFailed: { uz: 'Saqlab boʻlmadi', uz_cyrl: 'Сақлаб бўлмади', ru: 'Не удалось сохранить' },
+  returnSum: { uz: 'Vozvrat summasi', uz_cyrl: 'Возврат суммаси', ru: 'Сумма возврата' },
+  saving: { uz: 'Saqlanmoqda…', uz_cyrl: 'Сақланмоқда…', ru: 'Сохранение…' },
+  saveReturn: { uz: 'Vozvratni saqlash', uz_cyrl: 'Возвратни сақлаш', ru: 'Сохранить возврат' },
+  reason: { uz: 'Sabab', uz_cyrl: 'Сабаб', ru: 'Причина' },
+  returnedGoods: { uz: 'Qaytgan tovarlar', uz_cyrl: 'Қайтган товарлар', ru: 'Возвращённые товары' },
+  returnAll: { uz: 'Hammasi qaytdi', uz_cyrl: 'Ҳаммаси қайтди', ru: 'Вернули всё' },
+  returnedBefore: { uz: 'avval qaytgan', uz_cyrl: 'аввал қайтган', ru: 'ранее возвращено' },
+  fullyReturned: { uz: 'toʻliq qaytgan', uz_cyrl: 'тўлиқ қайтган', ru: 'возвращено полностью' },
+  decrease: { uz: 'Kamaytirish', uz_cyrl: 'Камайтириш', ru: 'Уменьшить' },
+  increase: { uz: 'Koʻpaytirish', uz_cyrl: 'Кўпайтириш', ru: 'Увеличить' },
+} satisfies Record<string, Tri>;
 
 interface ReturnModalProps {
   order: Order;
@@ -20,13 +49,14 @@ const lineKey = (productId: string, unit: string) => `${productId}|${unit}`;
 // Goods brought back by the delivery driver: they go back to the warehouse and are
 // subtracted from the sales of the day the order was taken.
 export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSaved }) => {
-  const { t } = useLanguage();
+  const L = useL();
 
   const [returned, setReturned] = useState<Record<string, number>>({});
   const [qty, setQty] = useState<Record<string, number>>({});
   const [reason, setReason] = useState(RETURN_REASONS[0]);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState('');
+  // Our own messages are kept as Tri so they follow the language; server errors are plain text
+  const [error, setError] = useState<Tri | string>('');
 
   // What was already returned for this order earlier
   useEffect(() => {
@@ -39,7 +69,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
         }
         setReturned(sums);
       })
-      .catch(() => setError('Oldingi vozvratlarni yuklab boʻlmadi'));
+      .catch(() => setError(T.loadPrevError));
   }, [order.id]);
 
   const lines = order.items.map((item) => {
@@ -62,7 +92,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
     const items = lines
       .filter((l) => l.value > 0)
       .map((l) => ({ productId: l.item.productId, unit: l.item.unit, quantity: l.value }));
-    if (items.length === 0) return setError('Qaytgan tovar sonini kiriting');
+    if (items.length === 0) return setError(T.enterQty);
     setSaving(true);
     setError('');
     try {
@@ -76,7 +106,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
       onSaved(data.order);
       onClose();
     } catch (e: any) {
-      setError(e.message || 'Saqlab boʻlmadi');
+      setError(e.message || T.saveFailed);
       setSaving(false);
     }
   };
@@ -93,7 +123,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
         open
         onClose={onClose}
         width="md"
-        title="Vozvrat"
+        title={L(COMMON.returns)}
         subtitle={
           <span className="inline-flex flex-wrap items-center gap-1.5">
             <span className="truncate">{order.shopName}</span>
@@ -108,11 +138,11 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
         footer={
           <div className="flex flex-wrap items-center justify-between gap-3 w-full">
             <div className="text-[13px] text-ink-500">
-              Vozvrat summasi: <Money value={total} className="font-bold text-rose-600 text-[15px]" />
+              {L(T.returnSum)}: <Money value={total} className="font-bold text-rose-600 text-[15px]" />
             </div>
             <div className="flex gap-2">
               <Button variant="ghost" onClick={onClose}>
-                {t('btn_cancel')}
+                {L(COMMON.cancel)}
               </Button>
               {/* Solid red action; the kit's danger button is the soft variant */}
               <button
@@ -121,7 +151,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
                 disabled={saving || total === 0}
                 className="inline-flex items-center justify-center h-11 px-4 rounded-xl2 text-sm font-semibold whitespace-nowrap bg-rose-500 text-white hover:bg-rose-600 transition disabled:opacity-40 disabled:pointer-events-none"
               >
-                {saving ? 'Saqlanmoqda…' : 'Vozvratni saqlash'}
+                {saving ? L(T.saving) : L(T.saveReturn)}
               </button>
             </div>
           </div>
@@ -130,7 +160,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
         <div className="space-y-5">
           {/* Reason */}
           <div>
-            <span className="block text-[13px] font-medium text-ink-700 mb-2">Sabab</span>
+            <span className="block text-[13px] font-medium text-ink-700 mb-2">{L(T.reason)}</span>
             <div className="flex flex-wrap gap-2">
               {RETURN_REASONS.map((r) => (
                 <button
@@ -142,7 +172,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
                     reason === r ? 'bg-rose-500 text-white' : 'bg-ink-100 text-ink-700 hover:bg-ink-200'
                   )}
                 >
-                  {r}
+                  {RETURN_REASON_LABELS[r] ? L(RETURN_REASON_LABELS[r]) : r}
                 </button>
               ))}
             </div>
@@ -151,14 +181,14 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
           {/* Items */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <span className="text-[13px] font-medium text-ink-700">Qaytgan tovarlar</span>
+              <span className="text-[13px] font-medium text-ink-700">{L(T.returnedGoods)}</span>
               {!nothingLeft && (
                 <button
                   type="button"
                   onClick={returnAll}
                   className="text-[13px] font-semibold text-rose-600 hover:text-rose-700"
                 >
-                  Hammasi qaytdi
+                  {L(T.returnAll)}
                 </button>
               )}
             </div>
@@ -168,12 +198,18 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
                   <div className="min-w-0">
                     <div className="text-sm font-semibold text-ink-900 truncate">{item.productName}</div>
                     <div className="text-xs text-ink-400 tabular-nums">
-                      {item.quantity} {item.unit} • {formatSum(item.unitPrice)} soʻm
-                      {returned[key] ? <span className="text-rose-600"> • avval qaytgan: {returned[key]}</span> : null}
+                      {item.quantity} {UNIT_LABELS[item.unit] ? L(UNIT_LABELS[item.unit]) : item.unit} • {formatSum(item.unitPrice)}{' '}
+                      {L(COMMON.som)}
+                      {returned[key] ? (
+                        <span className="text-rose-600">
+                          {' '}
+                          • {L(T.returnedBefore)}: {returned[key]}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                   {left === 0 ? (
-                    <span className="text-xs font-semibold text-ink-400 shrink-0 whitespace-nowrap">toʻliq qaytgan</span>
+                    <span className="text-xs font-semibold text-ink-400 shrink-0 whitespace-nowrap">{L(T.fullyReturned)}</span>
                   ) : (
                     <div className="flex items-center gap-1.5 shrink-0">
                       <button
@@ -181,7 +217,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
                         onClick={() => setValue(key, value - 1, left)}
                         disabled={value <= 0}
                         className={stepBtn}
-                        aria-label="Kamaytirish"
+                        aria-label={L(T.decrease)}
                       >
                         <Minus className="w-4 h-4" />
                       </button>
@@ -199,7 +235,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
                         onClick={() => setValue(key, value + 1, left)}
                         disabled={value >= left}
                         className={stepBtn}
-                        aria-label="Koʻpaytirish"
+                        aria-label={L(T.increase)}
                       >
                         <Plus className="w-4 h-4" />
                       </button>
@@ -214,7 +250,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
           {error && (
             <div className="flex items-center gap-2 px-4 py-3 rounded-xl2 bg-rose-50 text-rose-600 text-[13px] font-medium">
               <AlertCircle className="w-4 h-4 shrink-0" />
-              {error}
+              {typeof error === 'string' ? error : L(error)}
             </div>
           )}
         </div>
