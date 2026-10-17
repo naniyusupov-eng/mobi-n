@@ -66,11 +66,28 @@ function saveDatabase(data) {
   fs.renameSync(tmp, DB_FILE);
 }
 
-// Local calendar date (server time zone) as YYYY-MM-DD
+// Business calendar date (Asia/Tashkent, whatever the server's own zone) as YYYY-MM-DD
+const dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent', year: 'numeric', month: '2-digit', day: '2-digit' });
 function localDate(value) {
-  const d = new Date(value);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return dayFormat.format(new Date(value));
+}
+
+// Orders the shop pays for later (the phone has sent both spellings)
+const isCredit = (order) => order.paymentMethod === 'nasiya' || order.paymentMethod === 'debt';
+
+// What the shop was charged for the order
+const orderCharge = (order) => order.finalAmount || order.totalAmount || 0;
+
+// Share of the list price actually charged (orders can carry a discount)
+const chargeRatio = (order) => (order.totalAmount > 0 ? orderCharge(order) / order.totalAmount : 1);
+
+// Quantity of one order line already brought back
+function returnedQty(db, orderId, productId, unit) {
+  return db.returns
+    .filter((r) => r.orderId === orderId)
+    .flatMap((r) => r.items)
+    .filter((i) => i.productId === productId && i.unit === unit)
+    .reduce((sum, i) => sum + i.quantity, 0);
 }
 
 // Quantity in pieces (dona) for stock. Weight units cannot be converted, so they return null.
@@ -107,9 +124,12 @@ function parseBody(req) {
     req.on('end', () => {
       if (!raw) return resolve({});
       try {
-        resolve(JSON.parse(raw));
+        const parsed = JSON.parse(raw);
+        resolve(parsed === null ? {} : parsed);
       } catch (err) {
-        resolve({ _raw: raw });
+        const bad = new Error('Invalid JSON body');
+        bad.status = 400;
+        reject(bad);
       }
     });
     req.on('error', reject);
@@ -165,6 +185,26 @@ const server = http.createServer(async (req, res) => {
       const db = loadDatabase();
       const order = db.orders.find((o) => o.id === statusMatch[1]);
       if (!order) return jsonResponse(res, 404, { error: 'Order not found' });
+      const wasCancelled = order.status === 'cancelled';
+      const nowCancelled = status === 'cancelled';
+      if (wasCancelled !== nowCancelled) {
+        const sign = nowCancelled ? +1 : -1;
+        // Goods already returned are back in stock; only the kept part moves
+        for (const item of order.items || []) {
+          const kept = item.quantity - returnedQty(db, order.id, item.productId, item.unit);
+          if (kept > 0) changeStock(db, item.productId, item.unit, kept, sign);
+        }
+        const shop = isCredit(order) ? findShop(db, order.shopId) : null;
+        if (shop && nowCancelled) {
+          const owed = Math.max(0, orderCharge(order) - (order.returnedAmount || 0));
+          const removed = Math.min(shop.debtBalance || 0, owed);
+          shop.debtBalance = (shop.debtBalance || 0) - removed;
+          order.cancelDebtApplied = removed;
+        } else if (shop) {
+          shop.debtBalance = (shop.debtBalance || 0) + (order.cancelDebtApplied || 0);
+          delete order.cancelDebtApplied;
+        }
+      }
       order.status = status;
       saveDatabase(db);
       return jsonResponse(res, 200, { success: true, order });
@@ -207,21 +247,15 @@ const server = http.createServer(async (req, res) => {
       const db = loadDatabase();
       const order = db.orders.find((o) => o.id === body.orderId);
       if (!order) return jsonResponse(res, 404, { error: 'Order not found' });
-
-      // Already returned quantity per order line
-      const returnedQty = (productId, unit) =>
-        db.returns
-          .filter((r) => r.orderId === order.id)
-          .flatMap((r) => r.items)
-          .filter((i) => i.productId === productId && i.unit === unit)
-          .reduce((sum, i) => sum + i.quantity, 0);
+      if (order.status === 'cancelled') return jsonResponse(res, 400, { error: 'Bekor qilingan buyurtmaga vozvrat kiritib boʻlmaydi' });
+      const ratio = chargeRatio(order);
 
       const items = [];
       for (const wanted of body.items || []) {
         const line = (order.items || []).find((i) => i.productId === wanted.productId && i.unit === wanted.unit);
         const quantity = Number(wanted.quantity);
         if (!line || !(quantity > 0)) continue;
-        const left = line.quantity - returnedQty(line.productId, line.unit);
+        const left = line.quantity - returnedQty(db, order.id, line.productId, line.unit);
         if (quantity > left) {
           return jsonResponse(res, 400, { error: `${line.productName}: faqat ${left} ta qaytarish mumkin` });
         }
@@ -230,15 +264,19 @@ const server = http.createServer(async (req, res) => {
           productName: line.productName,
           unit: line.unit,
           quantity,
-          unitPrice: line.unitPrice,
-          totalPrice: Math.round(quantity * line.unitPrice),
+          unitPrice: Math.round(line.unitPrice * ratio),
+          totalPrice: Math.round(quantity * line.unitPrice * ratio),
         });
       }
       if (items.length === 0) return jsonResponse(res, 400, { error: 'Qaytariladigan tovar tanlanmagan' });
 
       const shop = findShop(db, order.shopId);
       const client = db.clients.find((c) => c.id === order.shopId);
-      const total = items.reduce((sum, i) => sum + i.totalPrice, 0);
+      // Rounding must never let returns exceed what the shop was charged
+      const total = Math.min(
+        items.reduce((sum, i) => sum + i.totalPrice, 0),
+        Math.max(0, orderCharge(order) - (order.returnedAmount || 0))
+      );
       const ret = {
         id: `ret_${Date.now()}`,
         orderId: order.id,
@@ -254,8 +292,12 @@ const server = http.createServer(async (req, res) => {
       };
 
       for (const i of items) changeStock(db, i.productId, i.unit, i.quantity, +1);
-      // A nasiya shop does not owe for goods it did not keep
-      if (shop && order.paymentMethod === 'nasiya') shop.debtBalance = Math.max(0, (shop.debtBalance || 0) - total);
+      // A credit shop does not owe for goods it did not keep; remember how much was taken off
+      if (shop && isCredit(order)) {
+        const removed = Math.min(shop.debtBalance || 0, total);
+        shop.debtBalance = (shop.debtBalance || 0) - removed;
+        ret.debtApplied = removed;
+      }
       order.returnedAmount = (order.returnedAmount || 0) + total;
 
       db.returns.unshift(ret);
@@ -287,7 +329,8 @@ const server = http.createServer(async (req, res) => {
       const order = db.orders.find((o) => o.id === ret.orderId);
       const shop = findShop(db, ret.shopId);
       for (const i of ret.items) changeStock(db, i.productId, i.unit, i.quantity, -1);
-      if (shop && order && order.paymentMethod === 'nasiya') shop.debtBalance = (shop.debtBalance || 0) + ret.total;
+      // Give back exactly what the return took off (older returns have no debtApplied)
+      if (shop && order && isCredit(order)) shop.debtBalance = (shop.debtBalance || 0) + (ret.debtApplied ?? ret.total);
       if (order) order.returnedAmount = Math.max(0, (order.returnedAmount || 0) - ret.total);
       db.returns = db.returns.filter((r) => r.id !== ret.id);
       saveDatabase(db);
@@ -300,11 +343,14 @@ const server = http.createServer(async (req, res) => {
       const month = url.searchParams.get('month') || localDate(Date.now()).slice(0, 7);
       const lineOf = new Map(db.clients.map((c) => [c.id, c.lineCode]));
       const today = localDate(Date.now());
+      const cancelledIds = new Set(db.orders.filter((o) => o.status === 'cancelled').map((o) => o.id));
 
       const lines = db.lines.map((line) => {
         // Cancelled orders are not sales
         const orders = db.orders.filter((o) => o.status !== 'cancelled' && lineOf.get(o.shopId) === line.code);
-        const returns = db.returns.filter((r) => r.lineCode === line.code);
+        const returns = db.returns.filter(
+          (r) => !cancelledIds.has(r.orderId) && (lineOf.get(r.shopId) ?? r.lineCode) === line.code
+        );
 
         const days = {};
         const cell = (date) => (days[date] ||= { orders: 0, gross: 0, returns: 0, net: 0 });
@@ -399,7 +445,12 @@ const server = http.createServer(async (req, res) => {
 
         if (existsIndex >= 0) {
           // The first accepted timestamp stays (re-syncs must not move the order to another day)
-          const { createdAt, clientCreatedAt, ...rest } = order;
+          // Status, items and money were settled when the order first arrived (stock and debt
+          // were applied then), so a resend may only fill in descriptive fields
+          const {
+            createdAt, clientCreatedAt, status, items, totalAmount, discountAmount, finalAmount,
+            paymentMethod, returnedAmount, shopId, ...rest
+          } = order;
           db.orders[existsIndex] = { ...db.orders[existsIndex], ...rest };
         } else {
           db.orders.unshift(order);
@@ -411,7 +462,7 @@ const server = http.createServer(async (req, res) => {
           }
 
           // If nasiya, increment shop debt
-          if (order.shopId && (order.paymentMethod === 'nasiya' || order.paymentMethod === 'debt')) {
+          if (order.shopId && isCredit(order)) {
             const shop = findShop(db, order.shopId);
             if (shop) {
               shop.debtBalance = (shop.debtBalance || 0) + (order.finalAmount || order.totalAmount || 0);
@@ -456,7 +507,8 @@ const server = http.createServer(async (req, res) => {
         // The phone retries failed uploads, so a payment with a known id is applied only once
         if (!Array.isArray(db.paymentIds)) db.paymentIds = [];
         const alreadyApplied = payment.id && db.paymentIds.includes(payment.id);
-        if (shop && !alreadyApplied) {
+        if (!shop) return jsonResponse(res, 404, { error: 'Shop not found' });
+        if (!alreadyApplied) {
           shop.debtBalance = Math.max(0, (shop.debtBalance || 0) - payment.amount);
           if (payment.id) db.paymentIds.push(payment.id);
           saveDatabase(db);
@@ -489,6 +541,8 @@ const server = http.createServer(async (req, res) => {
       const db = loadDatabase();
       const index = db.lines.findIndex((l) => l.id === line.id || l.code === code);
       if (index >= 0) {
+        const oldCode = db.lines[index].code;
+        if (oldCode !== code) for (const c of db.clients) if (c.lineCode === oldCode) c.lineCode = code;
         db.lines[index] = { ...db.lines[index], ...line, code };
       } else {
         db.lines.push({ ...line, id: line.id || `line_${Date.now()}`, code });
@@ -560,13 +614,16 @@ const server = http.createServer(async (req, res) => {
     // POST /api/v1/clients/assign — { ids: [], lineCode: '4-3' | null, day: 1-6 | null }
     if (req.method === 'POST' && pathname === '/api/v1/clients/assign') {
       const { ids, lineCode, day } = await parseBody(req);
+      if (lineCode && !(Number(day) >= 1 && Number(day) <= 6)) {
+        return jsonResponse(res, 400, { error: 'day must be 1-6 when a line is given' });
+      }
       const db = loadDatabase();
       const idSet = new Set(Array.isArray(ids) ? ids : []);
       for (const c of db.clients) {
         if (!idSet.has(c.id)) continue;
         if (lineCode) {
-          c.lineCode = lineCode;
-          if (day) c.day = Number(day);
+          c.lineCode = String(lineCode);
+          c.day = Number(day);
         } else {
           delete c.lineCode;
           delete c.day;
@@ -588,6 +645,7 @@ const server = http.createServer(async (req, res) => {
     // 404 Not Found
     return jsonResponse(res, 404, { error: 'Not Found', path: pathname });
   } catch (err) {
+    if (err.status === 400) return jsonResponse(res, 400, { error: err.message });
     console.error('Server error:', err);
     return jsonResponse(res, 500, { error: 'Internal Server Error', message: err.message });
   }
