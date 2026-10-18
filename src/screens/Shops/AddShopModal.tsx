@@ -195,9 +195,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.md,
     paddingVertical: space.sm,
     borderRadius: radius.pill,
-    backgroundColor: colors.card,
+    backgroundColor: colors.surfaceSecondary,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.surfaceSecondary,
   },
-  chipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
+  chipActive: { backgroundColor: colors.primaryLight, borderColor: colors.primary },
 });

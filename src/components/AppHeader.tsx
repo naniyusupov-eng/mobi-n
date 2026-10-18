@@ -7,7 +7,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft } from 'lucide-react-native';
 import { AppText } from './ui';
-import { colors, space } from '../theme/colors';
+import { colors, shadow, space } from '../theme/colors';
 
 interface AppHeaderProps {
   title: string;
@@ -25,7 +25,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ title, onBack, right }) =>
             <ChevronLeft size={22} color={colors.text} strokeWidth={2.2} />
           </Pressable>
         ) : null}
-        <AppText variant={onBack ? 'title' : 'h2'} lines={1} style={styles.title}>
+        <AppText variant={onBack ? 'h2' : 'h1'} lines={1} style={styles.title}>
           {title}
         </AppText>
         {right}
@@ -35,26 +35,25 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ title, onBack, right }) =>
 };
 
 const styles = StyleSheet.create({
+  // Same as the web header: title straight on the canvas, no bar or border
   bar: {
-    backgroundColor: colors.card,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: colors.border,
+    backgroundColor: colors.background,
   },
   row: {
-    height: 56,
+    height: 60,
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
     paddingHorizontal: space.lg,
   },
   back: {
-    width: 36,
-    height: 36,
-    marginLeft: -space.xs,
-    borderRadius: 18,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: colors.card,
+    ...shadow.card,
   },
   pressed: { opacity: 0.7 },
   title: { flex: 1 },

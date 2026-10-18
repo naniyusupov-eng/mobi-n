@@ -29,12 +29,12 @@ import { formatMoney } from '../utils/format';
 type Icon = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 export type Tone = 'neutral' | 'primary' | 'success' | 'warning' | 'danger';
 
-const TONES: Record<Tone, { fg: string; bg: string; border: string }> = {
-  neutral: { fg: colors.textSecondary, bg: colors.surfaceSecondary, border: colors.border },
-  primary: { fg: colors.primaryDark, bg: colors.primaryLight, border: colors.primaryBorder },
-  success: { fg: colors.success, bg: colors.successLight, border: '#BBF7D0' },
-  warning: { fg: colors.warning, bg: colors.warningLight, border: '#FDE68A' },
-  danger: { fg: colors.danger, bg: colors.dangerLight, border: '#FECDD3' },
+export const TONES: Record<Tone, { fg: string; bg: string; border: string; solid: string }> = {
+  neutral: { fg: colors.textSecondary, bg: colors.surfaceSecondary, border: colors.border, solid: colors.textSecondary },
+  primary: { fg: colors.primary, bg: colors.primaryLight, border: colors.primaryBorder, solid: colors.primary },
+  success: { fg: colors.success, bg: colors.successLight, border: '#A7F3D0', solid: colors.success },
+  warning: { fg: colors.warning, bg: colors.warningLight, border: '#FDE68A', solid: colors.warning },
+  danger: { fg: colors.danger, bg: colors.dangerLight, border: '#FECDD3', solid: colors.danger },
 };
 
 // ---------------------------------------------------------------- Text
@@ -42,14 +42,14 @@ const TONES: Record<Tone, { fg: string; bg: string; border: string }> = {
 type Variant = 'h1' | 'h2' | 'title' | 'body' | 'strong' | 'small' | 'caption' | 'label';
 
 const VARIANTS: Record<Variant, TextStyle> = {
-  h1: { fontSize: font.h1, fontWeight: '700', color: colors.text },
-  h2: { fontSize: font.h2, fontWeight: '700', color: colors.text },
-  title: { fontSize: font.title, fontWeight: '600', color: colors.text },
+  h1: { fontSize: font.h1, fontWeight: '700', color: colors.text, letterSpacing: -0.5 },
+  h2: { fontSize: font.h2, fontWeight: '700', color: colors.text, letterSpacing: -0.3 },
+  title: { fontSize: font.title, fontWeight: '700', color: colors.text, letterSpacing: -0.2 },
   body: { fontSize: font.body, color: colors.text },
   strong: { fontSize: font.body, fontWeight: '600', color: colors.text },
   small: { fontSize: font.small, color: colors.textSecondary },
   caption: { fontSize: font.caption, color: colors.textMuted },
-  label: { fontSize: font.caption, fontWeight: '600', color: colors.textMuted, letterSpacing: 0.4, textTransform: 'uppercase' },
+  label: { fontSize: font.title, fontWeight: '700', color: colors.text, letterSpacing: -0.2 },
 };
 
 interface AppTextProps {
@@ -188,15 +188,15 @@ interface ButtonProps {
 
 const BUTTON: Record<ButtonVariant, { bg: string; fg: string; border: string }> = {
   primary: { bg: colors.primary, fg: colors.white, border: colors.primary },
-  secondary: { bg: colors.primaryLight, fg: colors.primaryDark, border: colors.primaryBorder },
+  secondary: { bg: colors.primaryLight, fg: colors.primary, border: colors.primaryLight },
   outline: { bg: colors.card, fg: colors.text, border: colors.border },
-  danger: { bg: colors.dangerLight, fg: colors.danger, border: '#FECDD3' },
+  danger: { bg: colors.dangerLight, fg: colors.danger, border: colors.dangerLight },
   ghost: { bg: 'transparent', fg: colors.textSecondary, border: 'transparent' },
 };
 
 export const Button: React.FC<ButtonProps> = ({ title, onPress, variant = 'primary', size = 'md', icon: IconCmp, loading, disabled, style }) => {
   const c = BUTTON[variant];
-  const height = { sm: 34, md: 44, lg: 52 }[size];
+  const height = { sm: 38, md: 48, lg: 54 }[size];
   const off = disabled || loading;
   return (
     <Pressable
@@ -271,7 +271,7 @@ export function Segmented<K extends string>({
         const active = o.key === value;
         return (
           <Pressable key={o.key} onPress={() => onChange(o.key)} style={[styles.segment, active && styles.segmentActive]}>
-            <AppText variant="small" color={active ? colors.primaryDark : colors.textSecondary} lines={1} style={active && styles.bold}>
+            <AppText variant="small" color={active ? colors.white : colors.textSecondary} lines={1} style={styles.bold}>
               {o.label}
               {o.count != null ? ` · ${o.count}` : ''}
             </AppText>
@@ -410,13 +410,11 @@ export const Stat: React.FC<{ label: string; value: string; hint?: string; tone?
   style,
 }) => (
   <Card style={[styles.stat, style]}>
-    <View style={styles.statTop}>
-      <AppText variant="small" lines={2} style={styles.flex}>
-        {label}
-      </AppText>
-      {IconCmp ? <IconCmp size={16} color={tone === 'neutral' ? colors.textMuted : TONES[tone].fg} strokeWidth={2} /> : null}
-    </View>
-    <AppText variant="h2" color={tone === 'neutral' ? colors.text : TONES[tone].fg} fit style={styles.tabular}>
+    {IconCmp ? <IconCircle icon={IconCmp} tone={tone === 'neutral' ? 'primary' : tone} size={38} /> : null}
+    <AppText variant="small" lines={2}>
+      {label}
+    </AppText>
+    <AppText variant="h2" fit style={styles.tabular}>
       {value}
     </AppText>
     {hint ? (
@@ -427,6 +425,53 @@ export const Stat: React.FC<{ label: string; value: string; hint?: string; tone?
   </Card>
 );
 
+/** Round tinted icon, like the service icons in Click */
+export const IconCircle: React.FC<{ icon: Icon; tone?: Tone; size?: number }> = ({ icon: IconCmp, tone = 'primary', size = 44 }) => (
+  <View style={[styles.iconCircle, { width: size, height: size, borderRadius: size / 2, backgroundColor: TONES[tone].bg }]}>
+    <IconCmp size={Math.round(size * 0.46)} color={TONES[tone].fg} strokeWidth={2} />
+  </View>
+);
+
+/** The blue headline card (web HeroCard): icon, label, big value, pills underneath */
+export const HeroCard: React.FC<{
+  icon: Icon;
+  label: string;
+  value: React.ReactNode;
+  badge?: React.ReactNode;
+  children?: React.ReactNode;
+  style?: StyleProp<ViewStyle>;
+}> = ({ icon: IconCmp, label, value, badge, children, style }) => (
+  <View style={[styles.hero, style]}>
+    <View style={styles.heroTop}>
+      <View style={styles.heroIcon}>
+        <IconCmp size={20} color={colors.white} strokeWidth={2} />
+      </View>
+      {badge}
+    </View>
+    <AppText variant="small" color="rgba(255,255,255,0.8)" lines={1}>
+      {label}
+    </AppText>
+    {typeof value === 'string' ? (
+      <AppText variant="h1" color={colors.white} fit style={styles.tabular}>
+        {value}
+      </AppText>
+    ) : (
+      value
+    )}
+    {children ? <View style={styles.heroPills}>{children}</View> : null}
+  </View>
+);
+
+/** Small pill on the hero card; solid = white with blue text */
+export const HeroPill: React.FC<{ label: string; icon?: Icon; solid?: boolean }> = ({ label, icon: IconCmp, solid }) => (
+  <View style={[styles.heroPill, solid && styles.heroPillSolid]}>
+    {IconCmp ? <IconCmp size={13} color={solid ? colors.primary : colors.white} strokeWidth={2.2} /> : null}
+    <AppText variant="caption" color={solid ? colors.primary : colors.white} lines={1} style={styles.bold}>
+      {label}
+    </AppText>
+  </View>
+);
+
 export const EmptyState: React.FC<{ icon: Icon; title: string; hint?: string; action?: React.ReactNode }> = ({
   icon: IconCmp,
   title,
@@ -435,7 +480,7 @@ export const EmptyState: React.FC<{ icon: Icon; title: string; hint?: string; ac
 }) => (
   <View style={styles.empty}>
     <View style={styles.emptyIcon}>
-      <IconCmp size={26} color={colors.textMuted} strokeWidth={1.8} />
+      <IconCmp size={26} color={colors.primary} strokeWidth={1.8} />
     </View>
     <AppText variant="strong" align="center">
       {title}
@@ -501,19 +546,18 @@ const styles = StyleSheet.create({
     padding: space.lg,
     paddingTop: space.md,
     backgroundColor: colors.card,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
     gap: space.sm,
+    ...shadow.pop,
   },
 
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
     ...shadow.card,
   },
-  cardPadded: { padding: space.lg, gap: space.sm },
+  cardPadded: { padding: 18, gap: space.sm },
   row: { flexDirection: 'row', alignItems: 'center' },
   wrap: { flexWrap: 'wrap' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
@@ -529,41 +573,37 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   buttonTextSm: { fontSize: font.small },
-  iconButton: { borderRadius: radius.md, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  iconButton: { borderRadius: radius.pill, borderWidth: 0, alignItems: 'center', justifyContent: 'center' },
 
   badge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
     borderRadius: radius.pill,
     alignSelf: 'flex-start',
     maxWidth: '100%',
   },
   badgeText: { fontWeight: '600' },
 
-  segmented: { gap: space.xs, paddingVertical: 2 },
+  segmented: { gap: 4, padding: 4, backgroundColor: colors.card, borderRadius: radius.md + 2, ...shadow.card },
   segment: {
-    paddingHorizontal: space.md,
-    paddingVertical: 7,
-    borderRadius: radius.pill,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
+    paddingHorizontal: space.md + 2,
+    paddingVertical: 8,
+    borderRadius: radius.sm + 2,
   },
-  segmentActive: { backgroundColor: colors.primaryLight, borderColor: colors.primaryBorder },
+  segmentActive: { backgroundColor: colors.primary },
 
   search: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
-    height: 44,
-    paddingHorizontal: space.md,
+    height: 48,
+    paddingHorizontal: space.lg,
     backgroundColor: colors.card,
     borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    ...shadow.card,
   },
   searchInput: { flex: 1, fontSize: font.body, color: colors.text, paddingVertical: 0 },
 
@@ -573,12 +613,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
-    minHeight: 46,
-    paddingHorizontal: space.md,
-    backgroundColor: colors.card,
+    minHeight: 48,
+    paddingHorizontal: space.lg,
+    backgroundColor: colors.surfaceSecondary,
     borderRadius: radius.md,
     borderWidth: 1,
-    borderColor: colors.border,
+    borderColor: colors.surfaceSecondary,
   },
   inputMultiline: { alignItems: 'flex-start', paddingVertical: space.sm },
   inputError: { borderColor: colors.danger },
@@ -586,28 +626,51 @@ const styles = StyleSheet.create({
   inputTextMultiline: { minHeight: 72, textAlignVertical: 'top' },
 
   listItem: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingVertical: space.md },
-  listIcon: { width: 38, height: 38, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  listIcon: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
 
   keyValue: { flexDirection: 'row', alignItems: 'flex-start', gap: space.md, paddingVertical: 3 },
   keyLabel: { flexShrink: 0, maxWidth: '50%' },
   keyValueRight: { flex: 1, alignItems: 'flex-end', minWidth: 0 },
 
-  stat: { flex: 1, minWidth: 140, padding: space.md, gap: 4 },
-  statTop: { flexDirection: 'row', alignItems: 'flex-start', gap: space.sm },
+  stat: { flex: 1, minWidth: 140, padding: space.lg, gap: 6 },
+  iconCircle: { alignItems: 'center', justifyContent: 'center' },
+
+  hero: { backgroundColor: colors.primary, borderRadius: radius.lg, padding: space.xl, gap: 8 },
+  heroTop: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: space.md, marginBottom: 2 },
+  heroIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroPills: { flexDirection: 'row', flexWrap: 'wrap', gap: space.sm, marginTop: 4 },
+  heroPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    maxWidth: '100%',
+  },
+  heroPillSolid: { backgroundColor: colors.white },
 
   empty: { alignItems: 'center', gap: space.sm, paddingVertical: space.xxl, paddingHorizontal: space.xl },
   emptyIcon: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: colors.surfaceSecondary,
+    backgroundColor: colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: space.xs,
   },
 
   sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: colors.overlay },
-  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 20, borderTopRightRadius: 20, maxHeight: '90%' },
+  sheet: { backgroundColor: colors.card, borderTopLeftRadius: 26, borderTopRightRadius: 26, maxHeight: '90%' },
   sheetHandle: { alignSelf: 'center', width: 40, height: 4, borderRadius: 2, backgroundColor: colors.border, marginTop: space.sm },
   sheetHeader: { flexDirection: 'row', alignItems: 'center', gap: space.md, paddingHorizontal: space.lg, paddingVertical: space.md },
   sheetBody: { paddingHorizontal: space.lg, paddingBottom: space.lg, gap: space.md },

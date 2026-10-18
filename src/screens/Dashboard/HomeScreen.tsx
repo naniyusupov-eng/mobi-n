@@ -23,11 +23,27 @@ import { useShopStore } from '../../store/shopStore';
 import { getTodayDateString, useDateStore } from '../../store/dateStore';
 import { orderRepository } from '../../database/orderRepository';
 import { Order } from '../../types';
-import { colors, radius, space } from '../../theme/colors';
-import { AppText, Badge, Button, Card, Divider, EmptyState, IconButton, Row, Screen, SectionHeader, Stat } from '../../components/ui';
+import { colors, radius, shadow, space } from '../../theme/colors';
+import {
+  AppText,
+  Badge,
+  Button,
+  Card,
+  Divider,
+  EmptyState,
+  HeroCard,
+  HeroPill,
+  IconButton,
+  IconCircle,
+  Row,
+  Screen,
+  SectionHeader,
+  Stat,
+  Tone,
+} from '../../components/ui';
 import { OrderCard } from '../../components/shared';
 import { COMMON, useL } from '../../i18n/tri';
-import { formatDayLong, formatMoneyShort, formatNumber } from '../../utils/format';
+import { formatDayLong, formatMoney, formatMoneyShort, formatNumber } from '../../utils/format';
 
 type Stats = { totalSales: number; orderCount: number; cashCollected: number };
 
@@ -104,48 +120,97 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
     }
   };
 
+  // Click-style shortcuts (round icons with a caption)
+  const shortcuts: { label: string; icon: typeof Store; tone: Tone; onPress: () => void }[] = [
+    {
+      label: L({ uz: 'Doʻkonlar', uz_cyrl: 'Дўконлар', ru: 'Магазины' }),
+      icon: Store,
+      tone: 'primary',
+      onPress: () => navigation.navigate('ShopsTab'),
+    },
+    {
+      label: L({ uz: 'Katalog', uz_cyrl: 'Каталог', ru: 'Каталог' }),
+      icon: ShoppingBag,
+      tone: 'success',
+      onPress: () => navigation.navigate('CatalogTab'),
+    },
+    {
+      label: L({ uz: 'Yangi doʻkon', uz_cyrl: 'Янги дўкон', ru: 'Новый магазин' }),
+      icon: Plus,
+      tone: 'warning',
+      onPress: () => navigation.navigate('ShopsTab', { screen: 'AddShopModal' }),
+    },
+    {
+      label: L({ uz: 'Hisobotlar', uz_cyrl: 'Ҳисоботлар', ru: 'Отчёты' }),
+      icon: BarChart3,
+      tone: 'danger',
+      onPress: () => navigation.navigate('ReportsScreen'),
+    },
+  ];
+
   return (
     <Screen edges={['top', 'left', 'right']} refreshing={refreshing} onRefresh={onRefresh}>
-      {/* Top: line + sync */}
+      {/* Top: title, line, sync */}
       <Row gap={space.md}>
         <View style={styles.flex}>
-          <AppText variant="caption" lines={1}>
-            {L({ uz: 'Joriy liniya', uz_cyrl: 'Жорий линия', ru: 'Текущая линия' })}
+          <AppText variant="h1" lines={1}>
+            {L({ uz: 'Asosiy', uz_cyrl: 'Асосий', ru: 'Главная' })}
           </AppText>
-          <AppText variant="h2" lines={1}>
-            {lineCode ? `${lineCode} ${L(COMMON.line)}` : '—'}
+          <AppText variant="small" lines={1}>
+            {lineCode ? `${lineCode} ${L(COMMON.line).toLowerCase()}` : '—'}
           </AppText>
         </View>
-        <IconButton
-          icon={pendingCount > 0 ? CloudUpload : RefreshCw}
-          tone={pendingCount > 0 ? 'warning' : 'primary'}
+        <Pressable
           onPress={handleSync}
           disabled={isSyncing}
-          size={40}
-        />
+          hitSlop={6}
+          style={({ pressed }) => [styles.roundBtn, pressed && styles.pressed, isSyncing && styles.dim]}
+        >
+          {pendingCount > 0 ? <CloudUpload size={20} color={colors.warning} /> : <RefreshCw size={20} color={colors.primary} />}
+          {pendingCount > 0 ? <View style={styles.dot} /> : null}
+        </Pressable>
       </Row>
+
+      {/* Headline: the working day's sales */}
+      <HeroCard
+        icon={TrendingUp}
+        label={
+          isToday
+            ? L({ uz: 'Bugungi savdo', uz_cyrl: 'Бугунги савдо', ru: 'Продажи сегодня' })
+            : L({ uz: 'Kun savdosi', uz_cyrl: 'Кун савдоси', ru: 'Продажи за день' })
+        }
+        value={formatMoney(stats.totalSales, lang)}
+        badge={<HeroPill label={formatDayLong(workingDate, lang)} />}
+      >
+        <HeroPill
+          solid
+          icon={Receipt}
+          label={`${formatNumber(stats.orderCount)} ${L({ uz: 'ta buyurtma', uz_cyrl: 'та буюртма', ru: 'заказов' })}`}
+        />
+        <HeroPill icon={Banknote} label={`${L({ uz: 'Naqd', uz_cyrl: 'Нақд', ru: 'Наличные' })} ${formatMoneyShort(stats.cashCollected, lang)}`} />
+      </HeroCard>
 
       {/* Working day switcher */}
       <View style={styles.dateBar}>
-        <IconButton icon={ChevronLeft} onPress={() => shiftWorkingDay(-1)} size={36} />
+        <IconButton icon={ChevronLeft} onPress={() => shiftWorkingDay(-1)} size={38} />
         <Pressable onPress={resetToToday} style={({ pressed }) => [styles.dateCenter, pressed && styles.pressed]} hitSlop={4}>
           <AppText variant="strong" align="center" lines={1}>
-            {formatDayLong(workingDate, lang)}
+            {isToday ? L(COMMON.today) : formatDayLong(workingDate, lang)}
           </AppText>
-          <AppText variant="caption" align="center" color={isToday ? colors.textMuted : colors.primary} lines={1}>
-            {isToday
-              ? L(COMMON.today)
-              : L({ uz: 'Bugunga qaytish', uz_cyrl: 'Бугунга қайтиш', ru: 'Вернуться к сегодня' })}
-          </AppText>
+          {!isToday ? (
+            <AppText variant="caption" align="center" color={colors.primary} lines={1}>
+              {L({ uz: 'Bugunga qaytish', uz_cyrl: 'Бугунга қайтиш', ru: 'Вернуться к сегодня' })}
+            </AppText>
+          ) : null}
         </Pressable>
-        <IconButton icon={ChevronRight} onPress={() => shiftWorkingDay(1)} size={36} />
+        <IconButton icon={ChevronRight} onPress={() => shiftWorkingDay(1)} size={38} />
       </View>
 
       {/* Sync status (only when something waits) */}
       {pendingCount > 0 || isSyncing ? (
         <Card style={styles.syncCard}>
           <Row gap={space.md}>
-            <CloudOff size={18} color={colors.warning} />
+            <IconCircle icon={CloudOff} tone="warning" size={40} />
             <View style={styles.flex}>
               <AppText variant="strong" lines={1}>
                 {isSyncing
@@ -161,7 +226,6 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
             <Button
               title={L({ uz: 'Yuborish', uz_cyrl: 'Юбориш', ru: 'Отправить' })}
               size="sm"
-              variant="secondary"
               onPress={handleSync}
               loading={isSyncing}
             />
@@ -169,13 +233,39 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
         </Card>
       ) : null}
 
+      {/* KPIs */}
+      <Row gap={space.md}>
+        <Stat
+          label={L({ uz: 'Naqd', uz_cyrl: 'Нақд', ru: 'Наличные' })}
+          value={formatMoneyShort(stats.cashCollected, lang)}
+          icon={Banknote}
+          tone="success"
+        />
+        <Stat
+          label={L({ uz: 'Nasiya va oʻtkazma', uz_cyrl: 'Насия ва ўтказма', ru: 'В долг и перечисл.' })}
+          value={formatMoneyShort(debtAmount, lang)}
+          icon={Wallet}
+          tone={debtAmount > 0 ? 'danger' : 'neutral'}
+        />
+      </Row>
+
+      {/* Shortcuts */}
+      <Card style={styles.shortcuts}>
+        {shortcuts.map((s) => (
+          <Pressable key={s.label} onPress={s.onPress} style={({ pressed }) => [styles.shortcut, pressed && styles.pressed]}>
+            <IconCircle icon={s.icon} tone={s.tone} size={48} />
+            <AppText variant="caption" color={colors.secondary} align="center" lines={2} style={styles.shortcutText}>
+              {s.label}
+            </AppText>
+          </Pressable>
+        ))}
+      </Card>
+
       {/* Active shop */}
       {activeShop ? (
         <Card>
           <Row gap={space.md}>
-            <View style={styles.shopIcon}>
-              <Store size={18} color={colors.primaryDark} />
-            </View>
+            <IconCircle icon={Store} size={44} />
             <View style={styles.flex}>
               <AppText variant="caption" lines={1}>
                 {L({ uz: 'Tanlangan doʻkon', uz_cyrl: 'Танланган дўкон', ru: 'Выбранный магазин' })}
@@ -193,7 +283,7 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
           <Row gap={space.sm} style={styles.topGap}>
             <Button
               title={L({ uz: 'Almashtirish', uz_cyrl: 'Алмаштириш', ru: 'Сменить' })}
-              variant="outline"
+              variant="secondary"
               size="sm"
               onPress={() => navigation.navigate('ShopsTab')}
               style={styles.flex}
@@ -210,9 +300,7 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
       ) : (
         <Card onPress={() => navigation.navigate('ShopsTab')}>
           <Row gap={space.md}>
-            <View style={styles.shopIcon}>
-              <Store size={18} color={colors.primaryDark} />
-            </View>
+            <IconCircle icon={Store} size={44} />
             <View style={styles.flex}>
               <AppText variant="strong" lines={1}>
                 {L(COMMON.chooseShop)}
@@ -225,35 +313,6 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
           </Row>
         </Card>
       )}
-
-      {/* KPIs for the working day */}
-      <Row gap={space.md} wrap>
-        <Stat
-          label={L(COMMON.orders)}
-          value={formatNumber(stats.orderCount)}
-          icon={Receipt}
-        />
-        <Stat
-          label={L({ uz: 'Savdo', uz_cyrl: 'Савдо', ru: 'Продажи' })}
-          value={formatMoneyShort(stats.totalSales, lang)}
-          icon={TrendingUp}
-          tone="primary"
-        />
-      </Row>
-      <Row gap={space.md} wrap>
-        <Stat
-          label={L({ uz: 'Naqd', uz_cyrl: 'Нақд', ru: 'Наличные' })}
-          value={formatMoneyShort(stats.cashCollected, lang)}
-          icon={Banknote}
-          tone="success"
-        />
-        <Stat
-          label={L({ uz: 'Nasiya va oʻtkazma', uz_cyrl: 'Насия ва ўтказма', ru: 'В долг и перечисл.' })}
-          value={formatMoneyShort(debtAmount, lang)}
-          icon={Wallet}
-          tone={debtAmount > 0 ? 'danger' : 'neutral'}
-        />
-      </Row>
 
       {/* Orders of the working day */}
       <SectionHeader
@@ -287,23 +346,6 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
         </Card>
       )}
 
-      {/* Quick actions (not duplicated by the tab bar) */}
-      <Row gap={space.sm}>
-        <Button
-          title={L({ uz: 'Yangi doʻkon', uz_cyrl: 'Янги дўкон', ru: 'Новый магазин' })}
-          icon={Plus}
-          variant="outline"
-          onPress={() => navigation.navigate('ShopsTab', { screen: 'AddShopModal' })}
-          style={styles.flex}
-        />
-        <Button
-          title={L({ uz: 'Hisobotlar', uz_cyrl: 'Ҳисоботлар', ru: 'Отчёты' })}
-          icon={BarChart3}
-          variant="outline"
-          onPress={() => navigation.navigate('ReportsScreen')}
-          style={styles.flex}
-        />
-      </Row>
       {pendingCount === 0 && !isSyncing ? (
         <Row gap={6} style={styles.center}>
           <Badge
@@ -320,27 +362,40 @@ const styles = StyleSheet.create({
   flex: { flex: 1, minWidth: 0 },
   grow2: { flex: 2, minWidth: 0 },
   pressed: { opacity: 0.75 },
+  dim: { opacity: 0.5 },
   center: { justifyContent: 'center' },
   topGap: { marginTop: space.xs },
+  roundBtn: {
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...shadow.card,
+  },
+  dot: {
+    position: 'absolute',
+    top: 9,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: colors.danger,
+  },
   dateBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: space.sm,
-    padding: space.sm,
+    padding: 6,
     backgroundColor: colors.card,
-    borderRadius: radius.lg,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderRadius: radius.md + 4,
+    ...shadow.card,
   },
   dateCenter: { flex: 1, minWidth: 0, alignItems: 'center', paddingVertical: 2 },
-  syncCard: { backgroundColor: colors.warningLight, borderColor: colors.border, paddingVertical: space.md },
-  shopIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.md,
-    backgroundColor: colors.primaryLight,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  syncCard: { backgroundColor: colors.warningLight },
+  shortcuts: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: space.lg, paddingHorizontal: space.sm },
+  shortcut: { flex: 1, minWidth: 0, alignItems: 'center', gap: 6 },
+  shortcutText: { fontWeight: '600' },
   listCard: { paddingVertical: 0 },
 });

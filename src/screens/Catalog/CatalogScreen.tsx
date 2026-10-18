@@ -10,7 +10,7 @@ import { AppText, Badge, Button, Card, Money, Row, Screen, SearchBar, Segmented 
 import { CATEGORY_LABELS, COMMON, UNIT_LABELS, useL } from '../../i18n/tri';
 import { EqualSegments, QtyStepper, UNIT_ORDER, getUnitPrice } from '../../components/orderControls';
 import { formatMoney, formatNumber } from '../../utils/format';
-import { colors, radius, space } from '../../theme/colors';
+import { colors, radius, shadow, space } from '../../theme/colors';
 
 // ---------------------------------------------------------------- Screen
 
@@ -221,15 +221,14 @@ const styles = StyleSheet.create({
     gap: space.md,
     padding: space.md,
     backgroundColor: colors.card,
-    borderRadius: radius.md,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    borderRadius: radius.lg,
+    ...shadow.card,
   },
-  shopStripEmpty: { backgroundColor: colors.warningLight, borderColor: colors.border },
+  shopStripEmpty: { backgroundColor: colors.warningLight },
   shopIcon: {
-    width: 34,
-    height: 34,
-    borderRadius: radius.sm,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',

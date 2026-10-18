@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet } from 'react-native';
+import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator, NativeStackHeaderProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,7 +17,28 @@ import { ReportsScreen } from '../screens/Reports/ReportsScreen';
 import { ProfileScreen } from '../screens/Profile/ProfileScreen';
 import { AppHeader } from '../components/AppHeader';
 import { Tri, useL } from '../i18n/tri';
-import { colors, font } from '../theme/colors';
+import { colors, font, radius, shadow } from '../theme/colors';
+
+type TabIconCmp = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+
+// Active tab sits in a soft blue pill, like the active item of the web sidebar
+const tabIcon = (IconCmp: TabIconCmp) =>
+  function TabIcon({ color, focused }: { color: string; focused: boolean }) {
+    return (
+      <View
+        style={{
+          width: 52,
+          height: 30,
+          borderRadius: radius.pill,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: focused ? colors.primaryLight : 'transparent',
+        }}
+      >
+        <IconCmp size={21} color={color} strokeWidth={focused ? 2.2 : 1.8} />
+      </View>
+    );
+  };
 
 const Tab = createBottomTabNavigator();
 const HomeStack = createNativeStackNavigator();
@@ -95,15 +116,15 @@ export const RootTabNavigator = () => {
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
           backgroundColor: colors.card,
-          borderTopColor: colors.border,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          height: 60 + insets.bottom,
-          paddingTop: 6,
-          paddingBottom: 6 + insets.bottom,
-          elevation: 0,
-          shadowOpacity: 0,
+          borderTopWidth: 0,
+          borderTopLeftRadius: radius.lg,
+          borderTopRightRadius: radius.lg,
+          height: 66 + insets.bottom,
+          paddingTop: 8,
+          paddingBottom: 8 + insets.bottom,
+          ...shadow.pop,
         },
-        tabBarLabelStyle: { fontSize: font.caption, fontWeight: '500' },
+        tabBarLabelStyle: { fontSize: font.caption, fontWeight: '600', marginTop: 2 },
         tabBarHideOnKeyboard: true,
       }}
     >
@@ -113,7 +134,7 @@ export const RootTabNavigator = () => {
         options={{
           headerShown: false,
           title: L(TITLES.home),
-          tabBarIcon: ({ color, size }) => <Home size={size - 2} color={color} strokeWidth={1.8} />,
+          tabBarIcon: tabIcon(Home),
         }}
       />
       <Tab.Screen
@@ -122,7 +143,7 @@ export const RootTabNavigator = () => {
         options={{
           headerShown: false,
           title: L(TITLES.shops),
-          tabBarIcon: ({ color, size }) => <MapPin size={size - 2} color={color} strokeWidth={1.8} />,
+          tabBarIcon: tabIcon(MapPin),
         }}
       />
       <Tab.Screen
@@ -131,7 +152,7 @@ export const RootTabNavigator = () => {
         options={{
           headerShown: false,
           title: L(TITLES.catalog),
-          tabBarIcon: ({ color, size }) => <Package size={size - 2} color={color} strokeWidth={1.8} />,
+          tabBarIcon: tabIcon(Package),
         }}
       />
       <Tab.Screen
@@ -139,7 +160,7 @@ export const RootTabNavigator = () => {
         component={OrdersHistoryScreen}
         options={{
           title: L(TITLES.history),
-          tabBarIcon: ({ color, size }) => <FileText size={size - 2} color={color} strokeWidth={1.8} />,
+          tabBarIcon: tabIcon(FileText),
         }}
       />
       <Tab.Screen
@@ -147,7 +168,7 @@ export const RootTabNavigator = () => {
         component={ProfileScreen}
         options={{
           title: L(TITLES.profile),
-          tabBarIcon: ({ color, size }) => <User size={size - 2} color={color} strokeWidth={1.8} />,
+          tabBarIcon: tabIcon(User),
         }}
       />
     </Tab.Navigator>

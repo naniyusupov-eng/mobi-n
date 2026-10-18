@@ -1,34 +1,38 @@
-// Mobi_R mobile design tokens. Same sky brand as the web admin.
+// Mobi_R mobile design tokens: the same Click-style theme as the web admin
+// (bright brand blue, soft blue-grey canvas, white rounded cards).
 export const colors = {
-  primary: '#0284C7', // sky-600
-  primaryDark: '#0369A1', // sky-700
-  primaryLight: '#F0F9FF', // sky-50
-  primaryBorder: '#BAE6FD', // sky-200
-  secondary: '#334155', // slate-700
-  accent: '#0284C7',
+  primary: '#0B6BFF', // brand-500
+  primaryDark: '#0850C0', // brand-700
+  primaryLight: '#EEF5FF', // brand-50
+  primaryBorder: '#BCD6FF', // brand-200
+  primarySoft: '#E0ECFF', // brand-100
+  secondary: '#344054', // ink-700
+  accent: '#0B6BFF',
 
-  background: '#F4F6F9',
+  background: '#F1F4F9', // canvas
   card: '#FFFFFF',
-  surfaceSecondary: '#F1F5F9', // slate-100
+  surfaceSecondary: '#F0F2F6', // ink-100
 
-  text: '#0F172A', // slate-900
-  textSecondary: '#475569', // slate-600
-  textMuted: '#94A3B8', // slate-400
-  border: '#E2E8F0', // slate-200
-  borderSubtle: '#F1F5F9',
+  text: '#101828', // ink-900
+  textSecondary: '#667085', // ink-500
+  textMuted: '#98A2B3', // ink-400
+  border: '#E4E7EC', // ink-200
+  borderSubtle: '#F0F2F6',
 
-  success: '#16A34A',
-  successLight: '#F0FDF4',
+  success: '#059669',
+  successLight: '#ECFDF5',
   danger: '#E11D48',
   dangerLight: '#FFF1F2',
   warning: '#D97706',
   warningLight: '#FFFBEB',
-  info: '#0284C7',
-  infoLight: '#F0F9FF',
+  violet: '#7C3AED',
+  violetLight: '#F5F3FF',
+  info: '#0B6BFF',
+  infoLight: '#EEF5FF',
 
-  shadow: '#0F172A',
+  shadow: '#101828',
   white: '#FFFFFF',
-  overlay: 'rgba(15, 23, 42, 0.45)',
+  overlay: 'rgba(16, 24, 40, 0.45)',
 };
 
 // 4-pt spacing scale
@@ -42,27 +46,34 @@ export const space = {
 };
 
 export const radius = {
-  sm: 6,
-  md: 10,
-  lg: 14,
+  sm: 10,
+  md: 14, // controls: buttons, inputs, chips
+  lg: 22, // cards (web rounded-card)
   pill: 999,
 };
 
 export const font = {
   caption: 11,
-  small: 12,
-  body: 14,
-  title: 16,
-  h2: 19,
-  h1: 24,
+  small: 13,
+  body: 15,
+  title: 17,
+  h2: 20,
+  h1: 26,
 };
 
 export const shadow = {
   card: {
     shadowColor: colors.shadow,
     shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
+    shadowOpacity: 0.05,
     shadowRadius: 3,
     elevation: 1,
+  },
+  pop: {
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    elevation: 8,
   },
 };
