@@ -76,7 +76,9 @@ export const ProfileScreen = () => {
           </View>
           <View style={styles.flex}>
             <AppText variant="caption" lines={1}>
-              {L({ uz: 'Liniya', uz_cyrl: 'Линия', ru: 'Линия' })}
+              {agent?.role === 'driver'
+                ? L({ uz: 'Yetkazuvchi', uz_cyrl: 'Етказувчи', ru: 'Доставщик' })
+                : L({ uz: 'Agent', uz_cyrl: 'Агент', ru: 'Агент' })}
             </AppText>
             <AppText variant="h2" lines={1}>
               {lineCode ? `${lineCode} ${L(COMMON.line)}` : '—'}

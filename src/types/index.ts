@@ -10,7 +10,10 @@ export interface Agent {
   avatarUrl?: string;
   loginAt?: string;
   lineCode?: string;      // Liniya (e.g. "4-3"); session comes from the line QR code
+  role?: UserRole;        // Line QR has two codes: agent (orders) and driver (delivery, money, PKO)
 }
+
+export type UserRole = 'agent' | 'driver';
 
 export interface Category {
   id: string;

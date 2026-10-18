@@ -1,14 +1,17 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuthStore } from '../store/authStore';
 import { getDatabase } from '../database/db';
 import { QRScannerScreen } from '../screens/Auth/QRScannerScreen';
 import { RootTabNavigator } from './RootTabNavigator';
+import { DriverTabNavigator } from './DriverTabNavigator';
 import { colors } from '../theme/colors';
-
 import { useLanguageStore } from '../store/languageStore';
+
+// Screens sit on the same soft canvas as the web admin
+const NAV_THEME = { ...DefaultTheme, colors: { ...DefaultTheme.colors, background: colors.background, primary: colors.primary, card: colors.card } };
 
 const Stack = createNativeStackNavigator();
 
@@ -36,10 +39,15 @@ export const AppNavigator = () => {
   }
 
   return (
-    <NavigationContainer>
+    <NavigationContainer theme={NAV_THEME}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {agent ? (
-          <Stack.Screen name="MainTabs" component={RootTabNavigator} />
+          // The line's driver code opens the delivery app; the agent code opens order taking
+          agent.role === 'driver' ? (
+            <Stack.Screen name="DriverTabs" component={DriverTabNavigator} />
+          ) : (
+            <Stack.Screen name="MainTabs" component={RootTabNavigator} />
+          )
         ) : (
           <Stack.Screen name="Auth" component={QRScannerScreen} />
         )}

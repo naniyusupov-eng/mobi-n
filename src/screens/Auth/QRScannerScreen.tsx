@@ -2,7 +2,7 @@
  * Sign-in: scan the line QR code (or type the line code, e.g. "4-3").
  * Language can be switched before signing in.
  */
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Camera, LogIn } from 'lucide-react-native';
@@ -10,7 +10,7 @@ import { AppText, Button, Card, Field, Screen } from '../../components/ui';
 import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { MobileLanguage } from '../../i18n/mobileTranslations';
-import { colors, radius, space } from '../../theme/colors';
+import { colors, radius, shadow, space } from '../../theme/colors';
 
 // Each language is labelled in its own script
 const LANGUAGES: { id: MobileLanguage; label: string }[] = [
@@ -43,7 +43,9 @@ export const QRScannerScreen = () => {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [manualCode, setManualCode] = useState('');
-  const { loginWithQR, isLoading } = useAuthStore();
+  const { loginWithQR, isLoggingIn: isLoading } = useAuthStore();
+  // The camera reports the same code several times before a re-render; one sign-in per scan
+  const busy = useRef(false);
   const { lang, setLang, t } = useLanguageStore();
   const { width } = useWindowDimensions();
 
@@ -51,26 +53,36 @@ export const QRScannerScreen = () => {
   const frameSize = Math.round(scannerSize * 0.7);
 
   const handleBarCodeScanned = async ({ data }: { data: string }) => {
-    if (scanned || isLoading) return;
+    if (busy.current) return;
+    busy.current = true;
     setScanned(true);
 
+    // The code itself says whether it opens the agent or the driver app
     const result = await loginWithQR(data);
     if (!result.success) {
       Alert.alert(t('auth_error_title'), result.error || t('auth_error_title'), [
-        { text: t('auth_retry'), onPress: () => setScanned(false) },
+        {
+          text: t('auth_retry'),
+          onPress: () => {
+            busy.current = false;
+            setScanned(false);
+          },
+        },
       ]);
     }
   };
 
   const handleManualLogin = async () => {
-    if (isLoading) return;
+    if (busy.current) return;
     const code = manualCode.trim();
     if (!code) {
       Alert.alert(t('warning'), t('auth_enter_code_alert'));
       return;
     }
 
+    busy.current = true;
     const result = await loginWithQR(code);
+    busy.current = false;
     if (!result.success) {
       Alert.alert(t('error'), result.error || t('auth_error_title'));
     }
@@ -161,15 +173,14 @@ const styles = StyleSheet.create({
   langBar: {
     alignSelf: 'flex-end',
     flexDirection: 'row',
-    padding: 2,
-    gap: 2,
+    padding: 4,
+    gap: 4,
     borderRadius: radius.pill,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    backgroundColor: colors.card,
+    ...shadow.card,
   },
   langBtn: { minWidth: 44, alignItems: 'center', paddingHorizontal: space.md, paddingVertical: 6, borderRadius: radius.pill },
-  langBtnActive: { backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.primaryBorder },
+  langBtnActive: { backgroundColor: colors.primaryLight },
   langText: { fontWeight: '600' },
 
   brand: { alignSelf: 'stretch', alignItems: 'center', gap: space.xs, paddingHorizontal: space.sm },
@@ -180,8 +191,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
     overflow: 'hidden',
     backgroundColor: colors.text,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
+    ...shadow.pop,
   },
   frameWrap: { position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, alignItems: 'center', justifyContent: 'center' },
   corner: { position: 'absolute', width: CORNER, height: CORNER, borderColor: colors.white },

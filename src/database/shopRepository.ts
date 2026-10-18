@@ -104,7 +104,8 @@ export const shopRepository = {
     );
   },
 
-  collectPayment: (shopId: string, amount: number) => {
+  /** PKO: takes a debt payment off the shop and queues it; `by` tells the server who collected it */
+  collectPayment: (shopId: string, amount: number, by = '') => {
     const db = getDatabase();
     const id = `pay_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
     const createdAt = new Date().toISOString();
@@ -120,7 +121,7 @@ export const shopRepository = {
         {
           $id: `sync_${id}`,
           $entityId: shopId,
-          $payload: JSON.stringify({ id, shopId, amount, createdAt }),
+          $payload: JSON.stringify({ id, shopId, amount, by, createdAt }),
           $createdAt: createdAt,
         }
       );

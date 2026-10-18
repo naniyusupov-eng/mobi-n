@@ -81,6 +81,15 @@ const orderCharge = (order) => order.finalAmount || order.totalAmount || 0;
 // Share of the list price actually charged (orders can carry a discount)
 const chargeRatio = (order) => (order.totalAmount > 0 ? orderCharge(order) / order.totalAmount : 1);
 
+// Day the driver delivers an order: the date the agent chose, otherwise the next working day
+function deliveryDay(order) {
+  if (order.deliveryDate) return String(order.deliveryDate).slice(0, 10);
+  const d = new Date(`${localDate(order.createdAt)}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  if (d.getUTCDay() === 0) d.setUTCDate(d.getUTCDate() + 1); // no deliveries on Sunday
+  return d.toISOString().slice(0, 10);
+}
+
 // Quantity of one order line already brought back
 function returnedQty(db, orderId, productId, unit) {
   return db.returns
@@ -173,6 +182,71 @@ const server = http.createServer(async (req, res) => {
         count: orders.length,
         orders,
       });
+    }
+
+    // GET /api/v1/deliveries?line=4-3[&date=YYYY-MM-DD] — the line driver's orders for a day
+    if (req.method === 'GET' && pathname === '/api/v1/deliveries') {
+      const db = loadDatabase();
+      const lineCode = url.searchParams.get('line');
+      const date = url.searchParams.get('date') || localDate(Date.now());
+      if (!lineCode) return jsonResponse(res, 400, { error: 'line is required' });
+      const clientById = new Map(db.clients.map((c) => [c.id, c]));
+      const orders = db.orders
+        .filter((o) => o.status !== 'cancelled' && clientById.get(o.shopId)?.lineCode === lineCode && deliveryDay(o) === date)
+        .map((o) => {
+          const c = clientById.get(o.shopId) || {};
+          return {
+            ...o,
+            lineCode,
+            routeDay: c.day,
+            shopNum: c.num,
+            shopPhone: c.phone || '',
+            shopAddress: c.address || o.shopAddress || '',
+            latitude: c.latitude,
+            longitude: c.longitude,
+            shopDebt: c.debtBalance || 0,
+            deliveryDay: date,
+            returns: db.returns.filter((r) => r.orderId === o.id),
+          };
+        })
+        .sort((a, b) => (a.shopNum ?? 9999) - (b.shopNum ?? 9999));
+      return jsonResponse(res, 200, { success: true, date, line: lineCode, orders });
+    }
+
+    // POST /api/v1/orders/:id/deliver — { collected, by } the driver handed the goods over
+    // POST /api/v1/orders/:id/undeliver — the driver undoes a mistaken "delivered"
+    const deliverMatch = pathname.match(/^\/api\/v1\/orders\/([^/]+)\/(deliver|undeliver)$/);
+    if (req.method === 'POST' && deliverMatch) {
+      const body = await parseBody(req);
+      const db = loadDatabase();
+      const order = db.orders.find((o) => o.id === deliverMatch[1]);
+      if (!order) return jsonResponse(res, 404, { error: 'Order not found' });
+      if (order.status === 'cancelled') return jsonResponse(res, 400, { error: 'Bekor qilingan buyurtma' });
+      if (deliverMatch[2] === 'deliver') {
+        const collected = Number(body.collected);
+        order.status = 'delivered';
+        order.deliveredAt = new Date().toISOString();
+        order.deliveredBy = String(body.by || '');
+        order.collected = Number.isFinite(collected) && collected >= 0 ? Math.round(collected) : 0;
+      } else {
+        order.status = 'confirmed';
+        delete order.deliveredAt;
+        delete order.deliveredBy;
+        delete order.collected;
+      }
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, order });
+    }
+
+    // GET /api/v1/payments[?by=driver:4-3][&date=YYYY-MM-DD] — PKO history
+    if (req.method === 'GET' && pathname === '/api/v1/payments') {
+      const db = loadDatabase();
+      const by = url.searchParams.get('by');
+      const date = url.searchParams.get('date');
+      const payments = (db.payments || []).filter(
+        (pm) => (!by || pm.by === by) && (!date || localDate(pm.createdAt) === date)
+      );
+      return jsonResponse(res, 200, { success: true, payments });
     }
 
     // POST /api/v1/orders/:id/status — { status } changed on the website
@@ -511,6 +585,15 @@ const server = http.createServer(async (req, res) => {
         if (!alreadyApplied) {
           shop.debtBalance = Math.max(0, (shop.debtBalance || 0) - payment.amount);
           if (payment.id) db.paymentIds.push(payment.id);
+          if (!Array.isArray(db.payments)) db.payments = [];
+          db.payments.unshift({
+            id: payment.id || `pay_${Date.now()}`,
+            shopId: payment.shopId,
+            shopName: shop.name,
+            amount: Math.round(payment.amount),
+            by: String(payment.by || ''),
+            createdAt: payment.createdAt || new Date().toISOString(),
+          });
           saveDatabase(db);
         }
       }

@@ -1,8 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, RefreshControl, StyleSheet, View } from 'react-native';
-import { CalendarOff, CheckCircle2, MapPin, Phone, Plus, ShoppingBag, Store, Wallet } from 'lucide-react-native';
+import { CalendarOff, CheckCircle2, MapPin, Phone, Plus, ShoppingBag, Store } from 'lucide-react-native';
 import { AppText, Badge, Button, Card, Divider, EmptyState, IconButton, Money, Row, Screen, SearchBar, Segmented } from '../../components/ui';
-import { PaymentSheet } from '../../components/shared';
 import { COMMON, Tri, useL } from '../../i18n/tri';
 import { useShopStore } from '../../store/shopStore';
 import { useCartStore } from '../../store/cartStore';
@@ -10,7 +9,7 @@ import { useLanguageStore } from '../../store/languageStore';
 import { useSyncStore } from '../../store/syncStore';
 import { todayRouteDay } from '../../services/lineService';
 import { formatShopNum } from '../../utils/format';
-import { PKO_LABEL, callShop, shopDayLabel, shopRouteCode, splitPhones } from '../../components/shopHelpers';
+import { callShop, shopDayLabel, shopRouteCode, splitPhones } from '../../components/shopHelpers';
 import { Shop } from '../../types';
 import { colors, space } from '../../theme/colors';
 
@@ -44,11 +43,10 @@ interface ShopCardProps {
   shop: Shop;
   onOpen: (shop: Shop) => void;
   onOrder: (shop: Shop) => void;
-  onPay: (shop: Shop) => void;
   onCall: (shop: Shop) => void;
 }
 
-const ShopCard = memo(({ shop, onOpen, onOrder, onPay, onCall }: ShopCardProps) => {
+const ShopCard = memo(({ shop, onOpen, onOrder, onCall }: ShopCardProps) => {
   const L = useL();
   const lang = useLanguageStore((s) => s.lang);
   const routeCode = shopRouteCode(shop);
@@ -101,7 +99,6 @@ const ShopCard = memo(({ shop, onOpen, onOrder, onPay, onCall }: ShopCardProps) 
 
       <Row gap={space.sm}>
         <Button title={L(COMMON.newOrder)} icon={ShoppingBag} size="sm" onPress={() => onOrder(shop)} style={styles.flex} />
-        <Button title={L(PKO_LABEL)} icon={Wallet} size="sm" variant="outline" onPress={() => onPay(shop)} />
         {hasPhone ? <IconButton icon={Phone} onPress={() => onCall(shop)} size={34} tone="primary" /> : null}
       </Row>
     </Card>
@@ -117,7 +114,6 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
   const L = useL();
 
   const [activeTab, setActiveTab] = useState<FilterTab>('today');
-  const [payShop, setPayShop] = useState<Shop | null>(null);
 
   useEffect(() => {
     loadShops();
@@ -173,7 +169,7 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
 
   const renderItem = useCallback(
     ({ item }: { item: Shop }) => (
-      <ShopCard shop={item} onOpen={handleOpen} onOrder={handleOrder} onPay={setPayShop} onCall={handleCall} />
+      <ShopCard shop={item} onOpen={handleOpen} onOrder={handleOrder} onCall={handleCall} />
     ),
     [handleOpen, handleOrder, handleCall]
   );
@@ -227,7 +223,6 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
         ListEmptyComponent={<EmptyState icon={Store} title={emptyTitle} hint={L(TX.emptyHint)} />}
       />
 
-      <PaymentSheet shop={payShop} onClose={() => setPayShop(null)} onDone={loadShops} />
     </Screen>
   );
 };

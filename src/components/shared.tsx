@@ -10,6 +10,7 @@ import { colors, radius, space } from '../theme/colors';
 import { COMMON, CURRENCY, PAYMENT_LABELS, STATUS_LABELS, useL } from '../i18n/tri';
 import { useLanguageStore } from '../store/languageStore';
 import { useSyncStore } from '../store/syncStore';
+import { useAuthStore } from '../store/authStore';
 import { orderRepository } from '../database/orderRepository';
 import { shopRepository } from '../database/shopRepository';
 import { invoiceService } from '../services/invoiceService';
@@ -77,6 +78,7 @@ export const PaymentSheet: React.FC<{ shop: Shop | null; onClose: () => void; on
   const L = useL();
   const lang = useLanguageStore((s) => s.lang);
   const triggerSync = useSyncStore((s) => s.triggerSync);
+  const session = useAuthStore((s) => s.agent);
   const [amount, setAmount] = useState('');
 
   useEffect(() => {
@@ -88,7 +90,7 @@ export const PaymentSheet: React.FC<{ shop: Shop | null; onClose: () => void; on
 
   const handleConfirm = () => {
     if (!shop || value <= 0) return;
-    shopRepository.collectPayment(shop.id, value);
+    shopRepository.collectPayment(shop.id, value, `${session?.role || 'agent'}:${session?.lineCode || ''}`);
     onClose();
     onDone?.();
     Alert.alert(L(COMMON.paymentAccepted), `${shop.name}\n${formatMoney(value, lang)}`);

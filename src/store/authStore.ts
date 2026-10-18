@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Agent } from '../types';
 import { getDatabase } from '../database/db';
-import { lineService, parseLineCode } from '../services/lineService';
+import { lineService, parseLineQR } from '../services/lineService';
 import { useLanguageStore } from './languageStore';
 import { Tri, pick } from '../i18n/tri';
 
@@ -25,7 +25,8 @@ const ERR = {
 
 interface AuthState {
   agent: Agent | null;
-  isLoading: boolean;
+  isLoading: boolean; // restoring the saved session at start-up
+  isLoggingIn: boolean; // a QR / code sign-in in progress (keeps the sign-in screen mounted)
   error: string | null;
   loadStoredSession: () => Promise<void>;
   loginWithQR: (qrData: string) => Promise<{ success: boolean; error?: string }>;
@@ -37,6 +38,7 @@ const STORAGE_KEY = '@mobi_r_agent_session';
 export const useAuthStore = create<AuthState>((set) => ({
   agent: null,
   isLoading: true,
+  isLoggingIn: false,
   error: null,
 
   loadStoredSession: async () => {
@@ -54,17 +56,18 @@ export const useAuthStore = create<AuthState>((set) => ({
   // Signs in to a line: the QR code (or typed code like "4-3") belongs to the line, not to an agent
   loginWithQR: async (qrData: string) => {
     const fail = (error: string) => {
-      set({ isLoading: false, error });
+      set({ isLoggingIn: false, error });
       return { success: false, error };
     };
 
     try {
-      set({ isLoading: true, error: null });
+      set({ isLoggingIn: true, error: null });
 
-      const lineCode = parseLineCode(qrData);
-      if (!lineCode) {
+      const parsed = parseLineQR(qrData);
+      if (!parsed) {
         return fail(msg(ERR.notLine));
       }
+      const { lineCode, role } = parsed;
 
       let line;
       try {
@@ -80,8 +83,9 @@ export const useAuthStore = create<AuthState>((set) => ({
 
       const session: Agent = {
         id: line.id,
-        code: `LINE-${lineCode}`,
-        name: `${lineCode} liniya`,
+        code: role === 'driver' ? `DRIVER-${lineCode}` : `LINE-${lineCode}`,
+        name: role === 'driver' ? `${lineCode} yetkazuvchi` : `${lineCode} liniya`,
+        role,
         phone: '',
         territory: lineCode,
         token: `line_${line.id}`,
@@ -105,7 +109,7 @@ export const useAuthStore = create<AuthState>((set) => ({
       );
 
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
-      set({ agent: session, isLoading: false, error: null });
+      set({ agent: session, isLoggingIn: false, error: null });
       return { success: true };
     } catch (err: any) {
       return fail(err.message || msg(ERR.generic));

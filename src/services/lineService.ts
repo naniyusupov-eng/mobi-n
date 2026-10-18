@@ -1,6 +1,6 @@
 import { apiClient } from './apiClient';
 import { shopRepository } from '../database/shopRepository';
-import { Shop } from '../types';
+import { Shop, UserRole } from '../types';
 
 // Route day number (1-6) -> visit day label used across the app
 export const ROUTE_DAYS = ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
@@ -43,8 +43,26 @@ export const parseLineCode = (raw: string): string | null => {
   } catch {
     // not JSON, treat as typed code
   }
-  const match = text.replace(/^LINE-/i, '').match(/^(\d+)\s*[-.]\s*(\d+)$/);
+  const match = text.replace(/^(LINE|DRIVER)-/i, '').match(/^(\d+)\s*[-.]\s*(\d+)$/);
   return match ? `${match[1]}-${match[2]}` : null;
+};
+
+/**
+ * Reads line and role from a scanned line QR. The website prints two codes per line;
+ * the driver code carries role "driver". A typed "4-3" signs in as agent, "DRIVER-4-3" as driver.
+ */
+export const parseLineQR = (raw: string): { lineCode: string; role: UserRole } | null => {
+  const lineCode = parseLineCode(raw);
+  if (!lineCode) return null;
+  const text = raw.trim();
+  let role: UserRole = /^DRIVER-/i.test(text) ? 'driver' : 'agent';
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && (parsed.role === 'driver' || /^DRIVER-/i.test(String(parsed.code || '')))) role = 'driver';
+  } catch {
+    // typed code
+  }
+  return { lineCode, role };
 };
 
 export const lineService = {

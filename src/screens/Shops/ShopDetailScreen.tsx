@@ -11,10 +11,9 @@ import {
   StickyNote,
   Store,
   User,
-  Wallet,
 } from 'lucide-react-native';
 import { AppText, Badge, Button, Card, Divider, EmptyState, Money, Row, Screen, SectionHeader } from '../../components/ui';
-import { OrderCard, PaymentSheet } from '../../components/shared';
+import { OrderCard } from '../../components/shared';
 import { COMMON, Tri, useL } from '../../i18n/tri';
 import { useShopStore } from '../../store/shopStore';
 import { useCartStore } from '../../store/cartStore';
@@ -24,7 +23,7 @@ import { shopRepository } from '../../database/shopRepository';
 import { formatShopNum } from '../../utils/format';
 import { Order, Shop } from '../../types';
 import { colors, radius, space } from '../../theme/colors';
-import { PKO_LABEL, dialPhone, shopDayLabel, shopRouteCode, splitPhones } from '../../components/shopHelpers';
+import { dialPhone, shopDayLabel, shopRouteCode, splitPhones } from '../../components/shopHelpers';
 
 const TX = {
   notFound: { uz: 'Doʻkon maʼlumotlari topilmadi', uz_cyrl: 'Дўкон маълумотлари топилмади', ru: 'Данные магазина не найдены' },
@@ -61,7 +60,6 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
   );
   const [pastOrders, setPastOrders] = useState<Order[]>([]);
   const [isCheckingLocation, setIsCheckingLocation] = useState(false);
-  const [payShop, setPayShop] = useState<Shop | null>(null);
 
   const loadOrders = useCallback(() => {
     if (shopId) setPastOrders(orderRepository.getAll(shopId));
@@ -194,13 +192,6 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
               </AppText>
             )}
           </View>
-          <Button
-            title={L(PKO_LABEL)}
-            icon={Wallet}
-            size="sm"
-            variant={hasDebt ? 'danger' : 'outline'}
-            onPress={() => setPayShop(shop)}
-          />
         </Row>
       </Card>
 
@@ -234,7 +225,6 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
         </Card>
       )}
 
-      <PaymentSheet shop={payShop} onClose={() => setPayShop(null)} onDone={refreshShop} />
     </Screen>
   );
 };

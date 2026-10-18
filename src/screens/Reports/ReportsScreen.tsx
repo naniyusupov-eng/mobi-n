@@ -9,7 +9,7 @@ import { getTodayDateString } from '../../store/dateStore';
 import { Order, Shop } from '../../types';
 import { colors, space } from '../../theme/colors';
 import { AppText, Card, Divider, EmptyState, KeyValue, ListItem, Money, Row, Screen, SectionHeader, Segmented, Stat } from '../../components/ui';
-import { OrderCard, PaymentSheet } from '../../components/shared';
+import { OrderCard } from '../../components/shared';
 import { COMMON, useL } from '../../i18n/tri';
 import { formatMoneyShort, formatNumber } from '../../utils/format';
 
@@ -31,7 +31,6 @@ export const ReportsScreen = ({ navigation }: { navigation?: any }) => {
   const [stats, setStats] = useState<Stats>({ totalSales: 0, orderCount: 0, cashCollected: 0 });
   const [debtShops, setDebtShops] = useState<Shop[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
-  const [payShop, setPayShop] = useState<Shop | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(() => {
@@ -146,7 +145,6 @@ export const ReportsScreen = ({ navigation }: { navigation?: any }) => {
                     subtitle={[s.ownerName, s.address].filter(Boolean).join(' · ') || undefined}
                     icon={Store}
                     iconTone="danger"
-                    onPress={() => setPayShop(s)}
                     right={
                       <View style={styles.amount}>
                         <Money amount={s.debtBalance} color={colors.danger} />
@@ -207,7 +205,6 @@ export const ReportsScreen = ({ navigation }: { navigation?: any }) => {
         </>
       ) : null}
 
-      <PaymentSheet shop={payShop} onClose={() => setPayShop(null)} onDone={load} />
     </Screen>
   );
 };
