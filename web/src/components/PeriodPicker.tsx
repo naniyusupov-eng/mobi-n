@@ -17,10 +17,10 @@ export const inPeriod = (day: string, p: Period) =>
  * Period state that follows the real calendar: if "today" or "this month" is selected,
  * it moves on by itself when the date changes at midnight.
  */
-export const usePeriod = (initial: PeriodKind = 'month') => {
+export const usePeriod = (initial: PeriodKind = 'month', dayOffset = 0) => {
   const today = useToday();
   const [period, setPeriod] = useState<Period>(() =>
-    initial === 'day' ? { kind: 'day', day: today } : initial === 'month' ? { kind: 'month', month: today.slice(0, 7) } : { kind: 'all' }
+    initial === 'day' ? { kind: 'day', day: shiftDay(today, dayOffset) } : initial === 'month' ? { kind: 'month', month: today.slice(0, 7) } : { kind: 'all' }
   );
   const prevToday = useRef(today);
   useEffect(() => {
@@ -28,13 +28,13 @@ export const usePeriod = (initial: PeriodKind = 'month') => {
     if (prev === today) return;
     prevToday.current = today;
     setPeriod((p) =>
-      p.kind === 'day' && p.day === prev
-        ? { kind: 'day', day: today }
+      p.kind === 'day' && p.day === shiftDay(prev, dayOffset)
+        ? { kind: 'day', day: shiftDay(today, dayOffset) }
         : p.kind === 'month' && p.month === prev.slice(0, 7)
         ? { kind: 'month', month: today.slice(0, 7) }
         : p
     );
-  }, [today]);
+  }, [today, dayOffset]);
   return [period, setPeriod] as const;
 };
 
@@ -52,6 +52,7 @@ const T = {
   prevDay: { uz: 'Oldingi kun', uz_cyrl: 'Олдинги кун', ru: 'Предыдущий день' },
   nextDay: { uz: 'Keyingi kun', uz_cyrl: 'Кейинги кун', ru: 'Следующий день' },
   thisMonth: { uz: 'Shu oy', uz_cyrl: 'Шу ой', ru: 'Этот месяц' },
+  tomorrow: { uz: 'Ertaga', uz_cyrl: 'Эртага', ru: 'Завтра' },
 } satisfies Record<string, Tri>;
 
 const navBtn =
@@ -59,8 +60,8 @@ const navBtn =
 
 /* ---------- Calendar popovers ---------- */
 
-// Monday-first month grid; future days are disabled
-const DayGrid: React.FC<{ value: string; today: string; onPick: (day: string) => void }> = ({ value, today, onPick }) => {
+// Monday-first month grid; days after `max` are disabled
+const DayGrid: React.FC<{ value: string; today: string; max: string; onPick: (day: string) => void }> = ({ value, today, max, onPick }) => {
   const { lang } = useLanguage();
   const L = useL();
   const [view, setView] = useState(value.slice(0, 7));
@@ -85,7 +86,7 @@ const DayGrid: React.FC<{ value: string; today: string; onPick: (day: string) =>
           type="button"
           className={navBtn}
           onClick={() => setView(shiftMonth(view, 1))}
-          disabled={view >= today.slice(0, 7)}
+          disabled={view >= max.slice(0, 7)}
           title={L(T.nextMonth)}
         >
           <ChevronRight className="w-[18px] h-[18px]" />
@@ -104,7 +105,7 @@ const DayGrid: React.FC<{ value: string; today: string; onPick: (day: string) =>
             <button
               key={d}
               type="button"
-              disabled={d > today}
+              disabled={d > max}
               onClick={() => onPick(d)}
               className={clsx(
                 'h-9 rounded-xl text-[13px] font-medium tabular-nums transition disabled:text-ink-200 disabled:pointer-events-none',
@@ -133,8 +134,8 @@ const DayGrid: React.FC<{ value: string; today: string; onPick: (day: string) =>
   );
 };
 
-// Year header with 12 months; future months are disabled
-const MonthGrid: React.FC<{ value: string; today: string; onPick: (month: string) => void }> = ({ value, today, onPick }) => {
+// Year header with 12 months; months after `max` are disabled
+const MonthGrid: React.FC<{ value: string; today: string; max: string; onPick: (month: string) => void }> = ({ value, today, max, onPick }) => {
   const { lang } = useLanguage();
   const L = useL();
   const [year, setYear] = useState(Number(value.slice(0, 4)));
@@ -147,7 +148,7 @@ const MonthGrid: React.FC<{ value: string; today: string; onPick: (month: string
           <ChevronLeft className="w-[18px] h-[18px]" />
         </button>
         <span className="text-sm font-semibold text-ink-900 tabular-nums">{year}</span>
-        <button type="button" className={navBtn} onClick={() => setYear(year + 1)} disabled={year >= Number(today.slice(0, 4))} title={L(T.nextYear)}>
+        <button type="button" className={navBtn} onClick={() => setYear(year + 1)} disabled={year >= Number(max.slice(0, 4))} title={L(T.nextYear)}>
           <ChevronRight className="w-[18px] h-[18px]" />
         </button>
       </div>
@@ -158,7 +159,7 @@ const MonthGrid: React.FC<{ value: string; today: string; onPick: (month: string
             <button
               key={mk}
               type="button"
-              disabled={mk > thisMonth}
+              disabled={mk > max.slice(0, 7)}
               onClick={() => onPick(mk)}
               className={clsx(
                 'h-10 rounded-xl text-[13px] font-medium transition disabled:text-ink-200 disabled:pointer-events-none',
@@ -192,13 +193,16 @@ interface PeriodPickerProps {
   onChange: (p: Period) => void;
   /** Which kinds the user can switch between; one kind hides the switch */
   kinds?: PeriodKind[];
+  /** Let the user pick days and months after today (e.g. tomorrow's deliveries) */
+  allowFuture?: boolean;
 }
 
 /** [Hammasi | Oy | Kun]  ‹ 📅 12 okt 2026 › — the label opens a real calendar */
-export const PeriodPicker: React.FC<PeriodPickerProps> = ({ value, onChange, kinds = ['all', 'month', 'day'] }) => {
+export const PeriodPicker: React.FC<PeriodPickerProps> = ({ value, onChange, kinds = ['all', 'month', 'day'], allowFuture = false }) => {
   const { lang } = useLanguage();
   const L = useL();
   const today = useToday();
+  const max = allowFuture ? '9999-12-31' : today;
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -231,7 +235,7 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({ value, onChange, kin
     if (value.kind === 'day') onChange({ kind: 'day', day: shiftDay(value.day, n) });
   };
   const atEnd =
-    (value.kind === 'month' && value.month >= today.slice(0, 7)) || (value.kind === 'day' && value.day >= today);
+    (value.kind === 'month' && value.month >= max.slice(0, 7)) || (value.kind === 'day' && value.day >= max);
 
   const label =
     value.kind === 'month'
@@ -239,6 +243,8 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({ value, onChange, kin
       : value.kind === 'day'
       ? value.day === today
         ? `${L(COMMON.today)}, ${formatDay(value.day, lang)}`
+        : value.day === shiftDay(today, 1)
+        ? `${L(T.tomorrow)}, ${formatDay(value.day, lang)}`
         : formatDay(value.day, lang)
       : '';
 
@@ -294,6 +300,7 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({ value, onChange, kin
                 <DayGrid
                   value={value.day}
                   today={today}
+                  max={max}
                   onPick={(day) => {
                     onChange({ kind: 'day', day });
                     setOpen(false);
@@ -303,6 +310,7 @@ export const PeriodPicker: React.FC<PeriodPickerProps> = ({ value, onChange, kin
                 <MonthGrid
                   value={value.month}
                   today={today}
+                  max={max}
                   onPick={(month) => {
                     onChange({ kind: 'month', month });
                     setOpen(false);

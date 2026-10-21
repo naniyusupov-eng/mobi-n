@@ -5,13 +5,17 @@ import { Segmented } from '../components/ui';
 import { MonthlySales } from './reports/MonthlySales';
 import { LineOrders } from './reports/LineOrders';
 import { ReturnsTab } from './reports/ReturnsTab';
+import { LoadingSheet } from './reports/LoadingSheet';
+import { CashTab } from './reports/CashTab';
 import { Tri, useL } from '../i18n/tri';
 
-type Tab = 'monthly' | 'line' | 'returns';
+type Tab = 'monthly' | 'line' | 'loading' | 'cash' | 'returns';
 
 const TABS: { key: Tab; label: Tri }[] = [
   { key: 'monthly', label: { uz: 'Oylik savdo', uz_cyrl: 'Ойлик савдо', ru: 'Продажи за месяц' } },
   { key: 'line', label: { uz: 'Liniya buyurtmalari', uz_cyrl: 'Линия буюртмалари', ru: 'Заказы по линиям' } },
+  { key: 'loading', label: { uz: 'Yuk varaqasi', uz_cyrl: 'Юк варақаси', ru: 'Погрузочный лист' } },
+  { key: 'cash', label: { uz: 'Kassa', uz_cyrl: 'Касса', ru: 'Касса' } },
   { key: 'returns', label: { uz: 'Vozvratlar', uz_cyrl: 'Возвратлар', ru: 'Возвраты' } },
 ];
 
@@ -28,6 +32,9 @@ export const Reports: React.FC<ReportsProps> = ({ orders, company, onViewOrder }
   const [monthPeriod, setMonthPeriod] = usePeriod('month');
   const [linePeriod, setLinePeriod] = usePeriod('month');
   const [returnsPeriod, setReturnsPeriod] = usePeriod('month');
+  // Loading sheets are for the next delivery day, so they start at tomorrow
+  const [loadingPeriod, setLoadingPeriod] = usePeriod('day', 1);
+  const [cashPeriod, setCashPeriod] = usePeriod('day');
   const [lineCode, setLineCode] = useState('');
 
   // A click in the monthly table opens that line's orders for the clicked day (or month)
@@ -52,6 +59,8 @@ export const Reports: React.FC<ReportsProps> = ({ orders, company, onViewOrder }
         <Segmented options={TABS.map((x) => ({ key: x.key, label: L(x.label) }))} value={tab} onChange={setTab} />
         {tab === 'monthly' && <PeriodPicker kinds={['month']} value={monthPeriod} onChange={setMonthPeriod} />}
         {tab === 'line' && <PeriodPicker value={linePeriod} onChange={setLinePeriod} />}
+        {tab === 'loading' && <PeriodPicker kinds={['day']} allowFuture value={loadingPeriod} onChange={setLoadingPeriod} />}
+        {tab === 'cash' && <PeriodPicker kinds={['day']} value={cashPeriod} onChange={setCashPeriod} />}
         {tab === 'returns' && <PeriodPicker kinds={['month', 'day']} value={returnsPeriod} onChange={setReturnsPeriod} />}
       </div>
 
@@ -65,6 +74,8 @@ export const Reports: React.FC<ReportsProps> = ({ orders, company, onViewOrder }
           onLineChange={setLineCode}
           onViewOrder={onViewOrder}
         />}
+      {tab === 'loading' && loadingPeriod.kind === 'day' && <LoadingSheet day={loadingPeriod.day} />}
+      {tab === 'cash' && cashPeriod.kind === 'day' && <CashTab day={cashPeriod.day} />}
       {tab === 'returns' && <ReturnsTab period={returnsPeriod} refreshKey={refreshKey} />}
     </div>
   );

@@ -67,4 +67,30 @@
   .no-print {
     display: none !important;
   }
+  /* Loading sheets: one line per page, plain black on white */
+  .print-sheet {
+    break-after: page;
+    page-break-after: always;
+  }
+  .print-sheet:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .print-plain, .print-plain * {
+    color: #000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .print-plain .print-sheet {
+    padding: 0 !important;
+    border-radius: 0 !important;
+  }
+  .print-plain th, .print-plain td {
+    border: 1px solid #000 !important;
+    border-radius: 0 !important;
+    padding: 4px 8px !important;
+  }
+  .print-plain .print-box {
+    border-color: #000 !important;
+  }
 }
