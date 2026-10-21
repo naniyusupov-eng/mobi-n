@@ -6,9 +6,17 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
-const PORT = process.env.PORT || 3000;
-const DATA_DIR = path.join(__dirname, 'data');
+const auth = require('./auth.cjs');
+
+// Settings come from the environment so the same code runs on this PC and on a hosted server
+const PORT = Number(process.env.PORT) || 3000;
+const HOST = process.env.HOST || '0.0.0.0';
+const DATA_DIR = process.env.DATA_DIR ? path.resolve(process.env.DATA_DIR) : path.join(__dirname, 'data');
 const DB_FILE = path.join(DATA_DIR, 'sync_db.json');
+const BACKUP_DIR = path.join(DATA_DIR, 'backups');
+const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+// Built website (npm run build in web/); when present the server shows it on the same address
+const WEB_DIST = process.env.WEB_DIST ? path.resolve(process.env.WEB_DIST) : path.join(__dirname, '..', 'web', 'dist');
 const SEED_PRODUCTS = require('./seed-products.cjs');
 
 const INITIAL_DATA = {
@@ -36,11 +44,17 @@ if (!fs.existsSync(DATA_DIR)) {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
+// The database is kept in memory and re-read only when the file changes on disk
+// (e.g. an import script or a restored backup), so requests do not parse it every time
+let cache = null;
+let cacheMtime = 0;
+
 function loadDatabase() {
   if (!fs.existsSync(DB_FILE)) {
-    saveDatabase(INITIAL_DATA);
-    return JSON.parse(JSON.stringify(INITIAL_DATA));
+    saveDatabase(JSON.parse(JSON.stringify(INITIAL_DATA)));
   }
+  const mtime = fs.statSync(DB_FILE).mtimeMs;
+  if (cache && mtime === cacheMtime) return cache;
   let db;
   try {
     db = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
@@ -56,6 +70,11 @@ function loadDatabase() {
   if (!Array.isArray(db.shops)) db.shops = [];
   if (!Array.isArray(db.returns)) db.returns = [];
   if (!Array.isArray(db.products)) db.products = JSON.parse(JSON.stringify(SEED_PRODUCTS));
+  if (!db.auth) db.auth = { admin: null, sessions: [] };
+  if (!Array.isArray(db.auth.sessions)) db.auth.sessions = [];
+  cache = db;
+  cacheMtime = mtime;
+  if (auth.ensureLineKeys(db)) saveDatabase(db);
   return db;
 }
 
@@ -64,7 +83,70 @@ function saveDatabase(data) {
   const tmp = `${DB_FILE}.tmp`;
   fs.writeFileSync(tmp, JSON.stringify(data, null, 2), 'utf8');
   fs.renameSync(tmp, DB_FILE);
+  cache = data;
+  cacheMtime = fs.statSync(DB_FILE).mtimeMs;
 }
+
+// ---------------------------------------------------------------- Backups
+// One copy per hour (only when something changed), kept 2 days; one per day kept 60 days.
+const HOURLY_KEEP = 48;
+const DAILY_KEEP = 60;
+let lastBackupMtime = 0;
+const backupStamp = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', hourCycle: 'h23' });
+
+function backupDatabase() {
+  try {
+    if (!fs.existsSync(DB_FILE)) return;
+    const mtime = fs.statSync(DB_FILE).mtimeMs;
+    if (mtime === lastBackupMtime) return;
+    fs.mkdirSync(BACKUP_DIR, { recursive: true });
+    const stamp = backupStamp.format(new Date()).replace(', ', '_').slice(0, 13); // 2026-10-22_08 (Tashkent)
+    fs.copyFileSync(DB_FILE, path.join(BACKUP_DIR, `hourly-${stamp}.json`));
+    fs.copyFileSync(DB_FILE, path.join(BACKUP_DIR, `daily-${stamp.slice(0, 10)}.json`));
+    lastBackupMtime = mtime;
+    for (const [prefix, keep] of [['hourly-', HOURLY_KEEP], ['daily-', DAILY_KEEP]]) {
+      const files = fs.readdirSync(BACKUP_DIR).filter((f) => f.startsWith(prefix)).sort();
+      for (const old of files.slice(0, Math.max(0, files.length - keep))) fs.unlinkSync(path.join(BACKUP_DIR, old));
+    }
+  } catch (err) {
+    console.error('Backup failed:', err.message);
+  }
+}
+backupDatabase();
+setInterval(backupDatabase, 60 * 60 * 1000).unref();
+
+// ---------------------------------------------------------------- Website files
+const MIME = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.png': 'image/png',
+  '.jpg': 'image/jpeg',
+  '.ico': 'image/x-icon',
+  '.json': 'application/json',
+  '.woff2': 'font/woff2',
+};
+
+/** Serves the built website; unknown paths get index.html (the site is one page). Returns false if no build. */
+function serveWeb(res, pathname) {
+  if (!fs.existsSync(path.join(WEB_DIST, 'index.html'))) return false;
+  const safe = path.normalize(decodeURIComponent(pathname)).replace(/^([/\\]|\.\.)+/, '');
+  let file = path.join(WEB_DIST, safe);
+  if (!file.startsWith(WEB_DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(WEB_DIST, 'index.html');
+  res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+  fs.createReadStream(file).pipe(res);
+  return true;
+}
+
+/** Line (code) an order's shop belongs to */
+function orderLine(db, orderId) {
+  const order = db.orders.find((o) => o.id === orderId);
+  const client = order ? db.clients.find((c) => c.id === order.shopId) : null;
+  return client ? client.lineCode : null;
+}
+
+const publicLine = ({ keys, ...line }) => line;
 
 // Business calendar date (Asia/Tashkent, whatever the server's own zone) as YYYY-MM-DD
 const dayFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tashkent', year: 'numeric', month: '2-digit', day: '2-digit' });
@@ -113,9 +195,10 @@ function changeStock(db, productId, unit, quantity, sign) {
 }
 
 function setCorsHeaders(res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition'); // backup download keeps its file name
 }
 
 function jsonResponse(res, statusCode, body) {
@@ -167,6 +250,154 @@ const server = http.createServer(async (req, res) => {
         app: 'Mobi_R Sync Server',
         time: new Date().toISOString(),
       });
+    }
+
+    // Website pages (anything outside the API) when the built site is present
+    if (req.method === 'GET' && !pathname.startsWith('/api/')) {
+      if (serveWeb(res, pathname)) return;
+    }
+
+    const ip = req.socket.remoteAddress || '';
+
+    // GET /api/v1/auth/status — does the admin still need to choose a password?
+    if (req.method === 'GET' && pathname === '/api/v1/auth/status') {
+      const db = loadDatabase();
+      return jsonResponse(res, 200, { success: true, needsSetup: !db.auth.admin });
+    }
+
+    // POST /api/v1/auth/setup — { username, password } once, on the very first start
+    if (req.method === 'POST' && pathname === '/api/v1/auth/setup') {
+      const { username, password } = await parseBody(req);
+      const db = loadDatabase();
+      if (db.auth.admin) return jsonResponse(res, 403, { error: 'Admin already set up' });
+      const name = String(username || '').trim();
+      if (name.length < 3 || String(password || '').length < 8) {
+        return jsonResponse(res, 400, { error: 'username min 3, password min 8 characters' });
+      }
+      db.auth.admin = { username: name, ...auth.hashPassword(password) };
+      const token = auth.newToken();
+      db.auth.sessions.push({ token, role: 'admin', createdAt: new Date().toISOString() });
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, token, username: name });
+    }
+
+    // POST /api/v1/auth/login — { username, password } website admin
+    if (req.method === 'POST' && pathname === '/api/v1/auth/login') {
+      if (auth.tooManyAttempts(ip)) return jsonResponse(res, 429, { error: 'Too many attempts, wait 10 minutes' });
+      const { username, password } = await parseBody(req);
+      const db = loadDatabase();
+      const admin = db.auth.admin;
+      if (!admin || String(username || '').trim() !== admin.username || !auth.verifyPassword(password, admin)) {
+        return jsonResponse(res, 401, { error: 'Wrong username or password' });
+      }
+      const token = auth.newToken();
+      // Old expired admin sessions are dropped on each sign-in
+      db.auth.sessions = db.auth.sessions.filter((x) => x.role !== 'admin' || Date.now() - Date.parse(x.createdAt) < 30 * 86400000);
+      db.auth.sessions.push({ token, role: 'admin', createdAt: new Date().toISOString() });
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, token, username: admin.username });
+    }
+
+    // POST /api/v1/auth/line — { key } from a line QR code (or typed) -> phone session
+    if (req.method === 'POST' && pathname === '/api/v1/auth/line') {
+      if (auth.tooManyAttempts(ip)) return jsonResponse(res, 429, { error: 'Too many attempts, wait 10 minutes' });
+      const { key } = await parseBody(req);
+      const db = loadDatabase();
+      const found = auth.findLineKey(db, key);
+      if (!found) return jsonResponse(res, 401, { error: 'Unknown line key' });
+      const token = auth.newToken();
+      db.auth.sessions.push({
+        token,
+        role: found.role,
+        line: found.line.code,
+        keyUsed: found.line.keys[found.role],
+        createdAt: new Date().toISOString(),
+      });
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, token, role: found.role, line: publicLine(found.line) });
+    }
+
+    // Everything below needs a signed-in user
+    const session = auth.sessionFor(loadDatabase(), req);
+    if (!session) return jsonResponse(res, 401, { error: 'Sign in required' });
+    // A phone session ends when its line key is changed on the website
+    if (session.role !== 'admin') {
+      const line = loadDatabase().lines.find((l) => l.code === session.line);
+      if (!line || !line.keys || line.keys[session.role] !== session.keyUsed) {
+        return jsonResponse(res, 401, { error: 'Line key changed, scan the new QR code' });
+      }
+    }
+    if (!auth.allowed(session, req.method, pathname)) return jsonResponse(res, 403, { error: 'Not allowed' });
+
+    // Phones only see their own line
+    if (session.role !== 'admin') {
+      if (pathname === '/api/v1/clients' || pathname === '/api/v1/deliveries') url.searchParams.set('line', session.line);
+      if (pathname === '/api/v1/payments') url.searchParams.set('by', `driver:${session.line}`);
+      const routeOwn = pathname.match(/^\/api\/v1\/routes\/(.+)-[1-6]$/);
+      if (routeOwn && routeOwn[1] !== session.line) return jsonResponse(res, 403, { error: 'Not your line' });
+      const orderOwn = pathname.match(/^\/api\/v1\/orders\/([^/]+)\/(deliver|undeliver)$/);
+      if (orderOwn && orderLine(loadDatabase(), orderOwn[1]) !== session.line) return jsonResponse(res, 403, { error: 'Not your line' });
+    }
+
+    // GET /api/v1/auth/me
+    if (req.method === 'GET' && pathname === '/api/v1/auth/me') {
+      const db = loadDatabase();
+      return jsonResponse(res, 200, {
+        success: true,
+        role: session.role,
+        line: session.line || null,
+        username: session.role === 'admin' ? db.auth.admin.username : null,
+      });
+    }
+
+    // POST /api/v1/auth/logout
+    if (req.method === 'POST' && pathname === '/api/v1/auth/logout') {
+      const db = loadDatabase();
+      db.auth.sessions = db.auth.sessions.filter((x) => x.token !== session.token);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true });
+    }
+
+    // POST /api/v1/auth/password — { current, next } admin changes the password
+    if (req.method === 'POST' && pathname === '/api/v1/auth/password') {
+      const { current, next } = await parseBody(req);
+      const db = loadDatabase();
+      if (!auth.verifyPassword(current, db.auth.admin)) return jsonResponse(res, 401, { error: 'Wrong current password' });
+      if (String(next || '').length < 8) return jsonResponse(res, 400, { error: 'password min 8 characters' });
+      db.auth.admin = { username: db.auth.admin.username, ...auth.hashPassword(next) };
+      // Other admin sessions are signed out
+      db.auth.sessions = db.auth.sessions.filter((x) => x.role !== 'admin' || x.token === session.token);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true });
+    }
+
+    // GET /api/v1/lines/:id/keys — the line's agent and driver keys (for printing QR codes)
+    // POST /api/v1/lines/:id/keys — { role } issue a new key; phones using the old one are signed out
+    const keysMatch = pathname.match(/^\/api\/v1\/lines\/([^/]+)\/keys$/);
+    if (keysMatch) {
+      const db = loadDatabase();
+      const line = db.lines.find((l) => l.id === keysMatch[1]);
+      if (!line) return jsonResponse(res, 404, { error: 'Line not found' });
+      if (req.method === 'POST') {
+        const { role } = await parseBody(req);
+        if (!['agent', 'driver'].includes(role)) return jsonResponse(res, 400, { error: 'role must be agent or driver' });
+        line.keys[role] = auth.newLineKey();
+        db.auth.sessions = db.auth.sessions.filter((x) => !(x.line === line.code && x.role === role));
+        saveDatabase(db);
+      }
+      return jsonResponse(res, 200, { success: true, keys: line.keys });
+    }
+
+    // GET /api/v1/admin/backup — download the whole database (a copy for safekeeping)
+    if (req.method === 'GET' && pathname === '/api/v1/admin/backup') {
+      const db = loadDatabase();
+      const { auth: _secret, ...data } = db; // passwords and sessions stay on the server
+      setCorsHeaders(res);
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Content-Disposition': `attachment; filename="mobi_r-backup-${localDate(Date.now())}.json"`,
+      });
+      return res.end(JSON.stringify(data, null, 1));
     }
 
     // GET /api/v1/orders — each order gets its shop's route (lineCode, routeDay, shopNum) for reports
@@ -613,12 +844,12 @@ const server = http.createServer(async (req, res) => {
     // GET /api/v1/lines
     if (req.method === 'GET' && pathname === '/api/v1/lines') {
       const db = loadDatabase();
-      return jsonResponse(res, 200, { success: true, lines: db.lines });
+      return jsonResponse(res, 200, { success: true, lines: db.lines.map(publicLine) });
     }
 
     // POST /api/v1/lines (create or update a line)
     if (req.method === 'POST' && pathname === '/api/v1/lines') {
-      const line = await parseBody(req);
+      const { keys: _ignored, ...line } = await parseBody(req); // keys are issued by the server only
       const code = String(line.code || '').trim();
       if (!code) return jsonResponse(res, 400, { error: 'Line code is required' });
       const db = loadDatabase();
@@ -734,10 +965,7 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-  console.log(`====================================================`);
-  console.log(`🚀 Mobi_R Sync Server is running!`);
-  console.log(`📡 Local address:   http://localhost:${PORT}`);
-  console.log(`📡 LAN address:     http://192.168.1.47:${PORT}`);
-  console.log(`====================================================`);
+server.listen(PORT, HOST, () => {
+  console.log(`Mobi_R server on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}  (data: ${DATA_DIR})`);
+  if (fs.existsSync(path.join(WEB_DIST, 'index.html'))) console.log(`Website served from ${WEB_DIST}`);
 });

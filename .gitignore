@@ -39,3 +39,11 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Server data: shop owners' names and phone numbers, passwords, backups (never commit)
+server/data/
+
+# Deployment settings with real addresses
+.env
+server/.env
+web/.env
