@@ -96,6 +96,8 @@ export const QtyStepper: React.FC<{
       setText(String(value));
       return;
     }
+    // Show the current value back; if the store accepts (or caps) the number, `value` changes and re-syncs
+    setText(String(value));
     if (n !== value) onSet(n);
   };
 

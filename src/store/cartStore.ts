@@ -1,7 +1,57 @@
 import { create } from 'zustand';
 import { CartItem, PackagingUnit, PaymentMethod, Product, Shop, Order } from '../types';
 import { orderRepository } from '../database/orderRepository';
+import { productRepository } from '../database/productRepository';
 import { useDateStore } from './dateStore';
+import { useLanguageStore } from './languageStore';
+import { pick } from '../i18n/tri';
+import { Alert } from 'react-native';
+
+/** How many dona one unit takes from the warehouse stock; 0 = not counted (kg) */
+export const donaPerUnit = (product: Product, unit: PackagingUnit): number => {
+  switch (unit) {
+    case 'dona':
+      return 1;
+    case 'blok':
+      return Math.max(1, product.itemsPerBlock || 1);
+    case 'korobka':
+      return Math.max(1, product.itemsPerBox || 1);
+    default:
+      return 0;
+  }
+};
+
+const showStockAlert = (stock: number) => {
+  const lang = useLanguageStore.getState().lang;
+  const n = String(Math.max(0, stock));
+  const text =
+    stock > 0
+      ? pick({ uz: `Omborda faqat ${n} dona qoldi`, uz_cyrl: `Омборда фақат ${n} дона қолди`, ru: `На складе осталось только ${n} шт` }, lang)
+      : pick({ uz: 'Omborda qolmagan', uz_cyrl: 'Омборда қолмаган', ru: 'На складе нет остатка' }, lang);
+  Alert.alert(pick({ uz: 'Qoldiq yetarli emas', uz_cyrl: 'Қолдиқ етарли эмас', ru: 'Недостаточно остатка' }, lang), text);
+};
+
+/**
+ * Caps the wanted quantity of one product/unit line to the known warehouse stock,
+ * counting what the cart already holds in the other units. Shows an alert when capped.
+ */
+const capToStock = (items: CartItem[], product: Product, unit: PackagingUnit, wanted: number): number => {
+  const perUnit = donaPerUnit(product, unit);
+  if (perUnit === 0 || wanted <= 0) return wanted;
+  // The catalogue on the phone is the freshest figure (orders made today already lowered it)
+  const fresh = productRepository.getById(product.id) || product;
+  const stock = Number(fresh.stockDona);
+  if (!Number.isFinite(stock)) return wanted; // stock unknown: no limit
+  const usedByOtherUnits = items
+    .filter((i) => i.product.id === product.id && i.unit !== unit)
+    .reduce((sum, i) => sum + i.quantity * donaPerUnit(fresh, i.unit), 0);
+  const maxQty = Math.max(0, Math.floor((stock - usedByOtherUnits) / perUnit));
+  if (wanted > maxQty) {
+    showStockAlert(stock);
+    return maxQty;
+  }
+  return wanted;
+};
 
 interface CartState {
   shop: Shop | null;
@@ -76,9 +126,14 @@ export const useCartStore = create<CartState>((set, get) => ({
       (item) => item.product.id === product.id && item.unit === unit
     );
 
+    const currentQty = existingIndex > -1 ? items[existingIndex].quantity : 0;
+    const newQty = capToStock(items, product, unit, currentQty + quantity);
+    if (newQty <= currentQty) {
+      return; // nothing more fits in the stock
+    }
+
     if (existingIndex > -1) {
       const updated = [...items];
-      const newQty = updated[existingIndex].quantity + quantity;
       updated[existingIndex] = {
         ...updated[existingIndex],
         quantity: newQty,
@@ -92,9 +147,9 @@ export const useCartStore = create<CartState>((set, get) => ({
           {
             product,
             unit,
-            quantity,
+            quantity: newQty,
             unitPrice,
-            totalPrice: quantity * unitPrice,
+            totalPrice: newQty * unitPrice,
           },
         ],
       });
@@ -106,8 +161,11 @@ export const useCartStore = create<CartState>((set, get) => ({
     const updated = items
       .map((item) => {
         if (item.product.id === productId && item.unit === unit) {
-          const newQty = item.quantity + delta;
+          const wanted = item.quantity + delta;
+          if (wanted <= 0) return null;
+          const newQty = delta > 0 ? capToStock(items, item.product, unit, wanted) : wanted;
           if (newQty <= 0) return null;
+          if (newQty === item.quantity) return item;
           return {
             ...item,
             quantity: newQty,
@@ -128,12 +186,20 @@ export const useCartStore = create<CartState>((set, get) => ({
       return;
     }
 
+    const existing = items.find((item) => item.product.id === productId && item.unit === unit);
+    if (!existing) return;
+    const capped = quantity > existing.quantity ? capToStock(items, existing.product, unit, quantity) : quantity;
+    if (capped <= 0) {
+      get().removeItem(productId, unit);
+      return;
+    }
+
     const updated = items.map((item) => {
-      if (item.product.id === productId && item.unit === unit) {
+      if (item === existing) {
         return {
           ...item,
-          quantity,
-          totalPrice: quantity * item.unitPrice,
+          quantity: capped,
+          totalPrice: capped * item.unitPrice,
         };
       }
       return item;

@@ -232,16 +232,16 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     // Auth
     auth_brand: 'Mobi_R Qandolat',
     auth_subtitle: 'Liniyaga ulanish',
-    auth_scan_hint: 'Ishlash uchun liniya QR kodini kameraga koʻrsating',
+    auth_scan_hint: 'Liniya QR kodini kameraga koʻrsating yoki QR ostidagi kalitni kiriting',
     auth_camera_permission: 'Kamera ruxsati zarur',
     auth_grant_camera: 'Kameraga ruxsat berish',
     auth_manual_title: 'Yoki demo agent profilini tanlang:',
-    auth_enter_code: 'Liniya kodini qoʻlda kiritish',
-    auth_code_placeholder: '4-3',
+    auth_enter_code: 'Kalit (QR ostidagi kod)',
+    auth_code_placeholder: 'K7QM-29XP',
     auth_login_btn: 'Tizimga kirish',
     auth_error_title: 'Avtorizatsiya xatosi',
     auth_retry: 'Qayta urinish',
-    auth_enter_code_alert: 'Iltimos, liniya kodini kiriting, masalan 4-3',
+    auth_enter_code_alert: 'Iltimos, QR ostidagi kalitni kiriting, masalan K7QM-29XP',
 
     // Home
     home_brand: 'MOBI_R',
@@ -428,16 +428,16 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     // Auth
     auth_brand: 'Моби-С Кондитер',
     auth_subtitle: 'Подключение к линии',
-    auth_scan_hint: 'Наведите камеру на QR-код линии',
+    auth_scan_hint: 'Наведите камеру на QR-код линии или введите ключ под ним',
     auth_camera_permission: 'Требуется доступ к камере',
     auth_grant_camera: 'Разрешить доступ к камере',
     auth_manual_title: 'Или выберите демо-агента:',
-    auth_enter_code: 'Ввести код линии вручную',
-    auth_code_placeholder: '4-3',
+    auth_enter_code: 'Ключ (код под QR-кодом)',
+    auth_code_placeholder: 'K7QM-29XP',
     auth_login_btn: 'Войти в систему',
     auth_error_title: 'Ошибка авторизации',
     auth_retry: 'Повторить попытку',
-    auth_enter_code_alert: 'Введите код линии, например 4-3',
+    auth_enter_code_alert: 'Введите ключ под QR-кодом, например K7QM-29XP',
 
     // Home
     home_brand: 'МОБИ-С',
@@ -624,16 +624,16 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     // Auth
     auth_brand: 'Mobi_R Қандолат',
     auth_subtitle: 'Линияга уланиш',
-    auth_scan_hint: 'Ишлаш учун линия QR кодини камерага кўрсатинг',
+    auth_scan_hint: 'Линия QR кодини камерага кўрсатинг ёки QR остидаги калитни киритинг',
     auth_camera_permission: 'Камера рухсати зарур',
     auth_grant_camera: 'Камерага рухсат бериш',
     auth_manual_title: 'Ёки демо агент профилини танланг:',
-    auth_enter_code: 'Линия кодини қўлда киритиш',
-    auth_code_placeholder: '4-3',
+    auth_enter_code: 'Калит (QR остидаги код)',
+    auth_code_placeholder: 'K7QM-29XP',
     auth_login_btn: 'Тизимга кириш',
     auth_error_title: 'Авторизация хатоси',
     auth_retry: 'Қайта уриниш',
-    auth_enter_code_alert: 'Илтимос, линия кодини киритинг, масалан 4-3',
+    auth_enter_code_alert: 'Илтимос, QR остидаги калитни киритинг, масалан K7QM-29XP',
 
     // Home
     home_brand: 'MOBI_R',

@@ -79,6 +79,14 @@ export const syncService = {
         result.success = false;
         result.errors.push(`Doʻkonlarni yangilab boʻlmadi: ${err.message || err}`);
       }
+      // Fresh catalogue and warehouse stock. Also only after a full push: queued orders
+      // already lowered the local stock, the server's figure would not include them yet.
+      try {
+        await lineService.downloadProducts();
+      } catch (err: any) {
+        result.success = false;
+        result.errors.push(`Tovarlarni yangilab boʻlmadi: ${err.message || err}`);
+      }
     }
 
     return result;

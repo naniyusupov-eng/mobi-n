@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { ChevronRight, PackageSearch, ShoppingCart, Store } from 'lucide-react-native';
 import { productRepository } from '../../database/productRepository';
 import { useCartStore } from '../../store/cartStore';
 import { useShopStore } from '../../store/shopStore';
 import { useLanguageStore } from '../../store/languageStore';
+import { useSyncStore } from '../../store/syncStore';
 import { Category, PackagingUnit, Product } from '../../types';
 import { AppText, Badge, Button, Card, Money, Row, Screen, SearchBar, Segmented } from '../../components/ui';
 import { CATEGORY_LABELS, COMMON, UNIT_LABELS, useL } from '../../i18n/tri';
@@ -27,9 +28,14 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
   const { shop, items, addItem, updateQuantity, setQuantity, getItemCount, getFinalAmount, setShop } = useCartStore();
   const { currentShop } = useShopStore();
 
+  // Products come from the server on sign-in and on every sync; reload after each sync
+  const lastSync = useSyncStore((s) => s.lastResult);
+  const triggerSync = useSyncStore((s) => s.triggerSync);
+  const [refreshing, setRefreshing] = useState(false);
+
   useEffect(() => {
     setCategories(productRepository.getCategories().filter((c) => c.id !== 'cat_all'));
-  }, []);
+  }, [lastSync]);
 
   useEffect(() => {
     if (!shop && currentShop) setShop(currentShop);
@@ -37,7 +43,19 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
 
   useEffect(() => {
     setProducts(productRepository.getAll(selectedCat, search));
-  }, [selectedCat, search]);
+  }, [selectedCat, search, lastSync]);
+
+  // Pull to refresh: push the queue, then download shops and the catalogue with fresh stock
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await triggerSync();
+    } finally {
+      setRefreshing(false);
+      setCategories(productRepository.getCategories().filter((c) => c.id !== 'cat_all'));
+      setProducts(productRepository.getAll(selectedCat, search));
+    }
+  }, [triggerSync, selectedCat, search]);
 
   const categoryOptions = useMemo(
     () => [{ key: 'cat_all', label: L(COMMON.all) }, ...categories.map((c) => ({ key: c.id, label: CATEGORY_LABELS[c.id] ? L(CATEGORY_LABELS[c.id]) : c.name }))],
@@ -191,6 +209,7 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
         contentContainerStyle={styles.list}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.primary} colors={[colors.primary]} />}
         ListEmptyComponent={
           <View style={styles.empty}>
             <PackageSearch size={28} color={colors.textMuted} />

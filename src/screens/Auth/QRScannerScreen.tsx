@@ -1,5 +1,5 @@
 /**
- * Sign-in: scan the line QR code (or type the line code, e.g. "4-3").
+ * Sign-in: scan the line QR code (or type the key printed under it, e.g. "K7QM-29XP").
  * Language can be switched before signing in.
  */
 import React, { useRef, useState } from 'react';
@@ -151,8 +151,8 @@ export const QRScannerScreen = () => {
           value={manualCode}
           onChangeText={setManualCode}
           placeholder={t('auth_code_placeholder')}
-          keyboardType="numbers-and-punctuation"
-          autoCapitalize="none"
+          keyboardType="default"
+          autoCapitalize="characters"
           autoCorrect={false}
           returnKeyType="go"
           onSubmitEditing={handleManualLogin}
