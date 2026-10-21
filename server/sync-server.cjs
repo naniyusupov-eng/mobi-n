@@ -331,7 +331,9 @@ const server = http.createServer(async (req, res) => {
 
     // Phones only see their own line
     if (session.role !== 'admin') {
-      if (pathname === '/api/v1/clients' || pathname === '/api/v1/deliveries') url.searchParams.set('line', session.line);
+      if (['/api/v1/clients', '/api/v1/deliveries', '/api/v1/loading', '/api/v1/cash'].includes(pathname)) {
+        url.searchParams.set('line', session.line);
+      }
       if (pathname === '/api/v1/payments') url.searchParams.set('by', `driver:${session.line}`);
       const routeOwn = pathname.match(/^\/api\/v1\/routes\/(.+)-[1-6]$/);
       if (routeOwn && routeOwn[1] !== session.line) return jsonResponse(res, 403, { error: 'Not your line' });
@@ -442,6 +444,129 @@ const server = http.createServer(async (req, res) => {
         })
         .sort((a, b) => (a.shopNum ?? 9999) - (b.shopNum ?? 9999));
       return jsonResponse(res, 200, { success: true, date, line: lineCode, orders });
+    }
+
+    // GET /api/v1/loading?date=YYYY-MM-DD[&line=4-3] — what each line's truck takes on a delivery day
+    if (req.method === 'GET' && pathname === '/api/v1/loading') {
+      const db = loadDatabase();
+      const date = url.searchParams.get('date') || localDate(Date.now());
+      const onlyLine = url.searchParams.get('line');
+      const clientById = new Map(db.clients.map((c) => [c.id, c]));
+      const productById = new Map(db.products.map((p) => [p.id, p]));
+      const byLine = new Map();
+      for (const o of db.orders) {
+        if (o.status === 'cancelled' || deliveryDay(o) !== date) continue;
+        const client = clientById.get(o.shopId);
+        const lineCode = client?.lineCode;
+        if (!lineCode || (onlyLine && lineCode !== onlyLine)) continue;
+        if (!byLine.has(lineCode)) byLine.set(lineCode, { line: lineCode, orders: 0, total: 0, products: new Map(), stops: [] });
+        const sheet = byLine.get(lineCode);
+        sheet.orders += 1;
+        sheet.total += o.finalAmount || 0;
+        sheet.stops.push({
+          orderId: o.id,
+          num: client.num ?? null,
+          routeDay: client.day ?? null,
+          shopName: o.shopName,
+          phone: client.phone || '',
+          paymentMethod: o.paymentMethod,
+          amount: o.finalAmount || 0,
+          status: o.status,
+        });
+        for (const it of o.items || []) {
+          if (!sheet.products.has(it.productId)) {
+            const prod = productById.get(it.productId);
+            sheet.products.set(it.productId, {
+              productId: it.productId,
+              code: prod?.code || '',
+              name: it.productName || prod?.name || it.productId,
+              units: {},
+              totalDona: 0,
+              hasKg: false,
+            });
+          }
+          const row = sheet.products.get(it.productId);
+          row.units[it.unit] = (row.units[it.unit] || 0) + it.quantity;
+          const prod = productById.get(it.productId);
+          const pieces = prod ? toDona(prod, it.unit, it.quantity) : null;
+          if (pieces == null) row.hasKg = true;
+          else row.totalDona += pieces;
+        }
+      }
+      const sheets = [...byLine.values()]
+        .sort((a, b) => a.line.localeCompare(b.line, undefined, { numeric: true }))
+        .map((sh) => ({
+          ...sh,
+          products: [...sh.products.values()].sort((a, b) => (a.code || a.name).localeCompare(b.code || b.name, undefined, { numeric: true })),
+          stops: sh.stops.sort((a, b) => (a.num ?? 9999) - (b.num ?? 9999)),
+        }));
+      return jsonResponse(res, 200, { success: true, date, sheets });
+    }
+
+    // GET /api/v1/cash?date=YYYY-MM-DD[&line=4-3] — cash each line's driver should hand in, and what was handed in
+    if (req.method === 'GET' && pathname === '/api/v1/cash') {
+      const db = loadDatabase();
+      const date = url.searchParams.get('date') || localDate(Date.now());
+      const onlyLine = url.searchParams.get('line');
+      const handovers = (db.handovers || []).filter((h) => h.date === date);
+      const lineCodes = db.lines.map((l) => l.code).filter((c) => !onlyLine || c === onlyLine);
+      const rows = lineCodes.map((line) => {
+        const by = `driver:${line}`;
+        const delivered = db.orders.filter(
+          (o) => o.status === 'delivered' && o.deliveredBy === by && o.deliveredAt && localDate(o.deliveredAt) === date
+        );
+        const deliveryCash = delivered.reduce((s, o) => s + (o.collected || 0), 0);
+        const pko = (db.payments || []).filter((p) => p.by === by && localDate(p.createdAt) === date);
+        const pkoCash = pko.reduce((s, p) => s + (p.amount || 0), 0);
+        const lineHandovers = handovers.filter((h) => h.line === line);
+        const received = lineHandovers.reduce((s, h) => s + h.amount, 0);
+        const expected = deliveryCash + pkoCash;
+        return {
+          line,
+          deliveredOrders: delivered.length,
+          deliveryCash,
+          pkoCount: pko.length,
+          pkoCash,
+          expected,
+          received,
+          difference: received - expected, // below zero = short
+          handovers: lineHandovers,
+        };
+      });
+      return jsonResponse(res, 200, { success: true, date, lines: rows });
+    }
+
+    // POST /api/v1/cash/handover — { line, date, amount, note } the cashier took cash from a driver
+    if (req.method === 'POST' && pathname === '/api/v1/cash/handover') {
+      const { line, date, amount, note } = await parseBody(req);
+      const db = loadDatabase();
+      const value = Math.round(Number(amount));
+      if (!db.lines.some((l) => l.code === line)) return jsonResponse(res, 400, { error: 'Unknown line' });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return jsonResponse(res, 400, { error: 'date must be YYYY-MM-DD' });
+      if (!(value > 0)) return jsonResponse(res, 400, { error: 'amount must be positive' });
+      if (!Array.isArray(db.handovers)) db.handovers = [];
+      const handover = {
+        id: `hand_${Date.now()}`,
+        line,
+        date,
+        amount: value,
+        note: String(note || '').trim().slice(0, 200),
+        createdAt: new Date().toISOString(),
+      };
+      db.handovers.unshift(handover);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, handover });
+    }
+
+    // DELETE /api/v1/cash/handover/:id — remove a handover entered by mistake
+    const handMatch = pathname.match(/^\/api\/v1\/cash\/handover\/([^/]+)$/);
+    if (req.method === 'DELETE' && handMatch) {
+      const db = loadDatabase();
+      const before = (db.handovers || []).length;
+      db.handovers = (db.handovers || []).filter((h) => h.id !== handMatch[1]);
+      if (db.handovers.length === before) return jsonResponse(res, 404, { error: 'Handover not found' });
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true });
     }
 
     // POST /api/v1/orders/:id/deliver — { collected, by } the driver handed the goods over

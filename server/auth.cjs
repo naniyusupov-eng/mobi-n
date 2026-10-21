@@ -85,7 +85,7 @@ const PHONE_RULES = {
     ['POST', /^\/api\/v1\/(orders\/sync|shops\/sync|payments\/sync)$/],
   ],
   driver: [
-    ['GET', /^\/api\/v1\/(products|clients|settings|deliveries|payments|auth\/me)$/],
+    ['GET', /^\/api\/v1\/(products|clients|settings|deliveries|payments|loading|cash|auth\/me)$/],
     ['POST', /^\/api\/v1\/(returns|payments\/sync)$/],
     ['POST', /^\/api\/v1\/orders\/[^/]+\/(deliver|undeliver)$/],
   ],
