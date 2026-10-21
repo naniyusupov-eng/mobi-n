@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Award, Building2, Check, Languages } from 'lucide-react';
+import { Award, Building2, Check, Download, Languages, LogOut, ShieldCheck } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { Language } from '../i18n/translations';
 import { COMMON, Tri, useL } from '../i18n/tri';
 import { CompanySettings } from '../types';
 import { Button, Card, CardTitle, Field, IconCircle } from '../components/ui';
+import { API, apiFetch, downloadBackup, signOut } from '../api';
 
 interface SettingsProps {
   company: CompanySettings;
@@ -52,6 +53,29 @@ const T = {
     uz_cyrl: 'Юк хати ва чекларнинг тепасида чиқади',
     ru: 'Отображаются в шапке накладных и чеков',
   },
+  securityTitle: { uz: 'Xavfsizlik', uz_cyrl: 'Хавфсизлик', ru: 'Безопасность' },
+  securitySubtitle: {
+    uz: 'Administrator hisobi, parol va zaxira nusxa',
+    uz_cyrl: 'Администратор ҳисоби, парол ва захира нусха',
+    ru: 'Учётная запись администратора, пароль и резервная копия',
+  },
+  signedInAs: { uz: 'Siz kirgansiz', uz_cyrl: 'Сиз киргансиз', ru: 'Вы вошли как' },
+  signOut: { uz: 'Chiqish', uz_cyrl: 'Чиқиш', ru: 'Выйти' },
+  changePassword: { uz: 'Parolni oʻzgartirish', uz_cyrl: 'Паролни ўзгартириш', ru: 'Сменить пароль' },
+  currentPassword: { uz: 'Joriy parol', uz_cyrl: 'Жорий парол', ru: 'Текущий пароль' },
+  newPassword: { uz: 'Yangi parol', uz_cyrl: 'Янги парол', ru: 'Новый пароль' },
+  repeatPassword: { uz: 'Yangi parolni takrorlang', uz_cyrl: 'Янги паролни такрорланг', ru: 'Повторите новый пароль' },
+  pwTooShort: { uz: 'Kamida 8 ta belgi', uz_cyrl: 'Камида 8 та белги', ru: 'Не менее 8 символов' },
+  pwMismatch: { uz: 'Parollar mos kelmadi', uz_cyrl: 'Пароллар мос келмади', ru: 'Пароли не совпадают' },
+  pwWrongCurrent: { uz: 'Joriy parol notoʻgʻri', uz_cyrl: 'Жорий парол нотўғри', ru: 'Неверный текущий пароль' },
+  backupTitle: { uz: 'Zaxira nusxa', uz_cyrl: 'Захира нусха', ru: 'Резервная копия' },
+  backupHint: {
+    uz: 'Barcha maʼlumotlar bitta faylda (parollarsiz). Xavfsiz joyda saqlang.',
+    uz_cyrl: 'Барча маълумотлар битта файлда (паролларсиз). Хавфсиз жойда сақланг.',
+    ru: 'Все данные в одном файле (без паролей). Храните в надёжном месте.',
+  },
+  backupButton: { uz: 'Zaxira nusxani yuklab olish', uz_cyrl: 'Захира нусхани юклаб олиш', ru: 'Скачать резервную копию' },
+  backupFailed: { uz: 'Yuklab boʻlmadi', uz_cyrl: 'Юклаб бўлмади', ru: 'Не удалось скачать' },
 } satisfies Record<string, Tri>;
 
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
@@ -86,6 +110,133 @@ const SaveRow: React.FC<{ status: SaveStatus; disabled: boolean; errorText: stri
         {status === 'saving' ? L(T.saving) : L(COMMON.save)}
       </Button>
     </div>
+  );
+};
+
+/** Signed-in admin, password change, sign out and database backup */
+const SecurityCard: React.FC = () => {
+  const L = useL();
+  const [username, setUsername] = useState('');
+  const [pw, setPw] = useState({ current: '', next: '', repeat: '' });
+  const [pwStatus, setPwStatus] = useState<SaveStatus>('idle');
+  const [pwError, setPwError] = useState<Tri>(T.saveFailedRetry);
+  const [backupBusy, setBackupBusy] = useState(false);
+  const [backupFailed, setBackupFailed] = useState(false);
+
+  useEffect(() => {
+    apiFetch(`${API}/auth/me`)
+      .then((r) => r.json())
+      .then((d) => setUsername(d.username || ''))
+      .catch(() => {});
+  }, []);
+
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pw.next.length < 8) {
+      setPwError(T.pwTooShort);
+      return setPwStatus('error');
+    }
+    if (pw.next !== pw.repeat) {
+      setPwError(T.pwMismatch);
+      return setPwStatus('error');
+    }
+    setPwStatus('saving');
+    try {
+      // 401 here means a wrong current password, not a lost session
+      const res = await apiFetch(
+        `${API}/auth/password`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ current: pw.current, next: pw.next }) },
+        { keepSessionOn401: true }
+      );
+      if (res.ok) {
+        setPw({ current: '', next: '', repeat: '' });
+        return setPwStatus('saved');
+      }
+      setPwError(res.status === 401 ? T.pwWrongCurrent : res.status === 400 ? T.pwTooShort : T.saveFailedRetry);
+      setPwStatus('error');
+    } catch {
+      setPwError(T.saveFailedRetry);
+      setPwStatus('error');
+    }
+  };
+
+  const handleBackup = async () => {
+    setBackupBusy(true);
+    setBackupFailed(false);
+    try {
+      await downloadBackup();
+    } catch {
+      setBackupFailed(true);
+    } finally {
+      setBackupBusy(false);
+    }
+  };
+
+  const editPw = (patch: Partial<typeof pw>) => {
+    setPw({ ...pw, ...patch });
+    setPwStatus('idle');
+  };
+
+  return (
+    <Card className="min-w-0">
+      <SectionTitle icon={ShieldCheck} tone="brand" title={L(T.securityTitle)} subtitle={L(T.securitySubtitle)} />
+
+      <div className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl2 bg-ink-100/70">
+        <div className="min-w-0">
+          <div className="text-xs text-ink-400">{L(T.signedInAs)}</div>
+          <div className="text-[15px] font-semibold text-ink-900 truncate">{username || '—'}</div>
+        </div>
+        <Button variant="danger" size="sm" icon={LogOut} onClick={() => signOut()}>
+          {L(T.signOut)}
+        </Button>
+      </div>
+
+      <form onSubmit={handleChangePassword} className="mt-5">
+        <div className="text-[15px] font-semibold text-ink-900 mb-3">{L(T.changePassword)}</div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="sm:col-span-2">
+            <Field
+              label={L(T.currentPassword)}
+              type="password"
+              autoComplete="current-password"
+              value={pw.current}
+              onChange={(e) => editPw({ current: e.target.value })}
+            />
+          </div>
+          <Field
+            label={L(T.newPassword)}
+            type="password"
+            autoComplete="new-password"
+            hint={L(T.pwTooShort)}
+            value={pw.next}
+            onChange={(e) => editPw({ next: e.target.value })}
+          />
+          <Field
+            label={L(T.repeatPassword)}
+            type="password"
+            autoComplete="new-password"
+            value={pw.repeat}
+            onChange={(e) => editPw({ repeat: e.target.value })}
+          />
+        </div>
+        <SaveRow
+          status={pwStatus}
+          disabled={!pw.current || !pw.next || !pw.repeat || pwStatus === 'saving'}
+          errorText={L(pwError)}
+        />
+      </form>
+
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-5 mt-5 border-t border-ink-100">
+        <div className="min-w-0 flex-1">
+          <div className="text-[15px] font-semibold text-ink-900">{L(T.backupTitle)}</div>
+          <div className="text-[13px] text-ink-400 mt-0.5">{L(T.backupHint)}</div>
+          {backupFailed && <div className="text-[13px] text-rose-600 mt-1">{L(T.backupFailed)}</div>}
+        </div>
+        <Button variant="secondary" icon={Download} onClick={handleBackup} disabled={backupBusy}>
+          {backupBusy ? L(COMMON.loading) : L(T.backupButton)}
+        </Button>
+      </div>
+    </Card>
   );
 };
 
@@ -221,29 +372,33 @@ export const Settings: React.FC<SettingsProps> = ({ company, onSaveCompany }) =>
         </Card>
       </div>
 
-      {/* Company requisites */}
-      <Card className="min-w-0">
-        <form onSubmit={handleSave}>
-          <SectionTitle icon={Building2} tone="brand" title={L(T.companyTitle)} subtitle={L(T.companySubtitle)} />
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {COMPANY_FIELDS.map((f) => (
-              <div key={f.key} className={f.wide ? 'sm:col-span-2' : ''}>
-                <Field
-                  label={L(f.label)}
-                  type="text"
-                  value={String(form[f.key] ?? '')}
-                  placeholder={f.placeholder}
-                  onChange={(e) => {
-                    setForm({ ...form, [f.key]: e.target.value });
-                    setStatus('idle');
-                  }}
-                />
-              </div>
-            ))}
-          </div>
-          <SaveRow status={status} disabled={!isDirty || status === 'saving'} errorText={L(T.saveFailedRetry)} />
-        </form>
-      </Card>
+      <div className="space-y-5 min-w-0">
+        {/* Company requisites */}
+        <Card className="min-w-0">
+          <form onSubmit={handleSave}>
+            <SectionTitle icon={Building2} tone="brand" title={L(T.companyTitle)} subtitle={L(T.companySubtitle)} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {COMPANY_FIELDS.map((f) => (
+                <div key={f.key} className={f.wide ? 'sm:col-span-2' : ''}>
+                  <Field
+                    label={L(f.label)}
+                    type="text"
+                    value={String(form[f.key] ?? '')}
+                    placeholder={f.placeholder}
+                    onChange={(e) => {
+                      setForm({ ...form, [f.key]: e.target.value });
+                      setStatus('idle');
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+            <SaveRow status={status} disabled={!isDirty || status === 'saving'} errorText={L(T.saveFailedRetry)} />
+          </form>
+        </Card>
+
+        <SecurityCard />
+      </div>
     </div>
   );
 };

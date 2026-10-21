@@ -7,8 +7,7 @@ import { dayKey, formatDateTime, formatDay, formatMonth, routeLabel } from '../.
 import { Period, inPeriod } from '../../components/PeriodPicker';
 import { Button, Card, CardTitle, IconCircle, Money, Pill, Table, Td, Th, Tone, TONE } from '../../components/ui';
 import { COMMON, fmt, useL } from '../../i18n/tri';
-
-const API = 'http://localhost:3000/api/v1';
+import { API, apiFetch } from '../../api';
 
 const T = {
   allTime: { uz: 'Butun davr', uz_cyrl: 'Бутун давр', ru: 'Весь период' },
@@ -72,11 +71,11 @@ export const LineOrders: React.FC<LineOrdersProps> = ({ orders, period, lineFilt
   const [debtors, setDebtors] = useState<Debtor[]>([]);
 
   useEffect(() => {
-    fetch(`${API}/lines`)
+    apiFetch(`${API}/lines`)
       .then((r) => r.json())
       .then((d) => setLines(d.lines || []))
       .catch(() => {});
-    fetch(`${API}/debts`)
+    apiFetch(`${API}/debts`)
       .then((r) => r.json())
       .then((d) => setDebtors(d.debtors || []))
       .catch(() => {});

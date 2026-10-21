@@ -7,8 +7,7 @@ import { Card, EmptyState, Money, Pill, StatCard, formatSum } from '../component
 import { useToday } from '../hooks/useNow';
 import { weekdayOf } from '../utils/format';
 import { COMMON, Tri, WEEKDAY_LABELS, WEEKDAY_SHORT, fmt, useL } from '../i18n/tri';
-
-const API = 'http://localhost:3000/api/v1';
+import { API, apiFetch } from '../api';
 
 const DAYS = [1, 2, 3, 4, 5, 6].map((day) => ({ day, short: WEEKDAY_SHORT[day], label: WEEKDAY_LABELS[day] }));
 
@@ -78,8 +77,8 @@ export const Lines: React.FC<{ onOpenRoute: (line: string, day: number) => void 
   useEffect(() => {
     let alive = true;
     Promise.all([
-      fetch(`${API}/lines`).then((r) => r.json()),
-      fetch(`${API}/clients`).then((r) => r.json()),
+      apiFetch(`${API}/lines`).then((r) => r.json()),
+      apiFetch(`${API}/clients`).then((r) => r.json()),
     ])
       .then(([l, c]) => {
         if (!alive) return;
@@ -89,7 +88,7 @@ export const Lines: React.FC<{ onOpenRoute: (line: string, day: number) => void 
       })
       .catch(() => alive && setError(COMMON.loadError))
       .finally(() => alive && setLoading(false));
-    fetch(`${API}/debts`)
+    apiFetch(`${API}/debts`)
       .then((r) => r.json())
       .then((d) => {
         if (!alive) return;

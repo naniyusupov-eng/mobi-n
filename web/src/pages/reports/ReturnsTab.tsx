@@ -7,8 +7,7 @@ import { formatDate, formatDateTime, formatDay, formatMonth } from '../../utils/
 import { Card, CardTitle, EmptyState, Money, Pill, Table, Td, Th, Tone, formatSum } from '../../components/ui';
 import { Period, inPeriod } from '../../components/PeriodPicker';
 import { COMMON, Tri, UNIT_LABELS, fmt, useL } from '../../i18n/tri';
-
-const API = 'http://localhost:3000/api/v1';
+import { API, apiFetch } from '../../api';
 
 const T = {
   shopClosed: { uz: 'Doʻkon yopiq', uz_cyrl: 'Дўкон ёпиқ', ru: 'Магазин закрыт' },
@@ -75,7 +74,7 @@ export const ReturnsTab: React.FC<ReturnsTabProps> = ({ period, refreshKey }) =>
   const periodLabel = period.kind === 'day' ? formatDay(period.day, lang) : month ? formatMonth(month, lang) : '';
 
   useEffect(() => {
-    fetch(`${API}/lines`)
+    apiFetch(`${API}/lines`)
       .then((r) => r.json())
       .then((d) => setLines(d.lines || []))
       .catch(() => {});
@@ -84,7 +83,7 @@ export const ReturnsTab: React.FC<ReturnsTabProps> = ({ period, refreshKey }) =>
   useEffect(() => {
     let alive = true; // ignore answers for a month or line that is no longer selected
     const line = lineFilter ? `&line=${encodeURIComponent(lineFilter)}` : '';
-    fetch(`${API}/returns?month=${month}${line}`)
+    apiFetch(`${API}/returns?month=${month}${line}`)
       .then((r) => r.json())
       .then((d) => alive && setMonthReturns(d.returns || []))
       .catch(() => {});
@@ -95,7 +94,7 @@ export const ReturnsTab: React.FC<ReturnsTabProps> = ({ period, refreshKey }) =>
 
   const handleUndo = async (r: OrderReturn) => {
     if (!window.confirm(fmt(L(T.undoConfirm), { shop: r.shopName, sum: formatSum(r.total) }))) return;
-    await fetch(`${API}/returns/${r.id}`, { method: 'DELETE' });
+    await apiFetch(`${API}/returns/${r.id}`, { method: 'DELETE' });
     setReload((n) => n + 1);
   };
 

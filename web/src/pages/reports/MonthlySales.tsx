@@ -8,8 +8,8 @@ import { WEEKDAYS_SHORT, compactMoney, formatDay, weekdayOf } from '../../utils/
 import { Period } from '../../components/PeriodPicker';
 import { Card, CardTitle, Money, Pill, StatCard, formatSum } from '../../components/ui';
 import { COMMON, fmt, useL } from '../../i18n/tri';
+import { API, apiFetch } from '../../api';
 
-const API = 'http://localhost:3000/api/v1';
 const EMPTY: DayStats = { orders: 0, gross: 0, returns: 0, net: 0 };
 
 const T = {
@@ -72,7 +72,7 @@ export const MonthlySales: React.FC<MonthlySalesProps> = ({ month, company, refr
 
   useEffect(() => {
     let alive = true; // a slower answer for a previous month must not overwrite this one
-    fetch(`${API}/stats/monthly?month=${month}`)
+    apiFetch(`${API}/stats/monthly?month=${month}`)
       .then((r) => r.json())
       .then((d) => {
         if (!alive) return;

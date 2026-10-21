@@ -7,6 +7,7 @@ import { useLanguage } from '../context/LanguageContext';
 import { useNow } from '../hooks/useNow';
 import { BUSINESS_TZ, dayKey, formatWeekdayDay } from '../utils/format';
 import { COMMON, useL } from '../i18n/tri';
+import { API, apiFetch } from '../api';
 
 const timeFmt = new Intl.DateTimeFormat('en-GB', { timeZone: BUSINESS_TZ, hour: '2-digit', minute: '2-digit' });
 
@@ -26,8 +27,6 @@ const LiveClock: React.FC = () => {
     </div>
   );
 };
-
-const API = 'http://localhost:3000/api/v1';
 
 export type SearchPick =
   | { kind: 'client'; client: Client }
@@ -56,7 +55,7 @@ export const Header: React.FC<HeaderProps> = ({ title, orders, newOrdersCount, o
   // Shops are loaded once, the first time search is used
   const loadClients = () => {
     if (clients) return;
-    fetch(`${API}/clients`)
+    apiFetch(`${API}/clients`)
       .then((r) => r.json())
       .then((d) => setClients(d.clients || []))
       .catch(() => setClients([]));

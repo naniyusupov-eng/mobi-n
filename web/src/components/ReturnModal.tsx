@@ -4,8 +4,7 @@ import { AlertCircle, Minus, Plus } from 'lucide-react';
 import { Order, OrderReturn } from '../types';
 import { Button, Modal, Money, formatSum } from './ui';
 import { COMMON, Tri, UNIT_LABELS, useL } from '../i18n/tri';
-
-const API = 'http://localhost:3000/api/v1';
+import { API, apiFetch } from '../api';
 
 /** Stored reason values: kept in Uzbek Latin, the server and reports match on them */
 export const RETURN_REASONS = ['Doʻkon yopiq', 'Pul yetmadi', 'Kerak emas', 'Boshqa'];
@@ -60,7 +59,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
 
   // What was already returned for this order earlier
   useEffect(() => {
-    fetch(`${API}/returns?order=${encodeURIComponent(order.id)}`)
+    apiFetch(`${API}/returns?order=${encodeURIComponent(order.id)}`)
       .then((r) => r.json())
       .then((d) => {
         const sums: Record<string, number> = {};
@@ -96,7 +95,7 @@ export const ReturnModal: React.FC<ReturnModalProps> = ({ order, onClose, onSave
     setSaving(true);
     setError('');
     try {
-      const res = await fetch(`${API}/returns`, {
+      const res = await apiFetch(`${API}/returns`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ orderId: order.id, reason, items }),

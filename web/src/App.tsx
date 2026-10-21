@@ -12,8 +12,8 @@ import { InvoiceModal } from './components/InvoiceModal';
 import { INITIAL_ORDERS, INITIAL_CATEGORIES } from './data/mockData';
 import { CompanySettings, Order, OrderStatus, Product } from './types';
 import { COMMON, useL } from './i18n/tri';
-
-const API = 'http://localhost:3000/api/v1';
+import { Login } from './pages/Login';
+import { API, apiFetch, getToken, onSignedOut } from './api';
 
 /** Current page plus optional parameters (e.g. the route to open on the Clients page) */
 export interface AppRoute {
@@ -23,7 +23,15 @@ export interface AppRoute {
   shopId?: string;
 }
 
+// The admin pages only mount with a token, so polling stops while signed out
 export default function App() {
+  const [token, setTokenState] = useState(getToken);
+  useEffect(() => onSignedOut(() => setTokenState(null)), []);
+  if (!token) return <Login onSignedIn={(t) => setTokenState(t)} />;
+  return <AdminApp key={token} />;
+}
+
+function AdminApp() {
   const L = useL();
   const [route, setRoute] = useState<AppRoute>({ page: 'dashboard' });
   const navigate = (page: NavPage, params: Omit<AppRoute, 'page'> = {}) => setRoute({ page, ...params });
@@ -41,9 +49,9 @@ export default function App() {
     const fetchServerData = async () => {
       try {
         const [ordersRes, debtsRes, productsRes] = await Promise.all([
-          fetch(`${API}/orders`).then((r) => r.json()),
-          fetch(`${API}/debts`).then((r) => r.json()),
-          fetch(`${API}/products`).then((r) => r.json()),
+          apiFetch(`${API}/orders`).then((r) => r.json()),
+          apiFetch(`${API}/debts`).then((r) => r.json()),
+          apiFetch(`${API}/products`).then((r) => r.json()),
         ]);
         if (!isMounted) return;
         if (ordersRes && Array.isArray(ordersRes.orders)) setOrders(ordersRes.orders);
@@ -63,14 +71,14 @@ export default function App() {
 
   // Company requisites for invoices, edited on the Settings page
   useEffect(() => {
-    fetch(`${API}/settings`)
+    apiFetch(`${API}/settings`)
       .then((r) => r.json())
       .then((d) => setCompany(d.settings || {}))
       .catch(() => {});
   }, []);
 
   const postJson = async (path: string, body: unknown) => {
-    const res = await fetch(`${API}${path}`, {
+    const res = await apiFetch(`${API}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),

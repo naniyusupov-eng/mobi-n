@@ -21,8 +21,7 @@ import {
 import { useToday } from '../hooks/useNow';
 import { weekdayOf } from '../utils/format';
 import { COMMON, Tri, WEEKDAY_LABELS, WEEKDAY_SHORT, fmt, useL } from '../i18n/tri';
-
-const API = 'http://localhost:3000/api/v1';
+import { API, apiFetch } from '../api';
 
 const DAYS = [1, 2, 3, 4, 5, 6].map((day) => ({ day, short: WEEKDAY_SHORT[day], label: WEEKDAY_LABELS[day] }));
 
@@ -118,7 +117,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
 
   useEffect(() => {
-    fetch(`${API}/lines`)
+    apiFetch(`${API}/lines`)
       .then((r) => r.json())
       .then((d) => setLines(d.lines || []))
       .catch(() => setError(T.linesLoadError));
@@ -135,7 +134,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
     }
     let alive = true;
     setLoading(true);
-    fetch(`${API}/clients?line=${encodeURIComponent(line)}&day=${day}`)
+    apiFetch(`${API}/clients?line=${encodeURIComponent(line)}&day=${day}`)
       .then((r) => r.json())
       .then((d) => {
         if (!alive) return;
@@ -210,7 +209,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
     if (paying || !paymentShop || !(amount > 0)) return;
     setPaying(true);
     try {
-      const res = await fetch(`${API}/payments/sync`, {
+      const res = await apiFetch(`${API}/payments/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         // The id lets the server ignore a repeated request for the same payment

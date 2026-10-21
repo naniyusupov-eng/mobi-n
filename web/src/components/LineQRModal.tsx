@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { Printer, Route, ScanLine, Truck } from 'lucide-react';
+import { KeyRound, Printer, Route, ScanLine, Truck } from 'lucide-react';
+import { API, apiFetch } from '../api';
 import { Line } from '../types';
 import { Button, Modal, Pill, Segmented } from './ui';
 import { COMMON, Tri, fmt, useL } from '../i18n/tri';
@@ -33,6 +34,19 @@ const T = {
     uz_cyrl: 'Mobi_R иловасида сканерланг ва линияга уланинг',
     ru: 'Отсканируйте в приложении Mobi_R и подключитесь к линии',
   },
+  keyLabel: { uz: 'Kirish kaliti', uz_cyrl: 'Кириш калити', ru: 'Ключ входа' },
+  keyFailed: { uz: 'Kalitni yuklab boʻlmadi', uz_cyrl: 'Калитни юклаб бўлмади', ru: 'Не удалось загрузить ключ' },
+  renewKey: { uz: 'Yangi kalit', uz_cyrl: 'Янги калит', ru: 'Новый ключ' },
+  renewConfirm: {
+    uz: 'Yangi kalit yaratilsinmi? Eski QR kod ishlamay qoladi, telefonlar yangi QR kodni qayta skanerlashi kerak.',
+    uz_cyrl: 'Янги калит яратилсинми? Эски QR код ишламай қолади, телефонлар янги QR кодни қайта сканерлаши керак.',
+    ru: 'Создать новый ключ? Старый QR-код перестанет работать, телефонам нужно будет заново отсканировать новый QR-код.',
+  },
+  renewFailed: {
+    uz: 'Yangi kalit yaratib boʻlmadi, qaytadan urinib koʻring',
+    uz_cyrl: 'Янги калит яратиб бўлмади, қайтадан уриниб кўринг',
+    ru: 'Не удалось создать новый ключ, попробуйте ещё раз',
+  },
 } satisfies Record<string, Tri>;
 
 interface LineQRModalProps {
@@ -46,10 +60,51 @@ export const LineQRModal: React.FC<LineQRModalProps> = ({ line, clientsCount, on
   const L = useL();
   // Each line has two codes: the agent takes orders, the driver delivers and collects money
   const [role, setRole] = useState<'agent' | 'driver'>('agent');
+  // Secret keys of the line: the QR carries them, the phone signs in with them
+  const [keys, setKeys] = useState<Partial<Record<'agent' | 'driver', string>> | null>(null);
+  const [keysFailed, setKeysFailed] = useState(false);
+  const [renewing, setRenewing] = useState(false);
+  const lineId = line?.id;
+
+  useEffect(() => {
+    if (!lineId) return;
+    let alive = true;
+    setKeys(null);
+    setKeysFailed(false);
+    apiFetch(`${API}/lines/${encodeURIComponent(lineId)}/keys`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((d) => alive && setKeys(d.keys || {}))
+      .catch(() => alive && setKeysFailed(true));
+    return () => {
+      alive = false;
+    };
+  }, [lineId]);
+
   if (!line) return null;
   const isDriver = role === 'driver';
+  const key = keys?.[role];
 
-  // Payload is compatible with the mobile QRScannerScreen (needs id + name)
+  const renewKey = async () => {
+    if (!window.confirm(L(T.renewConfirm))) return;
+    setRenewing(true);
+    try {
+      const res = await apiFetch(`${API}/lines/${encodeURIComponent(line.id)}/keys`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const d = await res.json();
+      setKeys(d.keys || {});
+      setKeysFailed(false);
+    } catch {
+      window.alert(L(T.renewFailed));
+    } finally {
+      setRenewing(false);
+    }
+  };
+
+  // Payload is compatible with the mobile QRScannerScreen (needs id + name); key signs the phone in
   const qrPayload = JSON.stringify({
     type: 'line',
     id: line.id,
@@ -58,6 +113,7 @@ export const LineQRModal: React.FC<LineQRModalProps> = ({ line, clientsCount, on
     territory: line.code,
     line: line.code,
     role,
+    key,
   });
 
   return (
@@ -108,8 +164,31 @@ export const LineQRModal: React.FC<LineQRModalProps> = ({ line, clientsCount, on
             </div>
           </div>
 
-          <div className="my-5 p-3 bg-white rounded-xl2 border border-ink-200">
-            <QRCodeSVG value={qrPayload} size={176} level="M" includeMargin={false} />
+          <div className="mt-5 p-3 bg-white rounded-xl2 border border-ink-200">
+            {key ? (
+              <QRCodeSVG value={qrPayload} size={176} level="M" includeMargin={false} />
+            ) : (
+              <div className="w-[176px] h-[176px] flex items-center justify-center text-center text-[13px] text-ink-400">
+                {keysFailed ? L(T.keyFailed) : L(COMMON.loading)}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 mb-5 px-5">
+            <div className="text-[11px] font-medium text-ink-400 uppercase tracking-wide">{L(T.keyLabel)}</div>
+            <div className="mt-0.5 font-mono text-[26px] leading-tight font-bold tracking-[0.12em] text-ink-900 select-all">
+              {key || '—'}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={KeyRound}
+              onClick={renewKey}
+              disabled={renewing || !keys}
+              className="no-print mt-1"
+            >
+              {L(T.renewKey)}
+            </Button>
           </div>
 
           <div className="w-full bg-ink-100/70 py-2.5 px-4 text-[11px] font-medium text-ink-500 flex items-center justify-center gap-1.5">
