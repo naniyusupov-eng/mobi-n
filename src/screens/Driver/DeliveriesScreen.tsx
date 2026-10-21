@@ -1,13 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Banknote, CheckCircle2, ChevronLeft, ChevronRight, CloudOff, MapPin, PackageCheck, Truck } from 'lucide-react-native';
+import { Banknote, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CloudOff, MapPin, PackageCheck, Truck } from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { getTodayDateString } from '../../store/dateStore';
 import { Delivery, cashToCollect, driverService, netAmount } from '../../services/driverService';
 import { colors, space } from '../../theme/colors';
-import { AppText, Badge, Card, EmptyState, HeroCard, HeroPill, IconButton, Money, Row, Screen, Segmented } from '../../components/ui';
+import { AppText, Badge, Card, EmptyState, HeroCard, HeroPill, IconButton, IconCircle, Money, Row, Screen, Segmented } from '../../components/ui';
 import { PAYMENT_TONE } from '../../components/shared';
 import { COMMON, PAYMENT_LABELS, Tri, useL } from '../../i18n/tri';
 import { formatDayLong, formatMoney, formatMoneyShort, formatNumber, formatShopNum } from '../../utils/format';
@@ -30,6 +30,7 @@ const T = {
     ru: 'Нет связи с сервером. Проверьте интернет и потяните вниз, чтобы обновить',
   },
   returned: { uz: 'vozvrat', uz_cyrl: 'возврат', ru: 'возврат' },
+  loadList: { uz: 'Yuk roʻyxati', uz_cyrl: 'Юк рўйхати', ru: 'Список загрузки' },
 } satisfies Record<string, Tri>;
 
 const shiftDay = (day: string, n: number) => {
@@ -113,6 +114,22 @@ export const DeliveriesScreen = ({ navigation }: { navigation: any }) => {
         </Pressable>
         <IconButton icon={ChevronRight} onPress={() => setDate(shiftDay(date, 1))} size={38} />
       </View>
+
+      {/* Load list for the selected day */}
+      <Card onPress={() => navigation.navigate('LoadingList', { date })} style={styles.item}>
+        <Row gap={space.md}>
+          <IconCircle icon={ClipboardList} tone="primary" size={44} />
+          <View style={styles.flex}>
+            <AppText variant="strong" lines={1}>
+              {L(T.loadList)}
+            </AppText>
+            <AppText variant="caption" lines={1}>
+              {`${formatNumber(items.length)} ${L(COMMON.ordersCount)} · ${isToday ? L(COMMON.today) : formatDayLong(date, lang)}`}
+            </AppText>
+          </View>
+          <ChevronRight size={18} color={colors.textMuted} />
+        </Row>
+      </Card>
 
       <Segmented<Filter>
         value={filter}

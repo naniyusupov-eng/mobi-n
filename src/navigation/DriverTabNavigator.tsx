@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Truck, User, Wallet } from 'lucide-react-native';
 import { DeliveriesScreen } from '../screens/Driver/DeliveriesScreen';
 import { DeliveryDetailScreen } from '../screens/Driver/DeliveryDetailScreen';
+import { LOADING_TITLE, LoadingListScreen } from '../screens/Driver/LoadingListScreen';
 import { PkoScreen } from '../screens/Driver/PkoScreen';
 import { ProfileScreen } from '../screens/Profile/ProfileScreen';
 import { AppHeader } from '../components/AppHeader';
@@ -55,6 +56,7 @@ const DeliveryStackNavigator = () => {
     <DeliveryStack.Navigator screenOptions={stackHeader}>
       <DeliveryStack.Screen name="DeliveriesList" component={DeliveriesScreen} options={{ title: L(TITLES.deliveries) }} />
       <DeliveryStack.Screen name="DeliveryDetail" component={DeliveryDetailScreen} options={{ title: L(TITLES.delivery) }} />
+      <DeliveryStack.Screen name="LoadingList" component={LoadingListScreen} options={{ title: L(LOADING_TITLE) }} />
     </DeliveryStack.Navigator>
   );
 };

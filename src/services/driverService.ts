@@ -53,6 +53,64 @@ export const cashToCollect = (d: Delivery) => (d.paymentMethod === 'naqd' ? netA
 export const returnedQty = (d: Delivery, productId: string, unit: string) =>
   d.returns.flatMap((r) => r.items).filter((i) => i.productId === productId && i.unit === unit).reduce((s, i) => s + i.quantity, 0);
 
+/** One product on the day's load list; units holds the quantity per packaging unit */
+export interface LoadingProduct {
+  productId: string;
+  code?: string;
+  name: string;
+  units: Partial<Record<PackagingUnit, number>>;
+  totalDona: number;
+  hasKg?: boolean;
+}
+
+export interface LoadingStop {
+  orderId: string;
+  num?: number;
+  shopName: string;
+  paymentMethod: PaymentMethod;
+  amount: number;
+  status: string;
+}
+
+/** What one line has to load for a delivery day */
+export interface LoadingSheet {
+  line: string;
+  orders: number;
+  total: number;
+  products: LoadingProduct[];
+  stops: LoadingStop[];
+}
+
+export interface LoadingList {
+  date: string;
+  sheets: LoadingSheet[];
+}
+
+export interface CashHandover {
+  id: string;
+  amount: number;
+  note?: string;
+  createdAt: string;
+}
+
+/** The line's cash for a day: what the driver took and what the office cashier received */
+export interface CashLine {
+  line: string;
+  deliveredOrders: number;
+  deliveryCash: number;
+  pkoCount: number;
+  pkoCash: number;
+  expected: number;
+  received: number;
+  difference: number;
+  handovers: CashHandover[];
+}
+
+export interface CashSummary {
+  date: string;
+  lines: CashLine[];
+}
+
 // The driver works online: every action goes straight to the server
 export const driverService = {
   getDeliveries: async (lineCode: string, date: string): Promise<Delivery[]> => {
@@ -77,6 +135,18 @@ export const driverService = {
   getPayments: async (by: string, date: string): Promise<PaymentRecord[]> => {
     const res = await apiClient.get('/payments', { params: { by, date }, timeout: 10000 });
     return res.data?.payments || [];
+  },
+
+  /** The day's load list; the server limits a driver to their own line */
+  getLoading: async (date: string): Promise<LoadingList> => {
+    const res = await apiClient.get('/loading', { params: { date }, timeout: 12000 });
+    return { date: res.data?.date || date, sheets: res.data?.sheets || [] };
+  },
+
+  /** The day's cash for the driver's line; only the office records what it received */
+  getCash: async (date: string): Promise<CashSummary> => {
+    const res = await apiClient.get('/cash', { params: { date }, timeout: 10000 });
+    return { date: res.data?.date || date, lines: res.data?.lines || [] };
   },
 };
 

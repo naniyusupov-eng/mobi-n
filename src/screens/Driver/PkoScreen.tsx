@@ -1,16 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { CheckCircle2, Store, Wallet } from 'lucide-react-native';
+import { Banknote, CheckCircle2, CloudOff, Landmark, Store, Wallet } from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { useSyncStore } from '../../store/syncStore';
 import { getTodayDateString } from '../../store/dateStore';
 import { shopRepository } from '../../database/shopRepository';
 import { lineService } from '../../services/lineService';
-import { PaymentRecord, driverService } from '../../services/driverService';
+import { CashLine, PaymentRecord, driverService } from '../../services/driverService';
 import { colors, space } from '../../theme/colors';
-import { Card, Divider, EmptyState, HeroCard, HeroPill, ListItem, Money, Screen, SearchBar, SectionHeader } from '../../components/ui';
+import { AppText, Card, Divider, EmptyState, HeroCard, HeroPill, IconCircle, KeyValue, ListItem, Money, Row, Screen, SearchBar, SectionHeader } from '../../components/ui';
 import { PaymentSheet } from '../../components/shared';
 import { shopRouteCode } from '../../components/shopHelpers';
 import { COMMON, Tri, useL } from '../../i18n/tri';
@@ -25,6 +25,15 @@ const T = {
   searchPh: { uz: 'Doʻkon nomi, raqami yoki telefon', uz_cyrl: 'Дўкон номи, рақами ёки телефон', ru: 'Название, номер или телефон' },
   accepted: { uz: 'Bugun qabul qilingan', uz_cyrl: 'Бугун қабул қилинган', ru: 'Принято сегодня' },
   pending: { uz: 'yuborilmoqda', uz_cyrl: 'юборилмоқда', ru: 'отправляется' },
+  cash: { uz: 'Kassa', uz_cyrl: 'Касса', ru: 'Касса' },
+  inHand: { uz: 'Bugun qoʻlingizdagi naqd', uz_cyrl: 'Бугун қўлингиздаги нақд', ru: 'Наличные на руках сегодня' },
+  fromDeliveries: { uz: 'Yetkazishdan', uz_cyrl: 'Етказишдан', ru: 'С доставок' },
+  fromPko: { uz: 'PKO dan', uz_cyrl: 'ПКО дан', ru: 'С ПКО' },
+  handed: { uz: 'Ofisga topshirildi', uz_cyrl: 'Офисга топширилди', ru: 'Сдано в офис' },
+  handovers: { uz: 'Bugungi topshirishlar', uz_cyrl: 'Бугунги топширишлар', ru: 'Сдачи за сегодня' },
+  handover: { uz: 'Kassaga topshirildi', uz_cyrl: 'Кассага топширилди', ru: 'Сдано в кассу' },
+  cashOffline: { uz: 'Oxirgi maʼlumot, server bilan aloqa yoʻq', uz_cyrl: 'Охирги маълумот, сервер билан алоқа йўқ', ru: 'Последние данные, нет связи с сервером' },
+  cashUnknown: { uz: 'Kassa maʼlumoti yuklanmadi', uz_cyrl: 'Касса маълумоти юкланмади', ru: 'Данные кассы не загружены' },
 } satisfies Record<string, Tri>;
 
 // PKO: the driver collects debt payments from the line's shops
@@ -42,6 +51,8 @@ export const PkoScreen = () => {
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [payShop, setPayShop] = useState<Shop | null>(null);
+  const [cash, setCash] = useState<CashLine | null>(null);
+  const [cashOffline, setCashOffline] = useState(false);
 
   const loadLocal = useCallback(() => {
     setShops(shopRepository.getAll().filter((s) => s.debtBalance > 0));
@@ -56,15 +67,29 @@ export const PkoScreen = () => {
     }
   }, [by]);
 
+  // Cash in hand: the server knows deliveries, PKO and what the office cashier received
+  const loadCash = useCallback(async () => {
+    try {
+      const res = await driverService.getCash(getTodayDateString());
+      setCash(res.lines.find((l) => l.line === lineCode) || res.lines[0] || null);
+      setCashOffline(false);
+    } catch {
+      // offline: keep the last values
+      setCashOffline(true);
+    }
+  }, [lineCode]);
+
   useEffect(() => {
     loadLocal();
     loadPayments();
-  }, [loadLocal, loadPayments]);
+    loadCash();
+  }, [loadLocal, loadPayments, loadCash]);
   useFocusEffect(
     useCallback(() => {
       loadLocal();
       loadPayments();
-    }, [loadLocal, loadPayments])
+      loadCash();
+    }, [loadLocal, loadPayments, loadCash])
   );
 
   // Pull to refresh also brings fresh debts from the server
@@ -76,7 +101,7 @@ export const PkoScreen = () => {
       // offline: phone data stays
     }
     loadLocal();
-    await loadPayments();
+    await Promise.all([loadPayments(), loadCash()]);
     setRefreshing(false);
   };
 
@@ -96,6 +121,7 @@ export const PkoScreen = () => {
   );
   const todaySum = payments.reduce((s, p) => s + p.amount, 0);
   const lineDebt = shops.reduce((s, x) => s + x.debtBalance, 0);
+  const inHand = cash ? cash.expected - cash.received : 0;
 
   return (
     <Screen refreshing={refreshing} onRefresh={onRefresh}>
@@ -109,6 +135,68 @@ export const PkoScreen = () => {
         {pendingCount > 0 ? <HeroPill label={`${formatNumber(pendingCount)} ${L(T.pending)}`} /> : null}
         <HeroPill label={`${L(T.totalDebt)}: ${formatMoney(lineDebt, lang)}`} />
       </HeroCard>
+
+      {/* Kassa: cash the driver still holds today */}
+      <Card>
+        <Row gap={space.md}>
+          <IconCircle icon={Banknote} tone="primary" size={44} />
+          <View style={styles.flex}>
+            <AppText variant="small" lines={1}>
+              {`${L(T.cash)} · ${L(T.inHand)}`}
+            </AppText>
+            {cash ? (
+              <Money amount={inHand} variant="h2" color={inHand < 0 ? colors.danger : colors.text} />
+            ) : (
+              <AppText variant="small" color={colors.textMuted} lines={2}>
+                {L(T.cashUnknown)}
+              </AppText>
+            )}
+          </View>
+        </Row>
+        {cashOffline && cash ? (
+          <Row gap={6}>
+            <CloudOff size={14} color={colors.warning} />
+            <AppText variant="caption" color={colors.warning} lines={2} style={styles.flex}>
+              {L(T.cashOffline)}
+            </AppText>
+          </Row>
+        ) : null}
+        {cash ? (
+          <>
+            <Divider />
+            <KeyValue
+              label={`${L(T.fromDeliveries)} · ${formatNumber(cash.deliveredOrders)}`}
+              value={<Money amount={cash.deliveryCash} variant="body" />}
+            />
+            <KeyValue label={`${L(T.fromPko)} · ${formatNumber(cash.pkoCount)}`} value={<Money amount={cash.pkoCash} variant="body" />} />
+            <KeyValue label={L(T.handed)} value={<Money amount={-cash.received} variant="body" color={colors.success} />} />
+            {(cash.handovers || []).length > 0 ? (
+              <>
+                <Divider />
+                <AppText variant="small" lines={1} style={styles.bold}>
+                  {L(T.handovers)}
+                </AppText>
+                {(cash.handovers || []).map((h, i) => (
+                  <View key={h.id}>
+                    {i > 0 ? <Divider /> : null}
+                    <ListItem
+                      title={h.note || L(T.handover)}
+                      subtitle={formatTime(h.createdAt)}
+                      icon={Landmark}
+                      iconTone="success"
+                      right={
+                        <View style={styles.amount}>
+                          <Money amount={h.amount} color={colors.success} />
+                        </View>
+                      }
+                    />
+                  </View>
+                ))}
+              </>
+            ) : null}
+          </>
+        ) : null}
+      </Card>
 
       <SearchBar value={search} onChangeText={setSearch} placeholder={L(T.searchPh)} />
 
@@ -169,6 +257,7 @@ export const PkoScreen = () => {
         onDone={() => {
           loadLocal();
           loadPayments();
+          loadCash();
         }}
       />
     </Screen>
@@ -176,6 +265,8 @@ export const PkoScreen = () => {
 };
 
 const styles = StyleSheet.create({
+  flex: { flex: 1, minWidth: 0 },
+  bold: { fontWeight: '600' },
   listCard: { paddingVertical: 0 },
   amount: { maxWidth: '45%', alignItems: 'flex-end' },
 });
