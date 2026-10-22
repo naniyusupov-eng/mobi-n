@@ -187,11 +187,76 @@ function toDona(product, unit, quantity) {
   return perUnit ? quantity * perUnit : null;
 }
 
-function changeStock(db, productId, unit, quantity, sign) {
+// Every stock change is written to the journal: { type, ref } says why (sale, return, receipt...)
+function changeStock(db, productId, unit, quantity, sign, meta = {}) {
   const product = db.products.find((p) => p.id === productId);
   if (!product) return;
   const pieces = toDona(product, unit, quantity);
-  if (pieces != null) product.stockDona = Math.max(0, (product.stockDona || 0) + sign * pieces);
+  if (pieces == null) return;
+  const before = product.stockDona || 0;
+  product.stockDona = Math.max(0, before + sign * pieces);
+  logStockMove(db, product, product.stockDona - before, meta);
+}
+
+function logStockMove(db, product, deltaDona, meta) {
+  if (!deltaDona) return;
+  if (!Array.isArray(db.stockMoves)) db.stockMoves = [];
+  db.stockMoves.unshift({
+    id: `mv_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    productId: product.id,
+    productName: product.name,
+    type: meta.type || 'adjust',
+    deltaDona,
+    stockAfter: product.stockDona,
+    ref: meta.ref || null,
+    note: meta.note || '',
+    createdAt: new Date().toISOString(),
+  });
+  // The journal keeps the last 20 000 moves (months of work for this business size)
+  if (db.stockMoves.length > 20000) db.stockMoves.length = 20000;
+}
+
+// ---------------------------------------------------------------- credit control
+const DEFAULT_DEBT_DAYS = 14;
+
+/**
+ * How long a shop has owed money: walking its credit orders from the newest back,
+ * the debt is covered by the most recent ones; the oldest of those is when the debt started.
+ */
+function debtSince(db, shopId, debtBalance) {
+  if (!(debtBalance > 0)) return null;
+  const credit = db.orders
+    .filter((o) => o.shopId === shopId && o.status !== 'cancelled' && isCredit(o))
+    .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
+  let left = debtBalance;
+  let since = null;
+  for (const o of credit) {
+    since = o.createdAt;
+    left -= Math.max(0, orderCharge(o) - (o.returnedAmount || 0));
+    if (left <= 0) break;
+  }
+  return since; // null: debt older than the orders on record (e.g. imported opening balance)
+}
+
+/** Credit state of a shop: limit, debt age and whether new credit (nasiya) is blocked */
+function creditInfo(db, shop) {
+  const settings = db.settings || {};
+  const debt = shop.debtBalance || 0;
+  const limit = shop.creditLimit != null ? shop.creditLimit : settings.creditLimitDefault || 0; // 0 = no limit
+  const maxDays = settings.debtMaxDays != null ? settings.debtMaxDays : DEFAULT_DEBT_DAYS; // 0 = no limit
+  const since = debtSince(db, shop.id, debt);
+  const debtDays = since ? Math.floor((Date.parse(localDate(Date.now())) - Date.parse(localDate(since))) / 86400000) : null;
+  const overLimit = limit > 0 && debt >= limit;
+  const overdue = maxDays > 0 && debtDays != null && debtDays > maxDays;
+  return {
+    creditLimit: limit,
+    debtSince: since,
+    debtDays,
+    overLimit,
+    overdue,
+    creditBlocked: overLimit || overdue,
+    creditLeft: limit > 0 ? Math.max(0, limit - debt) : null,
+  };
 }
 
 function setCorsHeaders(res) {
@@ -622,7 +687,7 @@ const server = http.createServer(async (req, res) => {
         // Goods already returned are back in stock; only the kept part moves
         for (const item of order.items || []) {
           const kept = item.quantity - returnedQty(db, order.id, item.productId, item.unit);
-          if (kept > 0) changeStock(db, item.productId, item.unit, kept, sign);
+          if (kept > 0) changeStock(db, item.productId, item.unit, kept, sign, { type: nowCancelled ? 'cancel' : 'uncancel', ref: order.id });
         }
         const shop = isCredit(order) ? findShop(db, order.shopId) : null;
         if (shop && nowCancelled) {
@@ -665,7 +730,9 @@ const server = http.createServer(async (req, res) => {
       const db = loadDatabase();
       const product = db.products.find((p) => p.id === stockMatch[1]);
       if (!product || !(stockDona >= 0)) return jsonResponse(res, 400, { error: 'Unknown product or bad stock' });
+      const before = product.stockDona || 0;
       product.stockDona = Math.round(stockDona);
+      logStockMove(db, product, product.stockDona - before, { type: 'adjust', note: 'Qoʻlda sanash' });
       saveDatabase(db);
       return jsonResponse(res, 200, { success: true, products: db.products });
     }
@@ -721,7 +788,7 @@ const server = http.createServer(async (req, res) => {
         createdAt: new Date().toISOString(),
       };
 
-      for (const i of items) changeStock(db, i.productId, i.unit, i.quantity, +1);
+      for (const i of items) changeStock(db, i.productId, i.unit, i.quantity, +1, { type: 'return', ref: ret.id });
       // A credit shop does not owe for goods it did not keep; remember how much was taken off
       if (shop && isCredit(order)) {
         const removed = Math.min(shop.debtBalance || 0, total);
@@ -758,7 +825,7 @@ const server = http.createServer(async (req, res) => {
       if (!ret) return jsonResponse(res, 404, { error: 'Return not found' });
       const order = db.orders.find((o) => o.id === ret.orderId);
       const shop = findShop(db, ret.shopId);
-      for (const i of ret.items) changeStock(db, i.productId, i.unit, i.quantity, -1);
+      for (const i of ret.items) changeStock(db, i.productId, i.unit, i.quantity, -1, { type: 'return-undo', ref: ret.id });
       // Give back exactly what the return took off (older returns have no debtApplied)
       if (shop && order && isCredit(order)) shop.debtBalance = (shop.debtBalance || 0) + (ret.debtApplied ?? ret.total);
       if (order) order.returnedAmount = Math.max(0, (order.returnedAmount || 0) - ret.total);
@@ -837,7 +904,7 @@ const server = http.createServer(async (req, res) => {
         if (typeof body[key] === 'string') db.settings[key] = body[key].trim();
       }
       // Return-free streak bonus: days in a row without returns, and the bonus amount
-      for (const key of ['bonusStreakDays', 'bonusAmount']) {
+      for (const key of ['bonusStreakDays', 'bonusAmount', 'creditLimitDefault', 'debtMaxDays']) {
         if (body[key] !== undefined && Number(body[key]) >= 0) db.settings[key] = Math.round(Number(body[key]));
       }
       saveDatabase(db);
@@ -888,12 +955,13 @@ const server = http.createServer(async (req, res) => {
 
           // Sold goods leave the warehouse
           for (const item of order.items || []) {
-            changeStock(db, item.productId, item.unit, item.quantity, -1);
+            changeStock(db, item.productId, item.unit, item.quantity, -1, { type: 'sale', ref: order.id });
           }
 
           // If nasiya, increment shop debt
           if (order.shopId && isCredit(order)) {
             const shop = findShop(db, order.shopId);
+            if (shop && creditInfo(db, shop).creditBlocked) order.creditWarning = true;
             if (shop) {
               shop.debtBalance = (shop.debtBalance || 0) + (order.finalAmount || order.totalAmount || 0);
               shop.lastOrderDate = new Date().toISOString().split('T')[0];
@@ -953,7 +1021,8 @@ const server = http.createServer(async (req, res) => {
           saveDatabase(db);
         }
       }
-      return jsonResponse(res, 200, { success: true, shop });
+      // Credit state (limit, debt age) comes back too, so the website row updates right away
+      return jsonResponse(res, 200, { success: true, shop: shop ? { ...shop, ...creditInfo(db, shop) } : shop });
     }
 
     // GET /api/v1/debts — shops that owe money, biggest debt first
@@ -961,9 +1030,82 @@ const server = http.createServer(async (req, res) => {
       const db = loadDatabase();
       const debtors = [...db.clients, ...db.shops]
         .filter((s) => (s.debtBalance || 0) > 0)
+        .map((s) => ({ ...s, ...creditInfo(db, s) }))
         .sort((a, b) => b.debtBalance - a.debtBalance);
       const totalDebt = debtors.reduce((sum, s) => sum + s.debtBalance, 0);
       return jsonResponse(res, 200, { success: true, totalDebt, count: debtors.length, debtors });
+    }
+
+    // POST /api/v1/clients/:id/credit — { creditLimit } (null = use the default from settings, 0 = no limit)
+    const creditMatch = pathname.match(/^\/api\/v1\/clients\/([^/]+)\/credit$/);
+    if (req.method === 'POST' && creditMatch) {
+      const { creditLimit } = await parseBody(req);
+      const db = loadDatabase();
+      const shop = findShop(db, creditMatch[1]);
+      if (!shop) return jsonResponse(res, 404, { error: 'Shop not found' });
+      if (creditLimit === null || creditLimit === '') delete shop.creditLimit;
+      else if (Number(creditLimit) >= 0) shop.creditLimit = Math.round(Number(creditLimit));
+      else return jsonResponse(res, 400, { error: 'creditLimit must be ≥ 0 or null' });
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, shop: { ...shop, ...creditInfo(db, shop) } });
+    }
+
+    // POST /api/v1/receipts — goods arrived at the warehouse
+    // { supplier, note, items: [{ productId, unit, quantity, cost? (per unit) }] }
+    if (req.method === 'POST' && pathname === '/api/v1/receipts') {
+      const body = await parseBody(req);
+      const db = loadDatabase();
+      const items = [];
+      for (const it of Array.isArray(body.items) ? body.items : []) {
+        const product = db.products.find((x) => x.id === it.productId);
+        const quantity = Number(it.quantity);
+        if (!product || !(quantity > 0) || !['dona', 'blok', 'korobka'].includes(it.unit)) continue;
+        const cost = Number(it.cost) >= 0 ? Math.round(Number(it.cost)) : 0;
+        items.push({ productId: product.id, productName: product.name, unit: it.unit, quantity, cost, total: Math.round(cost * quantity) });
+      }
+      if (items.length === 0) return jsonResponse(res, 400, { error: 'Kirim uchun tovar tanlanmagan' });
+      if (!Array.isArray(db.receipts)) db.receipts = [];
+      const receipt = {
+        id: `rcp_${Date.now()}`,
+        supplier: String(body.supplier || '').trim().slice(0, 120),
+        note: String(body.note || '').trim().slice(0, 200),
+        items,
+        total: items.reduce((sum, i) => sum + i.total, 0),
+        createdAt: new Date().toISOString(),
+      };
+      for (const i of items) changeStock(db, i.productId, i.unit, i.quantity, +1, { type: 'receipt', ref: receipt.id });
+      db.receipts.unshift(receipt);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, receipt, products: db.products });
+    }
+
+    // GET /api/v1/receipts[?month=YYYY-MM]
+    if (req.method === 'GET' && pathname === '/api/v1/receipts') {
+      const db = loadDatabase();
+      const month = url.searchParams.get('month');
+      const receipts = (db.receipts || []).filter((r) => !month || localDate(r.createdAt).startsWith(month));
+      return jsonResponse(res, 200, { success: true, receipts });
+    }
+
+    // DELETE /api/v1/receipts/:id — a receipt entered by mistake: its goods leave the stock again
+    const receiptMatch = pathname.match(/^\/api\/v1\/receipts\/([^/]+)$/);
+    if (req.method === 'DELETE' && receiptMatch) {
+      const db = loadDatabase();
+      const receipt = (db.receipts || []).find((r) => r.id === receiptMatch[1]);
+      if (!receipt) return jsonResponse(res, 404, { error: 'Receipt not found' });
+      for (const i of receipt.items) changeStock(db, i.productId, i.unit, i.quantity, -1, { type: 'receipt-undo', ref: receipt.id });
+      db.receipts = db.receipts.filter((r) => r.id !== receipt.id);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, products: db.products });
+    }
+
+    // GET /api/v1/stock/moves[?productId=][&limit=200] — the stock journal, newest first
+    if (req.method === 'GET' && pathname === '/api/v1/stock/moves') {
+      const db = loadDatabase();
+      const productId = url.searchParams.get('productId');
+      const limit = Math.min(1000, Number(url.searchParams.get('limit')) || 200);
+      const moves = (db.stockMoves || []).filter((m) => !productId || m.productId === productId).slice(0, limit);
+      return jsonResponse(res, 200, { success: true, moves });
     }
 
     // GET /api/v1/lines
@@ -1014,9 +1156,9 @@ const server = http.createServer(async (req, res) => {
       const db = loadDatabase();
       const lineCode = url.searchParams.get('line');
       const day = url.searchParams.get('day');
-      const clients = db.clients.filter(
-        (c) => (!lineCode || c.lineCode === lineCode) && (!day || String(c.day) === day)
-      );
+      const clients = db.clients
+        .filter((c) => (!lineCode || c.lineCode === lineCode) && (!day || String(c.day) === day))
+        .map((c) => ({ ...c, ...creditInfo(db, c) }));
       return jsonResponse(res, 200, { success: true, count: clients.length, clients });
     }
 
