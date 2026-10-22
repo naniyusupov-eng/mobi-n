@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import * as Location from 'expo-location';
 import { AlertTriangle, Check } from 'lucide-react-native';
@@ -10,6 +10,8 @@ import { PaymentMethod } from '../../types';
 import { AppText, Button, Card, Divider, Field, KeyValue, Money, Row, Screen, SectionHeader } from '../../components/ui';
 import { COMMON, PAYMENT_LABELS, Tri, useL } from '../../i18n/tri';
 import { formatDayLong, formatNumber } from '../../utils/format';
+import { nasiyaBlockReason } from '../../utils/credit';
+import { shopRepository } from '../../database/shopRepository';
 import { colors, radius, space } from '../../theme/colors';
 import { EqualSegments } from '../../components/orderControls';
 
@@ -61,6 +63,15 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
   const finalAmount = getFinalAmount();
   const dateOk = isValidDate(deliveryDate);
 
+  // Credit state from the phone database (refreshed at sign-in and on every sync)
+  const creditShop = useMemo(() => (shop ? shopRepository.getById(shop.id) ?? shop : null), [shop]);
+  const nasiyaBlocked = nasiyaBlockReason(creditShop, finalAmount, lang);
+
+  // Nasiya not allowed: fall back to cash
+  useEffect(() => {
+    if (nasiyaBlocked && paymentMethod === 'nasiya') setPaymentMethod('naqd');
+  }, [nasiyaBlocked, paymentMethod, setPaymentMethod]);
+
   const quickDates = [
     { key: datePlusDays(0), label: L(COMMON.today) },
     { key: datePlusDays(1), label: L({ uz: 'Ertaga', uz_cyrl: 'Эртага', ru: 'Завтра' }) },
@@ -74,6 +85,10 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
     }
     if (!agent) {
       Alert.alert(L(COMMON.error), L({ uz: 'Avtorizatsiya xatosi', uz_cyrl: 'Авторизация хатоси', ru: 'Ошибка авторизации' }));
+      return;
+    }
+    if (paymentMethod === 'nasiya' && nasiyaBlocked) {
+      Alert.alert(L(COMMON.warning), nasiyaBlocked);
       return;
     }
     if (!dateOk) {
@@ -190,21 +205,39 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
       <SectionHeader title={L(COMMON.payment)} />
       <Card padded={false} style={styles.clip}>
         {PAYMENT_ORDER.map((pm, index) => {
-          const active = paymentMethod === pm;
+          const blockReason = pm === 'nasiya' ? nasiyaBlocked : null;
+          const disabled = !!blockReason;
+          const active = paymentMethod === pm && !disabled;
           return (
             <View key={pm}>
               {index > 0 ? <Divider style={styles.optionDivider} /> : null}
               <Pressable
                 onPress={() => setPaymentMethod(pm)}
-                style={({ pressed }) => [styles.option, active && styles.optionActive, pressed && styles.pressed]}
+                disabled={disabled}
+                accessibilityState={{ disabled, selected: active }}
+                style={({ pressed }) => [
+                  styles.option,
+                  active && styles.optionActive,
+                  disabled && styles.optionDisabled,
+                  pressed && styles.pressed,
+                ]}
               >
                 <View style={styles.flex}>
-                  <AppText variant="strong" lines={1} color={active ? colors.primaryDark : colors.text}>
+                  <AppText
+                    variant="strong"
+                    lines={1}
+                    color={disabled ? colors.textSecondary : active ? colors.primaryDark : colors.text}
+                  >
                     {L(PAYMENT_LABELS[pm])}
                   </AppText>
                   <AppText variant="small" lines={1}>
                     {L(PAYMENT_HINTS[pm])}
                   </AppText>
+                  {blockReason ? (
+                    <AppText variant="small" color={colors.danger} lines={2}>
+                      {blockReason}
+                    </AppText>
+                  ) : null}
                 </View>
                 <View style={[styles.radio, active && styles.radioActive]}>
                   {active ? <Check size={13} color={colors.white} strokeWidth={3} /> : null}
@@ -245,6 +278,7 @@ const styles = StyleSheet.create({
   debtMoney: { flexShrink: 1, maxWidth: '55%' },
   option: { flexDirection: 'row', alignItems: 'center', gap: space.md, padding: space.md, minHeight: 60 },
   optionActive: { backgroundColor: colors.primaryLight },
+  optionDisabled: { opacity: 0.55 },
   optionDivider: { marginHorizontal: space.md },
   radio: {
     width: 22,

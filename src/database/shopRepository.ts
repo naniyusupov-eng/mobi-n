@@ -1,6 +1,19 @@
 import { getDatabase } from './db';
 import { Shop } from '../types';
 
+/** SQLite row -> Shop (booleans are stored as 0/1) */
+const mapRow = (r: any): Shop => ({
+  ...r,
+  isSynced: Boolean(r.isSynced),
+  creditLimit: Number(r.creditLimit) || 0,
+  debtSince: r.debtSince ?? null,
+  debtDays: r.debtDays ?? null,
+  overLimit: Boolean(r.overLimit),
+  overdue: Boolean(r.overdue),
+  creditBlocked: Boolean(r.creditBlocked),
+  creditLeft: r.creditLeft ?? null,
+});
+
 export const shopRepository = {
   getAll: (searchQuery?: string, visitDay?: string): Shop[] => {
     const db = getDatabase();
@@ -20,20 +33,14 @@ export const shopRepository = {
     query += ' ORDER BY routeDay IS NULL, routeDay ASC, num ASC, name ASC';
 
     const rows = db.getAllSync<any>(query, params);
-    return rows.map((r) => ({
-      ...r,
-      isSynced: Boolean(r.isSynced),
-    }));
+    return rows.map(mapRow);
   },
 
   getById: (id: string): Shop | null => {
     const db = getDatabase();
     const row = db.getFirstSync<any>('SELECT * FROM shops WHERE id = $id', { $id: id });
     if (!row) return null;
-    return {
-      ...row,
-      isSynced: Boolean(row.isSynced),
-    };
+    return mapRow(row);
   },
 
   create: (data: {
@@ -143,10 +150,12 @@ export const shopRepository = {
       const insert = db.prepareSync(`
         INSERT OR REPLACE INTO shops (
           id, name, ownerName, phone, address, latitude, longitude, debtBalance, visitDay,
-          lastVisitedAt, createdAt, isSynced, lineCode, routeDay, num, notes
+          lastVisitedAt, createdAt, isSynced, lineCode, routeDay, num, notes,
+          creditLimit, debtSince, debtDays, overLimit, overdue, creditBlocked, creditLeft
         ) VALUES (
           $id, $name, $ownerName, $phone, $address, $latitude, $longitude, $debtBalance, $visitDay,
-          $lastVisitedAt, $createdAt, 1, $lineCode, $routeDay, $num, $notes
+          $lastVisitedAt, $createdAt, 1, $lineCode, $routeDay, $num, $notes,
+          $creditLimit, $debtSince, $debtDays, $overLimit, $overdue, $creditBlocked, $creditLeft
         )
       `);
       try {
@@ -167,6 +176,13 @@ export const shopRepository = {
             $routeDay: s.routeDay ?? null,
             $num: s.num ?? null,
             $notes: s.notes || null,
+            $creditLimit: s.creditLimit || 0,
+            $debtSince: s.debtSince ?? null,
+            $debtDays: s.debtDays ?? null,
+            $overLimit: s.overLimit ? 1 : 0,
+            $overdue: s.overdue ? 1 : 0,
+            $creditBlocked: s.creditBlocked ? 1 : 0,
+            $creditLeft: s.creditLeft ?? null,
           });
         }
       } finally {
@@ -186,7 +202,7 @@ export const shopRepository = {
   getUnsynced: (): Shop[] => {
     const db = getDatabase();
     const rows = db.getAllSync<any>('SELECT * FROM shops WHERE isSynced = 0');
-    return rows.map((r) => ({ ...r, isSynced: false }));
+    return rows.map(mapRow);
   },
 
   markSynced: (id: string) => {

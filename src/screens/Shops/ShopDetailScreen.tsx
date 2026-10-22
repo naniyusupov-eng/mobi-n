@@ -20,7 +20,8 @@ import { useCartStore } from '../../store/cartStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { orderRepository } from '../../database/orderRepository';
 import { shopRepository } from '../../database/shopRepository';
-import { formatShopNum } from '../../utils/format';
+import { formatMoney, formatShopNum } from '../../utils/format';
+import { CREDIT_TX, creditLeft, formatDebtDays, isCreditClosed } from '../../utils/credit';
 import { Order, Shop } from '../../types';
 import { colors, radius, space } from '../../theme/colors';
 import { dialPhone, shopDayLabel, shopRouteCode, splitPhones } from '../../components/shopHelpers';
@@ -128,6 +129,10 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
   const routeCode = shopRouteCode(shop);
   const phones = splitPhones(shop.phone);
   const hasDebt = shop.debtBalance > 0;
+  const limit = shop.creditLimit || 0;
+  const left = creditLeft(shop);
+  const overLimit = !!shop.overLimit || (limit > 0 && shop.debtBalance > limit);
+  const creditClosed = isCreditClosed(shop);
 
   return (
     <Screen
@@ -191,8 +196,25 @@ export const ShopDetailScreen = ({ route, navigation }: { route: any; navigation
                 {L(COMMON.noDebt)}
               </AppText>
             )}
+            {hasDebt && shop.debtDays != null ? (
+              <AppText variant="small" color={colors.danger} lines={1}>
+                {`${L(CREDIT_TX.debtAge)}: ${formatDebtDays(shop.debtDays, lang)}`}
+              </AppText>
+            ) : null}
           </View>
         </Row>
+        {shop.overdue || overLimit || creditClosed ? (
+          <Row gap={6} wrap>
+            {shop.overdue ? <Badge label={L(CREDIT_TX.overdueBadge)} tone="danger" /> : null}
+            {overLimit ? <Badge label={L(CREDIT_TX.overLimitBadge)} tone="warning" /> : null}
+            {creditClosed && !shop.overdue ? <Badge label={L(CREDIT_TX.closedBadge)} tone="danger" /> : null}
+          </Row>
+        ) : null}
+        {limit > 0 ? (
+          <AppText variant="small" lines={2}>
+            {`${L(CREDIT_TX.limit)}: ${formatMoney(limit, lang)} · ${L({ uz: 'qoldi', uz_cyrl: 'қолди', ru: 'осталось' })}: ${formatMoney(left ?? 0, lang)}`}
+          </AppText>
+        ) : null}
       </Card>
 
       {/* GPS check-in & map */}

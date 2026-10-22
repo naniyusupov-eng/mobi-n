@@ -9,6 +9,7 @@ import { useLanguageStore } from '../../store/languageStore';
 import { useSyncStore } from '../../store/syncStore';
 import { todayRouteDay } from '../../services/lineService';
 import { formatShopNum } from '../../utils/format';
+import { CREDIT_TX, isCreditClosed } from '../../utils/credit';
 import { callShop, shopDayLabel, shopRouteCode, splitPhones } from '../../components/shopHelpers';
 import { Shop } from '../../types';
 import { colors, space } from '../../theme/colors';
@@ -83,6 +84,7 @@ const ShopCard = memo(({ shop, onOpen, onOrder, onCall }: ShopCardProps) => {
 
       <Row gap={6} wrap>
         {shop.notes ? <Badge label={shop.notes} tone="warning" /> : null}
+        {isCreditClosed(shop) ? <Badge label={L(CREDIT_TX.closedBadge)} tone="danger" /> : null}
         {shop.debtBalance > 0 ? (
           <Row gap={6} style={styles.debt}>
             <AppText variant="small" color={colors.danger}>

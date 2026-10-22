@@ -160,6 +160,23 @@ export const initDatabase = (db: SQLite.SQLiteDatabase) => {
     }
   }
 
+  // Credit control columns (GET /clients). Same safe upgrade: ignore "duplicate column".
+  for (const column of [
+    'creditLimit REAL DEFAULT 0',
+    'debtSince TEXT',
+    'debtDays INTEGER',
+    'overLimit INTEGER DEFAULT 0',
+    'overdue INTEGER DEFAULT 0',
+    'creditBlocked INTEGER DEFAULT 0',
+    'creditLeft REAL',
+  ]) {
+    try {
+      db.execSync(`ALTER TABLE shops ADD COLUMN ${column};`);
+    } catch (e: any) {
+      if (!/duplicate column/i.test(String(e?.message ?? e))) throw e;
+    }
+  }
+
   // Shops come from the server by line now; drop the old built-in demo shops
   db.execSync("DELETE FROM shops WHERE id IN ('shop_1', 'shop_2', 'shop_3', 'shop_4', 'shop_5');");
 };

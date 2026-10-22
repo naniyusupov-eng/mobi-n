@@ -31,6 +31,13 @@ interface ServerClient {
   day?: number;
   notes?: string;
   debtBalance?: number;
+  creditLimit?: number;
+  debtSince?: string | null;
+  debtDays?: number | null;
+  overLimit?: boolean;
+  overdue?: boolean;
+  creditBlocked?: boolean;
+  creditLeft?: number | null;
 }
 
 /**
@@ -117,6 +124,13 @@ export const lineService = {
       routeDay: c.day,
       num: c.num,
       notes: c.notes,
+      creditLimit: Number(c.creditLimit) || 0,
+      debtSince: c.debtSince || null,
+      debtDays: c.debtDays == null ? null : Number(c.debtDays),
+      overLimit: Boolean(c.overLimit),
+      overdue: Boolean(c.overdue),
+      creditBlocked: Boolean(c.creditBlocked),
+      creditLeft: c.creditLeft == null ? null : Number(c.creditLeft),
     }));
     shopRepository.replaceLineShops(lineCode, shops);
     return shops.length;

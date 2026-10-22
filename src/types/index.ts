@@ -56,6 +56,14 @@ export interface Shop {
   routeDay?: number;      // Hafta kuni: 1 = Dushanba ... 6 = Shanba (marshrut 4-3-1)
   num?: number;           // Doʻkonning marshrutdagi raqami
   notes?: string;         // e.g. "Стелаж"
+  // Credit control (from GET /clients)
+  creditLimit?: number;        // 0 = no limit
+  debtSince?: string | null;   // ISO, when the current debt started
+  debtDays?: number | null;    // Debt age in days
+  overLimit?: boolean;
+  overdue?: boolean;
+  creditBlocked?: boolean;     // Nasiya not allowed
+  creditLeft?: number | null;  // Limit minus debt (null = no limit)
 }
 
 export type PaymentMethod = 'naqd' | 'nasiya' | 'otkazma';
