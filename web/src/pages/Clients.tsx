@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { AlertCircle, CreditCard, MapPin, Route, Search, Store, Wallet } from 'lucide-react';
+import { AlertCircle, Ban, CreditCard, MapPin, Pencil, Route, Search, Store, Wallet } from 'lucide-react';
 import { Client, Line } from '../types';
 import {
   Button,
@@ -19,8 +19,9 @@ import {
   formatSum,
 } from '../components/ui';
 import { useToday } from '../hooks/useNow';
-import { weekdayOf } from '../utils/format';
+import { formatDate, weekdayOf } from '../utils/format';
 import { COMMON, Tri, WEEKDAY_LABELS, WEEKDAY_SHORT, fmt, useL } from '../i18n/tri';
+import { useLanguage } from '../context/LanguageContext';
 import { API, apiFetch } from '../api';
 
 const DAYS = [1, 2, 3, 4, 5, 6].map((day) => ({ day, short: WEEKDAY_SHORT[day], label: WEEKDAY_LABELS[day] }));
@@ -83,7 +84,45 @@ const T = {
   remainingDebt: { uz: 'Qoladigan qarz: {sum} soʻm', uz_cyrl: 'Қоладиган қарз: {sum} сўм', ru: 'Остаток долга: {sum} сум' },
   fullDebt: { uz: 'Toʻliq qarz', uz_cyrl: 'Тўлиқ қарз', ru: 'Весь долг' },
   half: { uz: 'Yarmi', uz_cyrl: 'Ярми', ru: 'Половина' },
+  days: { uz: '{n} kun', uz_cyrl: '{n} кун', ru: '{n} дн.' },
+  debtAgeTitle: { uz: 'Qarz {date} dan beri', uz_cyrl: 'Қарз {date} дан бери', ru: 'Долг с {date}' },
+  overdue: { uz: 'Muddati oʻtgan', uz_cyrl: 'Муддати ўтган', ru: 'Просрочен' },
+  overLimit: { uz: 'Limitdan oshgan', uz_cyrl: 'Лимитдан ошган', ru: 'Превышен лимит' },
+  limit: { uz: 'Limit', uz_cyrl: 'Лимит', ru: 'Лимит' },
+  noLimit: { uz: 'limitsiz', uz_cyrl: 'лимитсиз', ru: 'без лимита' },
+  left: { uz: 'qoldi {sum}', uz_cyrl: 'қолди {sum}', ru: 'осталось {sum}' },
+  blocked: { uz: 'Bloklangan', uz_cyrl: 'Блокланган', ru: 'Заблокированы' },
+  blockedHint: {
+    uz: 'Limitdan oshgan yoki qarz muddati oʻtgan: yangi nasiya berilmaydi',
+    uz_cyrl: 'Лимитдан ошган ёки қарз муддати ўтган: янги насия берилмайди',
+    ru: 'Превышен лимит или просрочен долг: новый долг не выдаётся',
+  },
+  noBlocked: { uz: 'Bloklangan doʻkon yoʻq', uz_cyrl: 'Блокланган дўкон йўқ', ru: 'Заблокированных магазинов нет' },
+  editLimit: { uz: 'Qarz limitini oʻzgartirish', uz_cyrl: 'Қарз лимитини ўзгартириш', ru: 'Изменить лимит долга' },
+  limitDefault: { uz: 'Standart limit', uz_cyrl: 'Стандарт лимит', ru: 'Стандартный лимит' },
+  limitOwn: { uz: 'Oʻz limiti', uz_cyrl: 'Ўз лимити', ru: 'Свой лимит' },
+  limitNone: { uz: 'Limitsiz', uz_cyrl: 'Лимитсиз', ru: 'Без лимита' },
+  limitDefaultHint: {
+    uz: 'Sozlamalardagi umumiy limit: {value}',
+    uz_cyrl: 'Созламалардаги умумий лимит: {value}',
+    ru: 'Общий лимит из настроек: {value}',
+  },
+  limitNoneHint: {
+    uz: 'Bu doʻkonga summa boʻyicha cheklov qoʻyilmaydi (muddat nazorati qoladi)',
+    uz_cyrl: 'Бу дўконга сумма бўйича чеклов қўйилмайди (муддат назорати қолади)',
+    ru: 'Ограничения по сумме не будет (контроль срока остаётся)',
+  },
+  limitAmount: { uz: 'Limit summasi', uz_cyrl: 'Лимит суммаси', ru: 'Сумма лимита' },
+  errLimit: { uz: 'Limit 0 dan katta son boʻlishi kerak', uz_cyrl: 'Лимит 0 дан катта сон бўлиши керак', ru: 'Лимит должен быть больше 0' },
+  limitSaveError: {
+    uz: 'Limitni saqlab boʻlmadi. Qaytadan urinib koʻring.',
+    uz_cyrl: 'Лимитни сақлаб бўлмади. Қайтадан уриниб кўринг.',
+    ru: 'Не удалось сохранить лимит. Попробуйте ещё раз.',
+  },
+  saving: { uz: 'Saqlanmoqda…', uz_cyrl: 'Сақланмоқда…', ru: 'Сохранение…' },
 } satisfies Record<string, Tri>;
+
+type LimitMode = 'default' | 'own' | 'none';
 
 // Route day of a Tashkent date: 1 = Dushanba ... 6 = Shanba, null on Sunday
 const routeDayOf = (day: string) => weekdayOf(day) || null;
@@ -100,6 +139,7 @@ interface ClientsProps {
 
 export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId }) => {
   const L = useL();
+  const { lang } = useLanguage();
   const today = routeDayOf(useToday()); // live: switches at midnight
   const [lines, setLines] = useState<Line[]>([]);
   const [line, setLine] = useState(initialRoute?.line || '');
@@ -113,6 +153,14 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
   const [payAmount, setPayAmount] = useState('');
   const [paying, setPaying] = useState(false);
 
+  const [blockedOnly, setBlockedOnly] = useState(false);
+  const [defaultLimit, setDefaultLimit] = useState(0); // from settings, 0 = no limit
+  const [limitShop, setLimitShop] = useState<Client | null>(null);
+  const [limitMode, setLimitMode] = useState<LimitMode>('default');
+  const [limitValue, setLimitValue] = useState('');
+  const [limitError, setLimitError] = useState<Tri | null>(null);
+  const [limitSaving, setLimitSaving] = useState(false);
+
   const [highlightId, setHighlightId] = useState(highlightShopId || '');
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
 
@@ -121,6 +169,10 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
       .then((r) => r.json())
       .then((d) => setLines(d.lines || []))
       .catch(() => setError(T.linesLoadError));
+    apiFetch(`${API}/settings`)
+      .then((r) => r.json())
+      .then((d) => setDefaultLimit(Number(d.settings?.creditLimitDefault) || 0))
+      .catch(() => {});
   }, []);
 
   const isRouteSelected = Boolean(line && day);
@@ -150,11 +202,14 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
 
   const routeShops = useMemo(() => [...shops].sort((a, b) => (a.num ?? 0) - (b.num ?? 0)), [shops]);
 
+  const blockedCount = useMemo(() => shops.filter((c) => c.creditBlocked).length, [shops]);
+
   const visibleShops = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return routeShops;
+    const base = blockedOnly ? routeShops.filter((c) => c.creditBlocked) : routeShops;
+    if (!q) return base;
     const qDigits = q.replace(/\s/g, '');
-    return routeShops.filter(
+    return base.filter(
       (c) =>
         c.name.toLowerCase().includes(q) ||
         (c.ownerName || '').toLowerCase().includes(q) ||
@@ -162,7 +217,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
         (c.address || '').toLowerCase().includes(q) ||
         formatNum(c.num) === q
     );
-  }, [routeShops, search]);
+  }, [routeShops, search, blockedOnly]);
 
   const routeDebt = useMemo(() => {
     let sum = 0;
@@ -225,6 +280,49 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
       setError(T.paymentSaveError);
     } finally {
       setPaying(false);
+    }
+  };
+
+  // The server sends the effective limit only, so the mode is guessed from the settings default
+  const openLimit = (c: Client) => {
+    const lim = c.creditLimit || 0;
+    const mode: LimitMode = lim === defaultLimit ? 'default' : lim === 0 ? 'none' : 'own';
+    setLimitShop(c);
+    setLimitMode(mode);
+    setLimitValue(lim > 0 ? String(lim) : '');
+    setLimitError(null);
+  };
+
+  const closeLimit = () => {
+    if (limitSaving) return;
+    setLimitShop(null);
+  };
+
+  const handleSaveLimit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (limitSaving || !limitShop) return;
+    let creditLimit: number | null = null;
+    if (limitMode === 'none') creditLimit = 0;
+    else if (limitMode === 'own') {
+      creditLimit = Number(limitValue.replace(/\s/g, ''));
+      if (!(creditLimit > 0)) return setLimitError(T.errLimit);
+    }
+    setLimitSaving(true);
+    setLimitError(null);
+    try {
+      const res = await apiFetch(`${API}/clients/${encodeURIComponent(limitShop.id)}/credit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ creditLimit }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const d = await res.json();
+      if (d.shop) setShops((prev) => prev.map((c) => (c.id === d.shop.id ? { ...c, ...d.shop } : c)));
+      setLimitShop(null);
+    } catch {
+      setLimitError(T.limitSaveError);
+    } finally {
+      setLimitSaving(false);
     }
   };
 
@@ -340,7 +438,22 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
                 {L(T.noDebt)}
               </Pill>
             )}
-            {search && (
+            {blockedCount > 0 || blockedOnly ? (
+              <button
+                type="button"
+                onClick={() => setBlockedOnly((v) => !v)}
+                aria-pressed={blockedOnly}
+                title={L(T.blockedHint)}
+                className={clsx(
+                  'inline-flex items-center gap-1 h-8 px-3 rounded-full text-[13px] font-semibold whitespace-nowrap transition',
+                  blockedOnly ? 'bg-rose-500 text-white' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'
+                )}
+              >
+                <Ban className="w-3.5 h-3.5" />
+                {L(T.blocked)}: {blockedCount}
+              </button>
+            ) : null}
+            {(search || blockedOnly) && (
               <span className="ml-auto text-[13px] text-ink-400 tabular-nums">{fmt(L(T.found), { n: visibleShops.length })}</span>
             )}
           </div>
@@ -350,13 +463,17 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
               <div className="py-12 text-center text-sm text-ink-400">{L(COMMON.loading)}</div>
             ) : visibleShops.length === 0 ? (
               <EmptyState
-                icon={search ? Search : Store}
-                title={search ? L(T.notFound) : L(T.emptyRoute)}
+                icon={search ? Search : blockedOnly ? Ban : Store}
+                title={search ? L(T.notFound) : blockedOnly ? L(T.noBlocked) : L(T.emptyRoute)}
                 hint={search ? L(T.tryOther) : undefined}
                 action={
                   search ? (
                     <Button variant="secondary" size="sm" onClick={() => setSearch('')}>
                       {L(T.clearSearch)}
+                    </Button>
+                  ) : blockedOnly ? (
+                    <Button variant="secondary" size="sm" onClick={() => setBlockedOnly(false)}>
+                      {L(COMMON.all)}
                     </Button>
                   ) : undefined
                 }
@@ -450,6 +567,50 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
                           ) : (
                             <span className="text-ink-400">—</span>
                           )}
+                          {(c.debtBalance || 0) > 0 && (c.debtDays != null || c.overdue || c.overLimit) ? (
+                            <div className="flex flex-wrap items-center justify-end gap-1.5 mt-1.5">
+                              {c.debtDays != null ? (
+                                <span
+                                  className={clsx('text-xs tabular-nums', c.overdue ? 'font-semibold text-rose-600' : 'text-ink-500')}
+                                  title={c.debtSince ? fmt(L(T.debtAgeTitle), { date: formatDate(c.debtSince, lang) }) : undefined}
+                                >
+                                  {c.debtDays === 0 ? L(COMMON.today) : fmt(L(T.days), { n: c.debtDays })}
+                                </span>
+                              ) : null}
+                              {c.overdue ? (
+                                <Pill tone="red" className="!py-0.5 !text-[11px]">
+                                  {L(T.overdue)}
+                                </Pill>
+                              ) : null}
+                              {c.overLimit ? (
+                                <Pill tone="amber" className="!py-0.5 !text-[11px]">
+                                  {L(T.overLimit)}
+                                </Pill>
+                              ) : null}
+                            </div>
+                          ) : null}
+                          <div className="flex items-center justify-end gap-1 mt-1 text-xs text-ink-400">
+                            <span className="tabular-nums">
+                              {L(T.limit)}:{' '}
+                              {(c.creditLimit || 0) > 0 ? (
+                                <>
+                                  {formatSum(c.creditLimit!)}
+                                  {c.creditLeft != null ? ` • ${fmt(L(T.left), { sum: formatSum(c.creditLeft) })}` : ''}
+                                </>
+                              ) : (
+                                L(T.noLimit)
+                              )}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => openLimit(c)}
+                              title={L(T.editLimit)}
+                              aria-label={L(T.editLimit)}
+                              className="w-6 h-6 rounded-full text-ink-400 hover:bg-brand-50 hover:text-brand-500 flex items-center justify-center"
+                            >
+                              <Pencil className="w-3 h-3" />
+                            </button>
+                          </div>
                         </Td>
                       </tr>
                     );
@@ -522,6 +683,72 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
             ))}
           </div>
           {/* Enter in the amount field submits */}
+          <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+        </form>
+      </Modal>
+
+      {/* Credit limit modal */}
+      <Modal
+        open={Boolean(limitShop)}
+        onClose={closeLimit}
+        width="sm"
+        title={L(T.editLimit)}
+        subtitle={limitShop?.name}
+        footer={
+          <>
+            <Button variant="ghost" onClick={closeLimit} disabled={limitSaving}>
+              {L(COMMON.cancel)}
+            </Button>
+            <Button onClick={() => handleSaveLimit()} disabled={limitSaving}>
+              {limitSaving ? L(T.saving) : L(COMMON.save)}
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleSaveLimit} className="space-y-4">
+          {limitShop && (limitShop.debtBalance || 0) > 0 ? (
+            <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl2 bg-rose-50">
+              <span className="text-sm text-ink-700">{L(T.currentDebt)}</span>
+              <Money value={limitShop.debtBalance || 0} className="font-bold text-rose-600" />
+            </div>
+          ) : null}
+          <Segmented
+            value={limitMode}
+            onChange={(m) => {
+              setLimitMode(m);
+              setLimitError(null);
+            }}
+            options={[
+              { key: 'default', label: L(T.limitDefault) },
+              { key: 'own', label: L(T.limitOwn) },
+              { key: 'none', label: L(T.limitNone) },
+            ]}
+          />
+          {limitMode === 'own' ? (
+            <Field
+              label={L(T.limitAmount)}
+              type="number"
+              min={1}
+              inputMode="numeric"
+              suffix={L(COMMON.som)}
+              value={limitValue}
+              onChange={(e) => {
+                setLimitValue(e.target.value);
+                setLimitError(null);
+              }}
+              className="tabular-nums font-semibold"
+              autoFocus
+            />
+          ) : (
+            <div className="px-4 py-3 rounded-xl2 bg-ink-100/70 text-sm text-ink-500">
+              {limitMode === 'default'
+                ? fmt(L(T.limitDefaultHint), {
+                    value: defaultLimit > 0 ? `${formatSum(defaultLimit)} ${L(COMMON.som)}` : L(T.noLimit),
+                  })
+                : L(T.limitNoneHint)}
+            </div>
+          )}
+          {limitError ? <div className="text-[13px] text-rose-600">{L(limitError)}</div> : null}
           <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
         </form>
       </Modal>

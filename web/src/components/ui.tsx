@@ -175,7 +175,8 @@ export function Segmented<K extends string | number>({
   );
 }
 
-const fieldBase =
+/** Input look shared by Field/Select; for bare inputs in grids (no label) */
+export const fieldBase =
   'w-full h-11 px-4 rounded-xl2 bg-ink-100/70 border border-transparent text-sm text-ink-900 placeholder:text-ink-400 outline-none transition focus:bg-white focus:border-brand-200 focus:ring-4 focus:ring-brand-50';
 
 export const SearchInput: React.FC<{

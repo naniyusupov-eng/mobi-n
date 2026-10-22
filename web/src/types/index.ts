@@ -19,6 +19,40 @@ export interface Product {
   itemsPerBlock: number;
   itemsPerBox: number;
   stockDona: number;
+  minStock?: number; // low-stock alert threshold, dona
+}
+
+// Goods arrived at the warehouse (kirim)
+export interface ReceiptItem {
+  productId: string;
+  productName: string;
+  unit: 'dona' | 'blok' | 'korobka';
+  quantity: number;
+  cost: number; // per unit
+  total: number;
+}
+
+export interface Receipt {
+  id: string;
+  supplier: string;
+  note: string;
+  items: ReceiptItem[];
+  total: number;
+  createdAt: string;
+}
+
+export type StockMoveType = 'receipt' | 'receipt-undo' | 'sale' | 'return' | 'return-undo' | 'cancel' | 'uncancel' | 'adjust';
+
+export interface StockMove {
+  id: string;
+  productId: string;
+  productName: string;
+  type: StockMoveType;
+  deltaDona: number; // signed
+  stockAfter: number;
+  ref?: string;
+  note?: string;
+  createdAt: string;
 }
 
 export type PaymentMethod = 'naqd' | 'nasiya' | 'otkazma';
@@ -105,6 +139,8 @@ export interface CompanySettings {
   bankMfo?: string;
   bonusStreakDays?: number; // days in a row without returns that earn a bonus
   bonusAmount?: number;
+  creditLimitDefault?: number; // soʻm, 0 = no limit
+  debtMaxDays?: number; // days, 0 = no limit (server default 14)
 }
 
 // Liniya, masalan '4-3'. QR kod liniyaniki: istalgan agent skanerlab shu liniyaga ulanadi.
@@ -129,4 +165,12 @@ export interface Client {
   lineCode?: string;
   day?: RouteDay;
   notes?: string;
+  // Credit control, computed by the server
+  creditLimit?: number; // effective limit, 0 = no limit
+  debtSince?: string | null;
+  debtDays?: number | null;
+  overLimit?: boolean;
+  overdue?: boolean;
+  creditBlocked?: boolean;
+  creditLeft?: number | null; // null when no limit
 }

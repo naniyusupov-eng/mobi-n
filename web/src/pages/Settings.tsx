@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { Award, Building2, Check, Download, Languages, LogOut, ShieldCheck } from 'lucide-react';
+import { Award, Building2, Check, Download, Languages, LogOut, ShieldCheck, Wallet } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { Language } from '../i18n/translations';
 import { COMMON, Tri, useL } from '../i18n/tri';
@@ -41,6 +41,16 @@ const T = {
   daysCount: { uz: 'Kunlar soni', uz_cyrl: 'Кунлар сони', ru: 'Количество дней' },
   days: { uz: 'kun', uz_cyrl: 'кун', ru: 'дн.' },
   bonusAmount: { uz: 'Bonus summasi (ixtiyoriy)', uz_cyrl: 'Бонус суммаси (ихтиёрий)', ru: 'Сумма бонуса (необязательно)' },
+  creditTitle: { uz: 'Qarz nazorati', uz_cyrl: 'Қарз назорати', ru: 'Контроль долгов' },
+  creditSubtitle: {
+    uz: 'Limitdan oshgan yoki qarzi muddati oʻtgan doʻkonga yangi nasiya berilmaydi',
+    uz_cyrl: 'Лимитдан ошган ёки қарзи муддати ўтган дўконга янги насия берилмайди',
+    ru: 'Магазину с превышенным лимитом или просроченным долгом новый долг не выдаётся',
+  },
+  creditLimitDefault: { uz: 'Standart qarz limiti', uz_cyrl: 'Стандарт қарз лимити', ru: 'Стандартный лимит долга' },
+  creditLimitHint: { uz: '0 = limitsiz', uz_cyrl: '0 = лимитсиз', ru: '0 = без лимита' },
+  debtMaxDays: { uz: 'Qarz muddati', uz_cyrl: 'Қарз муддати', ru: 'Срок долга' },
+  debtMaxDaysHint: { uz: '0 = cheklovsiz', uz_cyrl: '0 = чекловсиз', ru: '0 = без ограничения' },
   saveFailed: { uz: 'Saqlab boʻlmadi', uz_cyrl: 'Сақлаб бўлмади', ru: 'Не удалось сохранить' },
   saveFailedRetry: {
     uz: 'Saqlab boʻlmadi, qaytadan urinib koʻring',
@@ -255,6 +265,14 @@ export const Settings: React.FC<SettingsProps> = ({ company, onSaveCompany }) =>
   const [bonus, setBonus] = useState(bonusFrom(company));
   const [bonusStatus, setBonusStatus] = useState<SaveStatus>('idle');
 
+  // Credit control: server default for debtMaxDays is 14 when unset
+  const creditFrom = (c: CompanySettings) => ({
+    limit: String(c.creditLimitDefault ?? 0),
+    days: String(c.debtMaxDays ?? 14),
+  });
+  const [credit, setCredit] = useState(creditFrom(company));
+  const [creditStatus, setCreditStatus] = useState<SaveStatus>('idle');
+
   const prevCompany = useRef(company);
   useEffect(() => {
     const prev = prevCompany.current;
@@ -265,8 +283,26 @@ export const Settings: React.FC<SettingsProps> = ({ company, onSaveCompany }) =>
       const old = bonusFrom(prev);
       return cur.days === old.days && cur.amount === old.amount ? bonusFrom(company) : cur;
     });
+    setCredit((cur) => {
+      const old = creditFrom(prev);
+      return cur.limit === old.limit && cur.days === old.days ? creditFrom(company) : cur;
+    });
   }, [company]);
   const bonusDirty = bonus.days !== bonusFrom(company).days || bonus.amount !== bonusFrom(company).amount;
+  const creditDirty = credit.limit !== creditFrom(company).limit || credit.days !== creditFrom(company).days;
+  const creditValid =
+    Number.isInteger(Number(credit.limit)) && Number(credit.limit) >= 0 && Number.isInteger(Number(credit.days)) && Number(credit.days) >= 0;
+
+  const handleSaveCredit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreditStatus('saving');
+    try {
+      await onSaveCompany({ ...company, creditLimitDefault: Number(credit.limit) || 0, debtMaxDays: Number(credit.days) || 0 });
+      setCreditStatus('saved');
+    } catch {
+      setCreditStatus('error');
+    }
+  };
 
   const handleSaveBonus = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -366,6 +402,48 @@ export const Settings: React.FC<SettingsProps> = ({ company, onSaveCompany }) =>
             <SaveRow
               status={bonusStatus}
               disabled={!bonusDirty || !(Number(bonus.days) >= 1) || bonusStatus === 'saving'}
+              errorText={L(T.saveFailed)}
+            />
+          </form>
+        </Card>
+
+        {/* Credit control */}
+        <Card>
+          <form onSubmit={handleSaveCredit}>
+            <SectionTitle icon={Wallet} tone="amber" title={L(T.creditTitle)} subtitle={L(T.creditSubtitle)} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Field
+                label={L(T.creditLimitDefault)}
+                type="number"
+                min={0}
+                value={credit.limit}
+                placeholder="0"
+                suffix={L(COMMON.som)}
+                hint={L(T.creditLimitHint)}
+                className="tabular-nums"
+                onChange={(e) => {
+                  setCredit({ ...credit, limit: e.target.value });
+                  setCreditStatus('idle');
+                }}
+              />
+              <Field
+                label={L(T.debtMaxDays)}
+                type="number"
+                min={0}
+                value={credit.days}
+                placeholder="14"
+                suffix={L(T.days)}
+                hint={L(T.debtMaxDaysHint)}
+                className="tabular-nums"
+                onChange={(e) => {
+                  setCredit({ ...credit, days: e.target.value });
+                  setCreditStatus('idle');
+                }}
+              />
+            </div>
+            <SaveRow
+              status={creditStatus}
+              disabled={!creditDirty || !creditValid || creditStatus === 'saving'}
               errorText={L(T.saveFailed)}
             />
           </form>

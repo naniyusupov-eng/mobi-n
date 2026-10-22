@@ -164,7 +164,13 @@ function AdminApp() {
             />
           )}
           {page === 'products' && (
-            <Products products={products} categories={categories} onAddProduct={handleAddProduct} onUpdateStock={handleUpdateStock} />
+            <Products
+              products={products}
+              categories={categories}
+              onAddProduct={handleAddProduct}
+              onUpdateStock={handleUpdateStock}
+              onProductsChanged={setProducts}
+            />
           )}
           {page === 'reports' && <Reports orders={orders} company={company} onViewOrder={setInvoiceOrder} />}
           {page === 'settings' && <Settings company={company} onSaveCompany={handleSaveCompany} />}

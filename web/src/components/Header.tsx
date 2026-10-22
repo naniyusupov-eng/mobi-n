@@ -207,7 +207,7 @@ export const Header: React.FC<HeaderProps> = ({ title, orders, newOrdersCount, o
       >
         <Bell className="w-5 h-5" />
         {newOrdersCount > 0 ? (
-          <span className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1 rounded-full bg-rose-500 text-white text-[11px] font-bold flex items-center justify-center tabular-nums">
+          <span className="absolute -top-0.5 -right-0.5 min-w-[20px] h-5 px-1 rounded-full bg-rose-500 text-white text-[11px] font-bold leading-none flex items-center justify-center tabular-nums">
             {newOrdersCount}
           </span>
         ) : null}

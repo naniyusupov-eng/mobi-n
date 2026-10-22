@@ -56,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activePage, onPageChange, newO
         <span className="hidden lg:inline">{L(PAGE_TITLES[id])}</span>
         {badge ? (
           <>
-            <span className="hidden lg:inline ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-bold flex items-center justify-center tabular-nums">
+            <span className="hidden lg:flex ml-auto min-w-[22px] h-[22px] px-1.5 rounded-full bg-rose-500 text-white text-[11px] font-bold leading-none items-center justify-center tabular-nums">
               {badge}
             </span>
             <span className="lg:hidden absolute top-2 right-2.5 w-2 h-2 rounded-full bg-rose-500" />
