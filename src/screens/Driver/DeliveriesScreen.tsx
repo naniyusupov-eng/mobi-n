@@ -9,6 +9,7 @@ import { Delivery, cashToCollect, driverService, netAmount } from '../../service
 import { colors, space } from '../../theme/colors';
 import { AppText, Badge, Card, EmptyState, HeroCard, HeroPill, IconButton, IconCircle, Money, Row, Screen, Segmented } from '../../components/ui';
 import { PAYMENT_TONE } from '../../components/shared';
+import { WorkdayCard } from '../../components/WorkdayCard';
 import { COMMON, PAYMENT_LABELS, Tri, useL } from '../../i18n/tri';
 import { formatDayLong, formatMoney, formatMoneyShort, formatNumber, formatShopNum } from '../../utils/format';
 
@@ -89,6 +90,7 @@ export const DeliveriesScreen = ({ navigation }: { navigation: any }) => {
 
   return (
     <Screen refreshing={loading && items.length > 0} onRefresh={load}>
+      <WorkdayCard />
       <HeroCard
         icon={Truck}
         label={L(isToday ? T.todayDelivery : T.dayDelivery)}

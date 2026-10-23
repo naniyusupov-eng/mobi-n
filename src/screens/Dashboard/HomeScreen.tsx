@@ -42,6 +42,7 @@ import {
   Tone,
 } from '../../components/ui';
 import { OrderCard } from '../../components/shared';
+import { WorkdayCard } from '../../components/WorkdayCard';
 import { COMMON, useL } from '../../i18n/tri';
 import { formatDayLong, formatMoney, formatMoneyShort, formatNumber } from '../../utils/format';
 
@@ -170,6 +171,9 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
           {pendingCount > 0 ? <View style={styles.dot} /> : null}
         </Pressable>
       </Row>
+
+      {/* Start / end of the working day */}
+      <WorkdayCard />
 
       {/* Headline: the working day's sales */}
       <HeroCard
