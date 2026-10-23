@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { AlertCircle, Ban, CreditCard, FileText, MapPin, Pencil, Route, Search, Store, Wallet } from 'lucide-react';
-import { Client, Line } from '../types';
+import { AlertCircle, Ban, CreditCard, FileText, MapPin, Pencil, Route, Search, Store, Tags, Wallet } from 'lucide-react';
+import { Client, Line, PriceList } from '../types';
 import {
   Button,
   Card,
@@ -122,6 +122,19 @@ const T = {
   },
   saving: { uz: 'Saqlanmoqda…', uz_cyrl: 'Сақланмоқда…', ru: 'Сохранение…' },
   statement: { uz: 'Akt sverka', uz_cyrl: 'Акт сверка', ru: 'Акт сверки' },
+  priceType: { uz: 'Narx turi', uz_cyrl: 'Нарх тури', ru: 'Тип цен' },
+  basePrice: { uz: 'Asosiy narx', uz_cyrl: 'Асосий нарх', ru: 'Базовая цена' },
+  editPriceType: { uz: 'Narx turini oʻzgartirish', uz_cyrl: 'Нарх турини ўзгартириш', ru: 'Изменить тип цен' },
+  priceTypeHint: {
+    uz: 'Agent ilovasida bu doʻkonga shu narxlar qoʻllanadi. Narx turlari: Tovarlar → Narxlar.',
+    uz_cyrl: 'Агент иловасида бу дўконга шу нархлар қўлланади. Нарх турлари: Товарлар → Нархлар.',
+    ru: 'В приложении агента для этого магазина используются эти цены. Типы цен: Товары → Цены.',
+  },
+  priceTypeSaveError: {
+    uz: 'Narx turini saqlab boʻlmadi. Qaytadan urinib koʻring.',
+    uz_cyrl: 'Нарх турини сақлаб бўлмади. Қайтадан уриниб кўринг.',
+    ru: 'Не удалось сохранить тип цен. Попробуйте ещё раз.',
+  },
 } satisfies Record<string, Tri>;
 
 type LimitMode = 'default' | 'own' | 'none';
@@ -163,6 +176,11 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
   const [limitError, setLimitError] = useState<Tri | null>(null);
   const [limitSaving, setLimitSaving] = useState(false);
   const [statementShop, setStatementShop] = useState<Client | null>(null);
+  const [priceLists, setPriceLists] = useState<PriceList[]>([]);
+  const [priceShop, setPriceShop] = useState<Client | null>(null);
+  const [priceValue, setPriceValue] = useState('');
+  const [priceError, setPriceError] = useState<Tri | null>(null);
+  const [priceSaving, setPriceSaving] = useState(false);
 
   const [highlightId, setHighlightId] = useState(highlightShopId || '');
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
@@ -175,6 +193,10 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
     apiFetch(`${API}/settings`)
       .then((r) => r.json())
       .then((d) => setDefaultLimit(Number(d.settings?.creditLimitDefault) || 0))
+      .catch(() => {});
+    apiFetch(`${API}/price-lists`)
+      .then((r) => r.json())
+      .then((d) => setPriceLists(Array.isArray(d.priceLists) ? d.priceLists : []))
       .catch(() => {});
   }, []);
 
@@ -326,6 +348,43 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
       setLimitError(T.limitSaveError);
     } finally {
       setLimitSaving(false);
+    }
+  };
+
+  const priceListName = (c: Client) => (c.priceListId ? priceLists.find((l) => l.id === c.priceListId)?.name : undefined);
+
+  const openPriceList = (c: Client) => {
+    setPriceShop(c);
+    setPriceValue(c.priceListId && priceLists.some((l) => l.id === c.priceListId) ? c.priceListId : '');
+    setPriceError(null);
+  };
+
+  const closePriceList = () => {
+    if (priceSaving) return;
+    setPriceShop(null);
+  };
+
+  const handleSavePriceList = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (priceSaving || !priceShop) return;
+    setPriceSaving(true);
+    setPriceError(null);
+    try {
+      const res = await apiFetch(`${API}/clients/${encodeURIComponent(priceShop.id)}/price-list`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priceListId: priceValue || null }),
+      });
+      if (!res.ok) throw new Error(String(res.status));
+      const d = await res.json();
+      const id = priceShop.id;
+      // The server drops the field when the shop goes back to base prices
+      setShops((prev) => prev.map((c) => (c.id === id ? { ...c, ...(d.shop || {}), priceListId: priceValue || null } : c)));
+      setPriceShop(null);
+    } catch {
+      setPriceError(T.priceTypeSaveError);
+    } finally {
+      setPriceSaving(false);
     }
   };
 
@@ -520,6 +579,18 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
                         </Td>
                         <Td className="min-w-[180px] max-w-[280px]">
                           <div className="font-semibold text-ink-900 break-words">{c.name}</div>
+                          <button
+                            type="button"
+                            onClick={() => openPriceList(c)}
+                            title={L(T.editPriceType)}
+                            className="group mt-0.5 flex items-center gap-1 text-xs text-ink-400 hover:text-brand-500"
+                          >
+                            <Tags className="w-3 h-3 shrink-0" />
+                            <span className={clsx('truncate max-w-[200px]', priceListName(c) && 'font-semibold text-violet-600 group-hover:text-brand-500')}>
+                              {priceListName(c) || L(T.basePrice)}
+                            </span>
+                            <Pencil className="w-3 h-3 shrink-0 opacity-0 group-hover:opacity-100 transition" />
+                          </button>
                           {c.notes ? (
                             <Pill tone="amber" className="mt-1 max-w-full" title={c.notes}>
                               <span className="truncate">{c.notes}</span>
@@ -764,6 +835,39 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
             </div>
           )}
           {limitError ? <div className="text-[13px] text-rose-600">{L(limitError)}</div> : null}
+          <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
+        </form>
+      </Modal>
+
+      {/* Price list modal */}
+      <Modal
+        open={Boolean(priceShop)}
+        onClose={closePriceList}
+        width="sm"
+        title={L(T.editPriceType)}
+        subtitle={priceShop?.name}
+        footer={
+          <>
+            <Button variant="ghost" onClick={closePriceList} disabled={priceSaving}>
+              {L(COMMON.cancel)}
+            </Button>
+            <Button onClick={() => handleSavePriceList()} disabled={priceSaving}>
+              {priceSaving ? L(T.saving) : L(COMMON.save)}
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={handleSavePriceList} className="space-y-4">
+          <Select label={L(T.priceType)} value={priceValue} onChange={(e) => setPriceValue(e.target.value)} autoFocus>
+            <option value="">{L(T.basePrice)}</option>
+            {priceLists.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
+              </option>
+            ))}
+          </Select>
+          <div className="text-xs text-ink-400">{L(T.priceTypeHint)}</div>
+          {priceError ? <div className="text-[13px] text-rose-600">{L(priceError)}</div> : null}
           <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
         </form>
       </Modal>

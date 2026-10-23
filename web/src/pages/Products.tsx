@@ -41,6 +41,8 @@ import { COMMON, Tri, UNIT_LABELS, fmt, useL } from '../i18n/tri';
 import { useLanguage } from '../context/LanguageContext';
 import { currentMonth, formatDateTime, formatMonth, shiftMonth } from '../utils/format';
 import { API, apiFetch } from '../api';
+import { PriceListsView } from './products/PriceListsView';
+import { PromosView } from './products/PromosView';
 
 interface ProductsProps {
   products: Product[];
@@ -173,6 +175,8 @@ const T = {
   lowOnly: { uz: 'Kam qolgan', uz_cyrl: 'Кам қолган', ru: 'Мало осталось' },
   viewProducts: { uz: 'Tovarlar', uz_cyrl: 'Товарлар', ru: 'Товары' },
   viewReceipts: { uz: 'Kirimlar', uz_cyrl: 'Киримлар', ru: 'Поступления' },
+  viewPrices: { uz: 'Narxlar', uz_cyrl: 'Нархлар', ru: 'Цены' },
+  viewPromos: { uz: 'Aksiyalar', uz_cyrl: 'Аксиялар', ru: 'Акции' },
   receipt: { uz: 'Kirim', uz_cyrl: 'Кирим', ru: 'Поступление' },
   newReceipt: { uz: 'Yangi kirim', uz_cyrl: 'Янги кирим', ru: 'Новое поступление' },
   receiptSubtitle: {
@@ -276,7 +280,7 @@ const SEGMENT_LIMIT = 5;
 
 export const Products: React.FC<ProductsProps> = ({ products, categories, onAddProduct, onUpdateStock, onProductsChanged }) => {
   const L = useL();
-  const [view, setView] = useState<'products' | 'receipts'>('products');
+  const [view, setView] = useState<'products' | 'receipts' | 'prices' | 'promos'>('products');
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string>('all');
   const [lowOnly, setLowOnly] = useState(false);
@@ -336,6 +340,8 @@ export const Products: React.FC<ProductsProps> = ({ products, categories, onAddP
           options={[
             { key: 'products', label: L(T.viewProducts) },
             { key: 'receipts', label: L(T.viewReceipts) },
+            { key: 'prices', label: L(T.viewPrices) },
+            { key: 'promos', label: L(T.viewPromos) },
           ]}
         />
         <Button icon={PackagePlus} variant="secondary" onClick={() => setReceiptOpen(true)} className="ml-auto" disabled={products.length === 0}>
@@ -343,7 +349,11 @@ export const Products: React.FC<ProductsProps> = ({ products, categories, onAddP
         </Button>
       </div>
 
-      {view === 'receipts' ? (
+      {view === 'prices' ? (
+        <PriceListsView products={products} />
+      ) : view === 'promos' ? (
+        <PromosView products={products} />
+      ) : view === 'receipts' ? (
         <ReceiptsView version={receiptsVersion} onProductsChanged={onProductsChanged} />
       ) : (
         <>

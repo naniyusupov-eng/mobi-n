@@ -173,4 +173,30 @@ export interface Client {
   overdue?: boolean;
   creditBlocked?: boolean;
   creditLeft?: number | null; // null when no limit
+  priceListId?: string | null; // none = base prices
+}
+
+// Narx turi: per-unit prices that replace the product's base price; a missing unit keeps the base price
+export interface PriceList {
+  id: string;
+  name: string;
+  prices: Record<string, Partial<Record<PackagingUnit, number>>>; // key: productId
+}
+
+export type PromoKind = 'product' | 'order';
+
+// Aksiya, applied automatically in the agent app's cart
+export interface Promo {
+  id: string;
+  name: string;
+  active: boolean;
+  from: string | null; // YYYY-MM-DD
+  to: string | null;
+  lines: string[]; // line codes, empty = all lines
+  kind: PromoKind;
+  percent: number;
+  productId?: string; // kind 'product'
+  unit?: PackagingUnit;
+  minQty?: number;
+  minTotal?: number; // kind 'order', soʻm
 }
