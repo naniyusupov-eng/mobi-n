@@ -80,12 +80,12 @@ function sessionFor(db, req) {
 // What a phone may call. The admin may call everything.
 const PHONE_RULES = {
   agent: [
-    ['GET', /^\/api\/v1\/(products|clients|settings|auth\/me|workday\/me)$/],
+    ['GET', /^\/api\/v1\/(products|clients|settings|pricing|auth\/me|workday\/me)$/],
     ['GET', /^\/api\/v1\/routes\/.+$/],
     ['POST', /^\/api\/v1\/(orders\/sync|shops\/sync|payments\/sync|workday)$/],
   ],
   driver: [
-    ['GET', /^\/api\/v1\/(products|clients|settings|deliveries|payments|loading|cash|auth\/me|workday\/me)$/],
+    ['GET', /^\/api\/v1\/(products|clients|settings|pricing|deliveries|payments|loading|cash|auth\/me|workday\/me)$/],
     ['POST', /^\/api\/v1\/(returns|payments\/sync|workday)$/],
     ['POST', /^\/api\/v1\/orders\/[^/]+\/(deliver|undeliver)$/],
   ],

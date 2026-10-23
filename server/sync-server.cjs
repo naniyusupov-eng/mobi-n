@@ -646,7 +646,9 @@ const server = http.createServer(async (req, res) => {
       if (deliverMatch[2] === 'deliver') {
         const collected = Number(body.collected);
         order.status = 'delivered';
-        order.deliveredAt = new Date().toISOString();
+        const at = Date.parse(body.at);
+        const plausible = Number.isFinite(at) && at <= Date.now() + 5 * 60 * 1000 && at > Date.now() - 3 * 86400000;
+        order.deliveredAt = new Date(plausible ? at : Date.now()).toISOString();
         order.deliveredBy = String(body.by || '');
         order.collected = Number.isFinite(collected) && collected >= 0 ? Math.round(collected) : 0;
       } else {
@@ -746,6 +748,12 @@ const server = http.createServer(async (req, res) => {
       const db = loadDatabase();
       const order = db.orders.find((o) => o.id === body.orderId);
       if (!order) return jsonResponse(res, 404, { error: 'Order not found' });
+      // Phones send their own id; the same id again means a retried upload
+      const clientId = typeof body.id === 'string' && /^[\w-]{6,80}$/.test(body.id) ? body.id : null;
+      if (clientId) {
+        const known = db.returns.find((r) => r.id === clientId);
+        if (known) return jsonResponse(res, 200, { success: true, return: known, order, duplicate: true });
+      }
       if (order.status === 'cancelled') return jsonResponse(res, 400, { error: 'Bekor qilingan buyurtmaga vozvrat kiritib boʻlmaydi' });
       const ratio = chargeRatio(order);
 
@@ -777,7 +785,7 @@ const server = http.createServer(async (req, res) => {
         Math.max(0, orderCharge(order) - (order.returnedAmount || 0))
       );
       const ret = {
-        id: `ret_${Date.now()}`,
+        id: clientId || `ret_${Date.now()}`,
         orderId: order.id,
         shopId: order.shopId,
         shopName: order.shopName,
@@ -1261,6 +1269,116 @@ const server = http.createServer(async (req, res) => {
           .map(([k, v]) => [k.split('|')[0], v])
       );
       return jsonResponse(res, 200, { success: true, month, plans });
+    }
+
+    // GET /api/v1/pricing — what phones need to price an order: price lists and promotions running today
+    if (req.method === 'GET' && pathname === '/api/v1/pricing') {
+      const db = loadDatabase();
+      const today = localDate(Date.now());
+      const promos = (db.promos || []).filter(
+        (p) => p.active !== false && (!p.from || p.from <= today) && (!p.to || p.to >= today) &&
+          (session.role === 'admin' || !p.lines || p.lines.length === 0 || p.lines.includes(session.line))
+      );
+      return jsonResponse(res, 200, { success: true, priceLists: db.priceLists || [], promos });
+    }
+
+    // GET /api/v1/price-lists ; POST /api/v1/price-lists { id?, name, prices: { productId: { dona?, blok?, korobka?, kg? } } }
+    if (pathname === '/api/v1/price-lists' && (req.method === 'GET' || req.method === 'POST')) {
+      const db = loadDatabase();
+      if (!Array.isArray(db.priceLists)) db.priceLists = [];
+      if (req.method === 'POST') {
+        const body = await parseBody(req);
+        const name = String(body.name || '').trim().slice(0, 60);
+        if (!name) return jsonResponse(res, 400, { error: 'name is required' });
+        const prices = {};
+        for (const [productId, row] of Object.entries(body.prices || {})) {
+          if (!db.products.some((p) => p.id === productId) || !row || typeof row !== 'object') continue;
+          const clean = {};
+          for (const unit of ['dona', 'blok', 'korobka', 'kg']) {
+            if (Number(row[unit]) > 0) clean[unit] = Math.round(Number(row[unit]));
+          }
+          if (Object.keys(clean).length) prices[productId] = clean;
+        }
+        const existing = db.priceLists.find((l) => l.id === body.id);
+        if (existing) Object.assign(existing, { name, prices });
+        else db.priceLists.push({ id: `pl_${Date.now()}`, name, prices });
+        saveDatabase(db);
+      }
+      return jsonResponse(res, 200, { success: true, priceLists: db.priceLists });
+    }
+
+    // DELETE /api/v1/price-lists/:id — shops on it go back to the base prices
+    const priceListMatch = pathname.match(/^\/api\/v1\/price-lists\/([^/]+)$/);
+    if (req.method === 'DELETE' && priceListMatch) {
+      const db = loadDatabase();
+      db.priceLists = (db.priceLists || []).filter((l) => l.id !== priceListMatch[1]);
+      for (const c of [...db.clients, ...db.shops]) if (c.priceListId === priceListMatch[1]) delete c.priceListId;
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, priceLists: db.priceLists });
+    }
+
+    // POST /api/v1/clients/:id/price-list — { priceListId } (null = base prices)
+    const shopPriceMatch = pathname.match(/^\/api\/v1\/clients\/([^/]+)\/price-list$/);
+    if (req.method === 'POST' && shopPriceMatch) {
+      const { priceListId } = await parseBody(req);
+      const db = loadDatabase();
+      const shop = findShop(db, shopPriceMatch[1]);
+      if (!shop) return jsonResponse(res, 404, { error: 'Shop not found' });
+      if (priceListId == null || priceListId === '') delete shop.priceListId;
+      else if ((db.priceLists || []).some((l) => l.id === priceListId)) shop.priceListId = priceListId;
+      else return jsonResponse(res, 400, { error: 'Unknown price list' });
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, shop: { ...shop, ...creditInfo(db, shop) } });
+    }
+
+    // GET /api/v1/promos — all promotions (admin)
+    // POST /api/v1/promos — upsert a promotion:
+    // { id?, name, active, from?, to? (YYYY-MM-DD), lines?: ['4-3'] (empty = all lines),
+    //   kind: 'product' (productId, minQty, unit) | 'order' (minTotal), percent (1-90) }
+    if (pathname === '/api/v1/promos' && (req.method === 'GET' || req.method === 'POST')) {
+      const db = loadDatabase();
+      if (!Array.isArray(db.promos)) db.promos = [];
+      if (req.method === 'POST') {
+        const b = await parseBody(req);
+        const name = String(b.name || '').trim().slice(0, 80);
+        const percent = Number(b.percent);
+        const day = (v) => (/^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? String(v) : null);
+        if (!name) return jsonResponse(res, 400, { error: 'name is required' });
+        if (!(percent >= 1 && percent <= 90)) return jsonResponse(res, 400, { error: 'percent must be 1-90' });
+        if (!['product', 'order'].includes(b.kind)) return jsonResponse(res, 400, { error: 'kind must be product or order' });
+        const promo = {
+          id: db.promos.some((p) => p.id === b.id) ? b.id : `promo_${Date.now()}`,
+          name,
+          active: b.active !== false,
+          from: day(b.from),
+          to: day(b.to),
+          lines: Array.isArray(b.lines) ? b.lines.filter((c) => db.lines.some((l) => l.code === c)) : [],
+          kind: b.kind,
+          percent: Math.round(percent * 10) / 10,
+        };
+        if (b.kind === 'product') {
+          if (!db.products.some((p) => p.id === b.productId)) return jsonResponse(res, 400, { error: 'Unknown product' });
+          promo.productId = b.productId;
+          promo.unit = ['dona', 'blok', 'korobka', 'kg'].includes(b.unit) ? b.unit : 'blok';
+          promo.minQty = Math.max(1, Math.round(Number(b.minQty) || 1));
+        } else {
+          promo.minTotal = Math.max(0, Math.round(Number(b.minTotal) || 0));
+        }
+        const i = db.promos.findIndex((p) => p.id === promo.id);
+        if (i >= 0) db.promos[i] = promo;
+        else db.promos.unshift(promo);
+        saveDatabase(db);
+      }
+      return jsonResponse(res, 200, { success: true, promos: db.promos });
+    }
+
+    // DELETE /api/v1/promos/:id
+    const promoMatch = pathname.match(/^\/api\/v1\/promos\/([^/]+)$/);
+    if (req.method === 'DELETE' && promoMatch) {
+      const db = loadDatabase();
+      db.promos = (db.promos || []).filter((p) => p.id !== promoMatch[1]);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, promos: db.promos });
     }
 
     // GET /api/v1/lines
