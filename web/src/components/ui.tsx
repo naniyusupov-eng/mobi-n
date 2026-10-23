@@ -355,7 +355,7 @@ export const Modal: React.FC<{
   subtitle?: React.ReactNode;
   children: React.ReactNode;
   footer?: React.ReactNode;
-  width?: 'sm' | 'md' | 'lg';
+  width?: 'sm' | 'md' | 'lg' | 'xl';
 }> = ({ open, onClose, title, subtitle, children, footer, width = 'md' }) => {
   const L = useL();
   useEffect(() => {
@@ -371,7 +371,7 @@ export const Modal: React.FC<{
         onMouseDown={(e) => e.stopPropagation()}
         className={clsx(
           'bg-white rounded-card shadow-pop w-full max-h-[90vh] flex flex-col',
-          { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl' }[width]
+          { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-3xl', xl: 'max-w-5xl' }[width]
         )}
       >
         <div className="flex items-start gap-3 px-6 pt-6 pb-4">

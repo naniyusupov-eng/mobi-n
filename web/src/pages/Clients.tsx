@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
-import { AlertCircle, Ban, CreditCard, MapPin, Pencil, Route, Search, Store, Wallet } from 'lucide-react';
+import { AlertCircle, Ban, CreditCard, FileText, MapPin, Pencil, Route, Search, Store, Wallet } from 'lucide-react';
 import { Client, Line } from '../types';
 import {
   Button,
@@ -18,6 +18,7 @@ import {
   Th,
   formatSum,
 } from '../components/ui';
+import { StatementModal } from '../components/StatementModal';
 import { useToday } from '../hooks/useNow';
 import { formatDate, weekdayOf } from '../utils/format';
 import { COMMON, Tri, WEEKDAY_LABELS, WEEKDAY_SHORT, fmt, useL } from '../i18n/tri';
@@ -120,6 +121,7 @@ const T = {
     ru: 'Не удалось сохранить лимит. Попробуйте ещё раз.',
   },
   saving: { uz: 'Saqlanmoqda…', uz_cyrl: 'Сақланмоқда…', ru: 'Сохранение…' },
+  statement: { uz: 'Akt sverka', uz_cyrl: 'Акт сверка', ru: 'Акт сверки' },
 } satisfies Record<string, Tri>;
 
 type LimitMode = 'default' | 'own' | 'none';
@@ -160,6 +162,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
   const [limitValue, setLimitValue] = useState('');
   const [limitError, setLimitError] = useState<Tri | null>(null);
   const [limitSaving, setLimitSaving] = useState(false);
+  const [statementShop, setStatementShop] = useState<Client | null>(null);
 
   const [highlightId, setHighlightId] = useState(highlightShopId || '');
   const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
@@ -490,6 +493,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
                     <Th>{L(COMMON.phone)}</Th>
                     <Th>{L(T.address)}</Th>
                     <Th align="right">{L(COMMON.debt)}</Th>
+                    <Th className="w-12" />
                   </tr>
                 </thead>
                 <tbody>
@@ -611,6 +615,17 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
                               <Pencil className="w-3 h-3" />
                             </button>
                           </div>
+                        </Td>
+                        <Td align="center" className="px-2">
+                          <button
+                            type="button"
+                            onClick={() => setStatementShop(c)}
+                            title={L(T.statement)}
+                            aria-label={L(T.statement)}
+                            className="w-9 h-9 rounded-full bg-brand-50 text-brand-500 hover:bg-brand-100 flex items-center justify-center"
+                          >
+                            <FileText className="w-4 h-4" strokeWidth={2} />
+                          </button>
                         </Td>
                       </tr>
                     );
@@ -752,6 +767,8 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
           <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
         </form>
       </Modal>
+
+      <StatementModal shop={statementShop} onClose={() => setStatementShop(null)} />
     </div>
   );
 };
