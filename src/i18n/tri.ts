@@ -99,7 +99,37 @@ export const COMMON = {
   visited: { uz: 'Borildi', uz_cyrl: 'Борилди', ru: 'Посещён' },
   empty: { uz: 'Hech narsa topilmadi', uz_cyrl: 'Ҳеч нарса топилмади', ru: 'Ничего не найдено' },
   line: { uz: 'liniya', uz_cyrl: 'линия', ru: 'линия' },
+  notSent: { uz: 'yuborilmagan', uz_cyrl: 'юборилмаган', ru: 'не отправлено' },
+  send: { uz: 'Yuborish', uz_cyrl: 'Юбориш', ru: 'Отправить' },
 } satisfies Record<string, Tri>;
+
+/** "oflayn — oxirgi maʼlumot 14:05": a copy saved on the phone is shown */
+export const offlineCopyNote = (time: string): Tri => ({
+  uz: `oflayn — oxirgi maʼlumot ${time}`,
+  uz_cyrl: `офлайн — охирги маълумот ${time}`,
+  ru: `офлайн — последние данные ${time}`,
+});
+
+/** "3 ta amal yuborilmagan": queued actions waiting for the server */
+export const pendingActionsNote = (count: string): Tri => ({
+  uz: `${count} ta amal yuborilmagan`,
+  uz_cyrl: `${count} та амал юборилмаган`,
+  ru: `Не отправлено действий: ${count}`,
+});
+
+/** "Aksiya: Vafli 5+ blok −10%" */
+export const promoLabel = (name: string, percent: number): Tri => ({
+  uz: `Aksiya: ${name} −${percent}%`,
+  uz_cyrl: `Акция: ${name} −${percent}%`,
+  ru: `Акция: ${name} −${percent}%`,
+});
+
+/** Catalogue badge: "Aksiya −10% · 5+ blok" */
+export const promoBadge = (percent: number, minQty: string, unit: string): Tri => ({
+  uz: `Aksiya −${percent}%${minQty ? ` · ${minQty}+ ${unit}` : ''}`,
+  uz_cyrl: `Акция −${percent}%${minQty ? ` · ${minQty}+ ${unit}` : ''}`,
+  ru: `Акция −${percent}%${minQty ? ` · от ${minQty} ${unit}` : ''}`,
+});
 
 /** Product categories from the catalogue; unknown ones are shown as stored */
 export const CATEGORY_LABELS: Record<string, Tri> = {

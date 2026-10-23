@@ -22,6 +22,7 @@ const T = {
   sum: { uz: 'Summa', uz_cyrl: 'Сумма', ru: 'Сумма' },
   subtotal: { uz: 'Tovarlar summasi', uz_cyrl: 'Товарлар суммаси', ru: 'Сумма товаров' },
   discount: { uz: 'Chegirma', uz_cyrl: 'Чегирма', ru: 'Скидка' },
+  promo: { uz: 'Aksiya', uz_cyrl: 'Акция', ru: 'Акция' },
   total: { uz: 'Jami toʻlov', uz_cyrl: 'Жами тўлов', ru: 'Итого к оплате' },
   debt: { uz: 'Doʻkonning umumiy qarzi', uz_cyrl: 'Дўконнинг умумий қарзи', ru: 'Общий долг магазина' },
   notes: { uz: 'Izoh', uz_cyrl: 'Изоҳ', ru: 'Примечание' },
@@ -50,6 +51,14 @@ export const invoiceService = {
           <td class="r b">${formatNumber(item.totalPrice)}</td>
         </tr>`
       )
+      .join('');
+
+    // Promotions are part of discountAmount; the rest of it is the agent's own discount
+    const promos = (order.promos || []).filter((p) => p.amount > 0);
+    const promoSum = promos.reduce((s, p) => s + p.amount, 0);
+    const manualDiscount = Math.max(0, order.discountAmount - promoSum);
+    const promoRows = promos
+      .map((p) => `<tr><td class="label red">${L(T.promo)}: ${esc(p.name)}</td><td class="val r red">-${money(p.amount)}</td></tr>`)
       .join('');
 
     const info = (label: Tri, value: string, cls = '') =>
@@ -104,7 +113,8 @@ export const invoiceService = {
 
   <table class="totals">
     <tr><td class="label">${L(T.subtotal)}</td><td class="val r">${money(order.totalAmount)}</td></tr>
-    ${order.discountAmount > 0 ? `<tr><td class="label red">${L(T.discount)}</td><td class="val r red">-${money(order.discountAmount)}</td></tr>` : ''}
+    ${manualDiscount > 0 ? `<tr><td class="label red">${L(T.discount)}</td><td class="val r red">-${money(manualDiscount)}</td></tr>` : ''}
+    ${promoRows}
     <tr class="grand"><td>${L(T.total)}</td><td class="r">${money(order.finalAmount)}</td></tr>
     ${shop && shop.debtBalance > 0 ? `<tr><td class="label red">${L(T.debt)}</td><td class="val r red">${money(shop.debtBalance)}</td></tr>` : ''}
   </table>

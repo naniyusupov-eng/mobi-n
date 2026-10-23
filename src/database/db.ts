@@ -104,6 +104,13 @@ export const initDatabase = (db: SQLite.SQLiteDatabase) => {
       lastAttemptAt TEXT,
       errorMessage TEXT
     );
+
+    -- Last server answers kept for offline use (driver day lists, price lists), keyed e.g. "deliveries:2026-10-23"
+    CREATE TABLE IF NOT EXISTS local_cache (
+      key TEXT PRIMARY KEY,
+      json TEXT NOT NULL,
+      savedAt TEXT NOT NULL
+    );
   `);
 
   // Seed default categories if empty
@@ -177,6 +184,18 @@ export const initDatabase = (db: SQLite.SQLiteDatabase) => {
     }
   }
 
+  // Price list of the shop (GET /clients) and promotions applied to an order. Same safe upgrade.
+  for (const [table, column] of [
+    ['shops', 'priceListId TEXT'],
+    ['orders', 'promosJson TEXT'],
+  ]) {
+    try {
+      db.execSync(`ALTER TABLE ${table} ADD COLUMN ${column};`);
+    } catch (e: any) {
+      if (!/duplicate column/i.test(String(e?.message ?? e))) throw e;
+    }
+  }
+
   // Shops come from the server by line now; drop the old built-in demo shops
   db.execSync("DELETE FROM shops WHERE id IN ('shop_1', 'shop_2', 'shop_3', 'shop_4', 'shop_5');");
 };
@@ -188,6 +207,7 @@ export const resetAllDataToZero = () => {
     DELETE FROM order_items;
     DELETE FROM orders;
     DELETE FROM sync_queue;
+    DELETE FROM local_cache WHERE key <> 'pricing';
   `);
 };
 

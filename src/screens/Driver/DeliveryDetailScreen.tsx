@@ -1,10 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Linking, Pressable, StyleSheet, View } from 'react-native';
-import { CheckCircle2, Minus, Navigation, Phone, Plus, RotateCcw, Undo2, Wallet } from 'lucide-react-native';
+import { CheckCircle2, CloudOff, Minus, Navigation, Phone, Plus, RotateCcw, Undo2, Wallet } from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { shopRepository } from '../../database/shopRepository';
-import { Delivery, cashToCollect, driverService, netAmount, returnedQty, serverError } from '../../services/driverService';
+import { useSyncStore } from '../../store/syncStore';
+import { Delivery, cashToCollect, driverOffline, netAmount, returnedQty, serverError } from '../../services/driverService';
 import { colors, radius, space } from '../../theme/colors';
 import { AppText, Badge, Button, Card, Divider, Field, IconButton, IconCircle, KeyValue, Money, Row, Screen, Sheet } from '../../components/ui';
 import { PAYMENT_TONE, PaymentSheet } from '../../components/shared';
@@ -79,21 +80,28 @@ export const DeliveryDetailScreen = ({ route, navigation }: { route: any; naviga
   const phones = splitPhones(d.shopPhone);
   const lineKey = (productId: string, unit: string) => `${productId}|${unit}`;
 
-  // Fresh state from the server after every action
-  const reload = useCallback(async () => {
-    const list = await driverService.getDeliveries(session?.lineCode || '', date);
-    const fresh = list.find((x) => x.id === d.id);
-    if (fresh) setD(fresh);
-  }, [session?.lineCode, date, d.id]);
+  const triggerSync = useSyncStore((s) => s.triggerSync);
+  const refreshPendingCount = useSyncStore((s) => s.refreshPendingCount);
+  const [pending, setPending] = useState(() => driverOffline.pendingOrderIds().has(d.id));
 
-  const run = async (action: () => Promise<unknown>) => {
+  // The order from the phone copy (queued actions included), e.g. after a sync
+  const reload = useCallback(() => {
+    const fresh = driverOffline.cachedDelivery(date, d.id);
+    if (fresh) setD(fresh);
+    setPending(driverOffline.pendingOrderIds().has(d.id));
+  }, [date, d.id]);
+
+  // Saved on the phone at once and queued; sent now if online, otherwise with a later sync
+  const run = (action: () => Delivery) => {
     setBusy(true);
     try {
-      await action();
-      await reload();
+      setD(action());
+      setPending(true);
+      refreshPendingCount();
+      triggerSync().then(reload, reload);
       return true;
     } catch (err) {
-      Alert.alert(L(COMMON.error), serverError(err, L(T.offline)));
+      Alert.alert(L(COMMON.error), serverError(err, L(COMMON.error)));
       return false;
     } finally {
       setBusy(false);
@@ -104,15 +112,15 @@ export const DeliveryDetailScreen = ({ route, navigation }: { route: any; naviga
     setCash(String(cashToCollect(d)));
     setDeliverOpen(true);
   };
-  const confirmDeliver = async () => {
+  const confirmDeliver = () => {
     const amount = Number(cash.replace(/\D/g, '')) || 0;
-    if (await run(() => driverService.deliver(d.id, d.paymentMethod === 'naqd' ? amount : 0, by))) setDeliverOpen(false);
+    if (run(() => driverOffline.deliver(d, date, d.paymentMethod === 'naqd' ? amount : 0, by))) setDeliverOpen(false);
   };
 
   const undoDeliver = () =>
     Alert.alert(L(T.undo), L(T.undoAsk), [
       { text: L(COMMON.cancel), style: 'cancel' },
-      { text: L(COMMON.confirm), style: 'destructive', onPress: () => run(() => driverService.undeliver(d.id)) },
+      { text: L(COMMON.confirm), style: 'destructive', onPress: () => run(() => driverOffline.undeliver(d, date)) },
     ]);
 
   // Lines that still have something left to return
@@ -132,12 +140,12 @@ export const DeliveryDetailScreen = ({ route, navigation }: { route: any; naviga
     setReason(REASONS[0].value);
     setReturnOpen(true);
   };
-  const confirmReturn = async () => {
+  const confirmReturn = () => {
     const items = returnLines
       .map((i) => ({ productId: i.productId, unit: i.unit, quantity: qty[lineKey(i.productId, i.unit)] || 0 }))
       .filter((i) => i.quantity > 0);
     if (items.length === 0) return;
-    if (await run(() => driverService.createReturn(d.id, reason, items))) setReturnOpen(false);
+    if (run(() => driverOffline.createReturn(d, date, reason, items, returnSum))) setReturnOpen(false);
   };
 
   const openMap = () => {
@@ -241,6 +249,12 @@ export const DeliveryDetailScreen = ({ route, navigation }: { route: any; naviga
             </View>
           </Row>
         </Card>
+      ) : null}
+
+      {pending ? (
+        <Row gap={space.sm}>
+          <Badge icon={CloudOff} label={L(COMMON.notSent)} tone="warning" />
+        </Row>
       ) : null}
 
       {/* Goods */}

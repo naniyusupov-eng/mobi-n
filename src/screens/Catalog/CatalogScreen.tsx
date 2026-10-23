@@ -2,14 +2,15 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, RefreshControl, StyleSheet, View } from 'react-native';
 import { ChevronRight, PackageSearch, ShoppingCart, Store } from 'lucide-react-native';
 import { productRepository } from '../../database/productRepository';
-import { useCartStore } from '../../store/cartStore';
+import { getUnitPrice, useCartStore } from '../../store/cartStore';
+import { pricingService } from '../../services/pricingService';
 import { useShopStore } from '../../store/shopStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { useSyncStore } from '../../store/syncStore';
 import { Category, PackagingUnit, Product } from '../../types';
 import { AppText, Badge, Button, Card, Money, Row, Screen, SearchBar, Segmented } from '../../components/ui';
-import { CATEGORY_LABELS, COMMON, UNIT_LABELS, useL } from '../../i18n/tri';
-import { EqualSegments, QtyStepper, UNIT_ORDER, getUnitPrice } from '../../components/orderControls';
+import { CATEGORY_LABELS, COMMON, UNIT_LABELS, promoBadge, useL } from '../../i18n/tri';
+import { EqualSegments, QtyStepper, UNIT_ORDER } from '../../components/orderControls';
 import { formatMoney, formatNumber } from '../../utils/format';
 import { colors, radius, shadow, space } from '../../theme/colors';
 
@@ -25,7 +26,7 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
   // Selected packaging unit per product
   const [selectedUnits, setSelectedUnits] = useState<Record<string, PackagingUnit>>({});
 
-  const { shop, items, addItem, updateQuantity, setQuantity, getItemCount, getFinalAmount, setShop } = useCartStore();
+  const { shop, items, addItem, updateQuantity, setQuantity, getItemCount, getFinalAmount, setShop, reprice } = useCartStore();
   const { currentShop } = useShopStore();
 
   // Products come from the server on sign-in and on every sync; reload after each sync
@@ -44,6 +45,11 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
   useEffect(() => {
     setProducts(productRepository.getAll(selectedCat, search));
   }, [selectedCat, search, lastSync]);
+
+  // A sync may bring new price lists (and the shop's list): cart lines follow them
+  useEffect(() => {
+    if (lastSync) reprice();
+  }, [lastSync, reprice]);
 
   // Pull to refresh: push the queue, then download shops and the catalogue with fresh stock
   const onRefresh = useCallback(async () => {
@@ -86,7 +92,8 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
 
   const renderProduct = ({ item }: { item: Product }) => {
     const unit = selectedUnits[item.id] || 'blok';
-    const price = getUnitPrice(item, unit);
+    const price = getUnitPrice(item, unit, shop);
+    const promos = pricingService.productPromos(item.id);
     const qty = qtyInCart(item.id, unit);
     const inCartAny = items.some((i) => i.product.id === item.id);
     const lowStock = item.stockDona <= 20;
@@ -104,6 +111,13 @@ export const CatalogScreen = ({ navigation }: { navigation: any }) => {
             tone={lowStock ? 'warning' : 'success'}
             label={`${L({ uz: 'Qoldiq', uz_cyrl: 'Қолдиқ', ru: 'Остаток' })}: ${formatNumber(item.stockDona)} ${L(UNIT_LABELS.dona)}`}
           />
+          {promos.map((p) => (
+            <Badge
+              key={p.id}
+              tone="danger"
+              label={L(promoBadge(p.percent, p.minQty ? formatNumber(p.minQty) : '', p.unit ? L(UNIT_LABELS[p.unit]) : ''))}
+            />
+          ))}
         </Row>
 
         <EqualSegments

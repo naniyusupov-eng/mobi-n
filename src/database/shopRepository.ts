@@ -12,6 +12,7 @@ const mapRow = (r: any): Shop => ({
   overdue: Boolean(r.overdue),
   creditBlocked: Boolean(r.creditBlocked),
   creditLeft: r.creditLeft ?? null,
+  priceListId: r.priceListId ?? null,
 });
 
 export const shopRepository = {
@@ -151,11 +152,11 @@ export const shopRepository = {
         INSERT OR REPLACE INTO shops (
           id, name, ownerName, phone, address, latitude, longitude, debtBalance, visitDay,
           lastVisitedAt, createdAt, isSynced, lineCode, routeDay, num, notes,
-          creditLimit, debtSince, debtDays, overLimit, overdue, creditBlocked, creditLeft
+          creditLimit, debtSince, debtDays, overLimit, overdue, creditBlocked, creditLeft, priceListId
         ) VALUES (
           $id, $name, $ownerName, $phone, $address, $latitude, $longitude, $debtBalance, $visitDay,
           $lastVisitedAt, $createdAt, 1, $lineCode, $routeDay, $num, $notes,
-          $creditLimit, $debtSince, $debtDays, $overLimit, $overdue, $creditBlocked, $creditLeft
+          $creditLimit, $debtSince, $debtDays, $overLimit, $overdue, $creditBlocked, $creditLeft, $priceListId
         )
       `);
       try {
@@ -183,6 +184,7 @@ export const shopRepository = {
             $overdue: s.overdue ? 1 : 0,
             $creditBlocked: s.creditBlocked ? 1 : 0,
             $creditLeft: s.creditLeft ?? null,
+            $priceListId: s.priceListId ?? null,
           });
         }
       } finally {

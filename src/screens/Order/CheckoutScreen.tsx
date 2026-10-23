@@ -8,7 +8,7 @@ import { useLanguageStore } from '../../store/languageStore';
 import { getTodayDateString } from '../../store/dateStore';
 import { PaymentMethod } from '../../types';
 import { AppText, Button, Card, Divider, Field, KeyValue, Money, Row, Screen, SectionHeader } from '../../components/ui';
-import { COMMON, PAYMENT_LABELS, Tri, useL } from '../../i18n/tri';
+import { COMMON, PAYMENT_LABELS, Tri, promoLabel, useL } from '../../i18n/tri';
 import { formatDayLong, formatNumber } from '../../utils/format';
 import { nasiyaBlockReason } from '../../utils/credit';
 import { shopRepository } from '../../database/shopRepository';
@@ -53,10 +53,12 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
     setNotes,
     discountPercent,
     getTotalAmount,
-    getDiscountAmount,
+    getManualDiscount,
+    getPromoLines,
     getFinalAmount,
     submitOrder,
   } = useCartStore();
+  const promoLines = getPromoLines();
   const { agent } = useAuthStore();
   const [submitting, setSubmitting] = useState(false);
 
@@ -167,9 +169,16 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
         {discountPercent > 0 ? (
           <KeyValue
             label={`${L(COMMON.discount)} ${discountPercent}%`}
-            value={<Money amount={-getDiscountAmount()} variant="body" color={colors.danger} />}
+            value={<Money amount={-getManualDiscount()} variant="body" color={colors.danger} />}
           />
         ) : null}
+        {promoLines.map((p) => (
+          <KeyValue
+            key={p.id}
+            label={L(promoLabel(p.name, p.percent))}
+            value={<Money amount={-p.amount} variant="body" color={colors.danger} />}
+          />
+        ))}
         {shop && shop.debtBalance > 0 ? (
           <View style={styles.debtBox}>
             <AlertTriangle size={16} color={colors.danger} />

@@ -1,17 +1,18 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Banknote, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CloudOff, MapPin, PackageCheck, Truck } from 'lucide-react-native';
+import { Banknote, CheckCircle2, ChevronLeft, ChevronRight, ClipboardList, CloudOff, CloudUpload, MapPin, PackageCheck, Truck } from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
+import { useSyncStore } from '../../store/syncStore';
 import { getTodayDateString } from '../../store/dateStore';
-import { Delivery, cashToCollect, driverService, netAmount } from '../../services/driverService';
+import { Delivery, cashToCollect, driverOffline, netAmount } from '../../services/driverService';
 import { colors, space } from '../../theme/colors';
-import { AppText, Badge, Card, EmptyState, HeroCard, HeroPill, IconButton, IconCircle, Money, Row, Screen, Segmented } from '../../components/ui';
+import { AppText, Badge, Button, Card, EmptyState, HeroCard, HeroPill, IconButton, IconCircle, Money, Row, Screen, Segmented } from '../../components/ui';
 import { PAYMENT_TONE } from '../../components/shared';
 import { WorkdayCard } from '../../components/WorkdayCard';
-import { COMMON, PAYMENT_LABELS, Tri, useL } from '../../i18n/tri';
-import { formatDayLong, formatMoney, formatMoneyShort, formatNumber, formatShopNum } from '../../utils/format';
+import { COMMON, PAYMENT_LABELS, Tri, offlineCopyNote, pendingActionsNote, useL } from '../../i18n/tri';
+import { formatDayLong, formatMoney, formatMoneyShort, formatNumber, formatShopNum, formatTime } from '../../utils/format';
 
 type Filter = 'todo' | 'done' | 'all';
 
@@ -52,23 +53,49 @@ export const DeliveriesScreen = ({ navigation }: { navigation: any }) => {
   const [items, setItems] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
+  // Time of the copy shown when the server did not answer
+  const [copyAt, setCopyAt] = useState<string | null>(null);
+  const [pendingIds, setPendingIds] = useState<Set<string>>(new Set());
+  const pendingCount = useSyncStore((s) => s.pendingCount);
+  const isSyncing = useSyncStore((s) => s.isSyncing);
+  const lastResult = useSyncStore((s) => s.lastResult);
+  const triggerSync = useSyncStore((s) => s.triggerSync);
+  const refreshPendingCount = useSyncStore((s) => s.refreshPendingCount);
 
   const load = useCallback(async () => {
     if (!lineCode) return;
     setLoading(true);
     try {
-      setItems(await driverService.getDeliveries(lineCode, date));
-      setOffline(false);
+      const res = await driverOffline.loadDeliveries(lineCode, date);
+      setItems(res.data);
+      setOffline(res.offline);
+      setCopyAt(res.offline ? res.savedAt : null);
     } catch {
+      // No copy of this day on the phone yet
+      setItems([]);
       setOffline(true);
+      setCopyAt(null);
     } finally {
+      setPendingIds(driverOffline.pendingOrderIds());
+      refreshPendingCount();
       setLoading(false);
     }
-  }, [lineCode, date]);
+  }, [lineCode, date, refreshPendingCount]);
 
   useEffect(() => {
     load();
   }, [load]);
+  // After a sync the day copy may have changed (queue sent, fresh list from the server)
+  useEffect(() => {
+    if (!lastResult) return;
+    const copy = driverOffline.cachedDeliveries(date);
+    if (copy) setItems(copy.data);
+    if (lastResult.success) {
+      setOffline(false);
+      setCopyAt(null);
+    }
+    setPendingIds(driverOffline.pendingOrderIds());
+  }, [lastResult, date]);
   // Coming back from an order page shows its new state
   useFocusEffect(
     useCallback(() => {
@@ -148,13 +175,26 @@ export const DeliveriesScreen = ({ navigation }: { navigation: any }) => {
           <Row gap={space.md}>
             <CloudOff size={20} color={colors.warning} />
             <AppText variant="small" color={colors.warning} lines={3} style={styles.flex}>
-              {L(T.offline)}
+              {copyAt ? L(offlineCopyNote(formatTime(copyAt))) : L(T.offline)}
             </AppText>
           </Row>
         </Card>
       ) : null}
 
-      {!loading && shown.length === 0 && !offline ? (
+      {/* Actions saved on the phone that the server has not got yet */}
+      {pendingCount > 0 ? (
+        <Card style={styles.warn}>
+          <Row gap={space.md}>
+            <CloudUpload size={20} color={colors.warning} />
+            <AppText variant="small" color={colors.warning} lines={2} style={styles.flex}>
+              {L(pendingActionsNote(formatNumber(pendingCount)))}
+            </AppText>
+            <Button title={L(COMMON.send)} size="sm" variant="secondary" loading={isSyncing} onPress={() => triggerSync()} />
+          </Row>
+        </Card>
+      ) : null}
+
+      {!loading && shown.length === 0 && (!offline || !!copyAt) ? (
         <Card>
           <EmptyState icon={PackageCheck} title={L(filter === 'todo' && items.length > 0 ? T.noneTodo : T.none)} />
         </Card>
@@ -188,6 +228,7 @@ export const DeliveriesScreen = ({ navigation }: { navigation: any }) => {
                 <Badge label={L(PAYMENT_LABELS[d.paymentMethod])} tone={PAYMENT_TONE[d.paymentMethod]} />
                 {d.returnedAmount ? <Badge label={`${L(T.returned)} −${formatMoneyShort(d.returnedAmount, lang)}`} tone="warning" /> : null}
                 {d.status === 'delivered' ? <Badge label={L(T.delivered)} tone="success" /> : null}
+                {pendingIds.has(d.id) ? <Badge icon={CloudOff} label={L(COMMON.notSent)} tone="warning" /> : null}
               </Row>
             </View>
             <View style={styles.right}>

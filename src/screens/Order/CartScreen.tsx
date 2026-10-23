@@ -16,7 +16,7 @@ import {
   Screen,
   SectionHeader,
 } from '../../components/ui';
-import { COMMON, UNIT_LABELS, useL } from '../../i18n/tri';
+import { COMMON, UNIT_LABELS, promoLabel, useL } from '../../i18n/tri';
 import { formatDayLong, formatMoney, formatNumber } from '../../utils/format';
 import { colors, radius, space } from '../../theme/colors';
 import { EqualSegments, QtyStepper } from '../../components/orderControls';
@@ -37,13 +37,15 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
     setDiscountPercent,
     deliveryDate,
     getTotalAmount,
-    getDiscountAmount,
+    getManualDiscount,
+    getPromoLines,
     getFinalAmount,
     getItemCount,
   } = useCartStore();
 
   const totalAmount = getTotalAmount();
-  const discountAmount = getDiscountAmount();
+  const discountAmount = getManualDiscount();
+  const promoLines = getPromoLines();
   const finalAmount = getFinalAmount();
 
   const backToCatalog = () => navigation.navigate('CatalogMain');
@@ -184,6 +186,13 @@ export const CartScreen = ({ navigation }: { navigation: any }) => {
             value={<Money amount={-discountAmount} variant="body" color={colors.danger} />}
           />
         ) : null}
+        {promoLines.map((p) => (
+          <KeyValue
+            key={p.id}
+            label={L(promoLabel(p.name, p.percent))}
+            value={<Money amount={-p.amount} variant="body" color={colors.danger} />}
+          />
+        ))}
         {deliveryDate ? (
           <KeyValue
             label={L({ uz: 'Yetkazish', uz_cyrl: 'Етказиш', ru: 'Доставка' })}

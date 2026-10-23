@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { CartItem, PackagingUnit, PaymentMethod, Product, Shop, Order } from '../types';
 import { orderRepository } from '../database/orderRepository';
 import { productRepository } from '../database/productRepository';
+import { shopRepository } from '../database/shopRepository';
+import { PromoLine, pricingService } from '../services/pricingService';
 import { useDateStore } from './dateStore';
 import { useLanguageStore } from './languageStore';
 import { pick } from '../i18n/tri';
@@ -62,6 +64,8 @@ interface CartState {
   notes: string;
 
   setShop: (shop: Shop | null) => void;
+  /** Prices of the cart lines again from the shop's price list (after a shop change or a sync) */
+  reprice: () => void;
   addItem: (product: Product, unit: PackagingUnit, quantity?: number) => void;
   updateQuantity: (productId: string, unit: PackagingUnit, delta: number) => void;
   setQuantity: (productId: string, unit: PackagingUnit, quantity: number) => void;
@@ -74,6 +78,11 @@ interface CartState {
 
   // Calculators
   getTotalAmount: () => number;
+  /** The agent's own discount (discountPercent) */
+  getManualDiscount: () => number;
+  /** Promotions that apply to the cart right now */
+  getPromoLines: () => PromoLine[];
+  /** Manual discount + promotions */
   getDiscountAmount: () => number;
   getFinalAmount: () => number;
   getItemCount: () => number;
@@ -84,19 +93,20 @@ interface CartState {
 
 const getWorkingDate = () => useDateStore.getState().workingDate;
 
-const getUnitPrice = (product: Product, unit: PackagingUnit): number => {
-  switch (unit) {
-    case 'dona':
-      return product.priceDona;
-    case 'blok':
-      return product.priceBlok;
-    case 'korobka':
-      return product.priceKorobka;
-    case 'kg':
-      return product.priceKg;
-    default:
-      return product.priceDona;
-  }
+/** The shop's price list as stored on the phone (refreshed with the shops), else what the cart holds */
+const priceListOf = (shop: Shop | null): string | null =>
+  shop ? (shopRepository.getById(shop.id)?.priceListId ?? shop.priceListId ?? null) : null;
+
+/** Unit price for the cart's shop: its price list price when there is one, else the product's price */
+export const getUnitPrice = (product: Product, unit: PackagingUnit, shop: Shop | null): number =>
+  pricingService.unitPrice(product, unit, priceListOf(shop));
+
+const repriceItems = (items: CartItem[], shop: Shop | null): CartItem[] => {
+  const priceListId = priceListOf(shop);
+  return items.map((item) => {
+    const unitPrice = pricingService.unitPrice(item.product, item.unit, priceListId);
+    return unitPrice === item.unitPrice ? item : { ...item, unitPrice, totalPrice: item.quantity * unitPrice };
+  });
 };
 
 export const useCartStore = create<CartState>((set, get) => ({
@@ -115,13 +125,19 @@ export const useCartStore = create<CartState>((set, get) => ({
     if (current && shop && current.id !== shop.id) {
       set({ shop, items: [], discountPercent: 0, notes: '', paymentMethod: 'naqd', deliveryDate: getWorkingDate() });
     } else {
-      set({ shop });
+      // Same shop again (fresh data) or the first shop for a cart: prices follow its price list
+      set({ shop, items: repriceItems(get().items, shop) });
     }
+  },
+
+  reprice: () => {
+    const { items, shop } = get();
+    if (items.length > 0) set({ items: repriceItems(items, shop) });
   },
 
   addItem: (product, unit, quantity = 1) => {
     const { items } = get();
-    const unitPrice = getUnitPrice(product, unit);
+    const unitPrice = getUnitPrice(product, unit, get().shop);
     const existingIndex = items.findIndex(
       (item) => item.product.id === product.id && item.unit === unit
     );
@@ -233,10 +249,19 @@ export const useCartStore = create<CartState>((set, get) => ({
     return get().items.reduce((sum, item) => sum + item.totalPrice, 0);
   },
 
-  getDiscountAmount: () => {
+  getManualDiscount: () => {
     const total = get().getTotalAmount();
     const percent = get().discountPercent;
     return Math.round((total * percent) / 100);
+  },
+
+  getPromoLines: () => pricingService.applyPromos(get().items),
+
+  // Items keep their list prices; manual discount and promotions together make the order's discount
+  getDiscountAmount: () => {
+    const total = get().getTotalAmount();
+    const promos = get().getPromoLines().reduce((s, p) => s + p.amount, 0);
+    return Math.min(total, get().getManualDiscount() + promos);
   },
 
   getFinalAmount: () => {
@@ -256,6 +281,9 @@ export const useCartStore = create<CartState>((set, get) => ({
     const totalAmount = get().getTotalAmount();
     const discountAmount = get().getDiscountAmount();
     const finalAmount = get().getFinalAmount();
+    const promos = get()
+      .getPromoLines()
+      .map((p) => ({ id: p.id, name: p.name, amount: p.amount }));
 
     const order = orderRepository.create({
       shopId: shop.id,
@@ -270,6 +298,7 @@ export const useCartStore = create<CartState>((set, get) => ({
       latitude: coords?.latitude,
       longitude: coords?.longitude,
       notes,
+      promos,
       items: items.map((i) => ({
         productId: i.product.id,
         productName: i.product.name,

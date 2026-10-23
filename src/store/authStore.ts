@@ -128,6 +128,14 @@ export const useAuthStore = create<AuthState>((set) => ({
         // The catalogue already on the phone stays; the next sync retries
         console.warn('[Auth] Products download failed', err);
       }
+      if (role !== 'driver') {
+        try {
+          // Price lists and today's promotions for the agent's cart
+          await lineService.downloadPricing();
+        } catch (err) {
+          console.warn('[Auth] Pricing download failed', err);
+        }
+      }
 
       const session: Agent = {
         id: line.id,

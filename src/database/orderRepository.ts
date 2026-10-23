@@ -1,5 +1,17 @@
 import { getDatabase } from './db';
-import { Order, OrderItem, PaymentMethod, OrderStatus } from '../types';
+import { AppliedPromo, Order, OrderItem, PaymentMethod, OrderStatus } from '../types';
+
+/** SQLite row -> Order (promotions are stored as JSON) */
+const mapOrder = (o: any): Order => {
+  let promos: AppliedPromo[] = [];
+  try {
+    promos = o.promosJson ? JSON.parse(o.promosJson) : [];
+  } catch {
+    promos = [];
+  }
+  const { promosJson, ...rest } = o;
+  return { ...rest, isSynced: Boolean(o.isSynced), promos };
+};
 import { shopRepository } from './shopRepository';
 import { productRepository } from './productRepository';
 
@@ -17,6 +29,8 @@ export const orderRepository = {
     latitude?: number;
     longitude?: number;
     notes?: string;
+    /** Promotions applied (already part of discountAmount) */
+    promos?: AppliedPromo[];
     items: Array<{
       productId: string;
       productName: string;
@@ -46,12 +60,12 @@ export const orderRepository = {
         id, shopId, shopName, agentId, agentName,
         totalAmount, discountAmount, finalAmount,
         paymentMethod, status, latitude, longitude,
-        notes, createdAt, isSynced
+        notes, createdAt, isSynced, promosJson
       ) VALUES (
         $id, $shopId, $shopName, $agentId, $agentName,
         $totalAmount, $discountAmount, $finalAmount,
         $paymentMethod, $status, $latitude, $longitude,
-        $notes, $createdAt, 0
+        $notes, $createdAt, 0, $promosJson
       )`,
       {
         $id: orderId,
@@ -68,6 +82,7 @@ export const orderRepository = {
         $longitude: data.longitude || null,
         $notes: finalNotes,
         $createdAt: createdAt,
+        $promosJson: JSON.stringify(data.promos || []),
       }
     );
 
@@ -153,6 +168,7 @@ export const orderRepository = {
       createdAt,
       isSynced: false,
       items: insertedItems,
+      promos: data.promos || [],
     };
   },
 
@@ -169,10 +185,7 @@ export const orderRepository = {
     query += ' ORDER BY createdAt DESC';
 
     const orders = db.getAllSync<any>(query, params);
-    return orders.map((o) => ({
-      ...o,
-      isSynced: Boolean(o.isSynced),
-    }));
+    return orders.map(mapOrder);
   },
 
   getById: (id: string): Order | null => {
@@ -182,11 +195,7 @@ export const orderRepository = {
 
     const items = db.getAllSync<OrderItem>('SELECT * FROM order_items WHERE orderId = $id', { $id: id });
 
-    return {
-      ...order,
-      isSynced: Boolean(order.isSynced),
-      items,
-    };
+    return { ...mapOrder(order), items };
   },
 
   getTodayStats: (agentId?: string): { totalSales: number; orderCount: number; cashCollected: number } => {

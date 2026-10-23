@@ -11,6 +11,8 @@ import { COMMON, PAYMENT_LABELS, UNIT_LABELS, useL } from '../../i18n/tri';
 import { formatDayLong, formatMoney, formatNumber } from '../../utils/format';
 import { colors, space } from '../../theme/colors';
 
+const PROMO = { uz: 'Aksiya', uz_cyrl: 'Акция', ru: 'Акция' };
+
 export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigation: any }) => {
   const { orderId, shopId } = route.params;
   const L = useL();
@@ -159,10 +161,25 @@ export const OrderSuccessScreen = ({ route, navigation }: { route: any; navigati
           {order.discountAmount > 0 ? (
             <>
               <KeyValue label={L({ uz: 'Summa', uz_cyrl: 'Сумма', ru: 'Сумма' })} value={<Money amount={order.totalAmount} variant="body" />} />
-              <KeyValue
-                label={L(COMMON.discount)}
-                value={<Money amount={-order.discountAmount} variant="body" color={colors.danger} />}
-              />
+              {(() => {
+                // Promotions are part of discountAmount; the rest is the agent's own discount
+                const promos = (order.promos || []).filter((p) => p.amount > 0);
+                const manual = Math.max(0, order.discountAmount - promos.reduce((s, p) => s + p.amount, 0));
+                return (
+                  <>
+                    {manual > 0 ? (
+                      <KeyValue label={L(COMMON.discount)} value={<Money amount={-manual} variant="body" color={colors.danger} />} />
+                    ) : null}
+                    {promos.map((p) => (
+                      <KeyValue
+                        key={p.id}
+                        label={`${L(PROMO)}: ${p.name}`}
+                        value={<Money amount={-p.amount} variant="body" color={colors.danger} />}
+                      />
+                    ))}
+                  </>
+                );
+              })()}
             </>
           ) : null}
           <KeyValue strong label={L(COMMON.total)} value={<Money amount={order.finalAmount} variant="title" color={colors.primaryDark} />} />

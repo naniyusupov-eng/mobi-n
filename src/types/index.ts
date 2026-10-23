@@ -64,6 +64,7 @@ export interface Shop {
   overdue?: boolean;
   creditBlocked?: boolean;     // Nasiya not allowed
   creditLeft?: number | null;  // Limit minus debt (null = no limit)
+  priceListId?: string | null; // Narx roʻyxati (GET /clients); none = base product prices
 }
 
 export type PaymentMethod = 'naqd' | 'nasiya' | 'otkazma';
@@ -99,6 +100,40 @@ export interface Order {
   createdAt: string;
   isSynced: boolean;
   items?: OrderItem[];
+  promos?: AppliedPromo[]; // Aksiyalar (already included in discountAmount)
+}
+
+/** Price per packaging unit in one price list; a missing unit falls back to the product price */
+export type UnitPrices = Partial<Record<PackagingUnit, number>>;
+
+export interface PriceList {
+  id: string;
+  name: string;
+  prices: Record<string, UnitPrices>; // productId -> prices
+}
+
+/** Today's active promotion for the line (GET /pricing) */
+export interface Promo {
+  id: string;
+  name: string;
+  kind: 'product' | 'order';
+  percent: number;
+  productId?: string;
+  unit?: PackagingUnit;
+  minQty?: number;
+  minTotal?: number;
+}
+
+export interface Pricing {
+  priceLists: PriceList[];
+  promos: Promo[];
+}
+
+/** A promotion applied to a cart / order and the money it took off */
+export interface AppliedPromo {
+  id: string;
+  name: string;
+  amount: number;
 }
 
 export interface CartItem {
@@ -111,9 +146,9 @@ export interface CartItem {
 
 export interface SyncQueueItem {
   id: string;
-  entityType: 'order' | 'shop' | 'payment';
-  entityId: string;
-  action: 'create' | 'update';
+  entityType: 'order' | 'shop' | 'payment' | 'delivery' | 'return';
+  entityId: string; // for 'delivery' and 'return': the order id
+  action: 'create' | 'update' | 'deliver' | 'undeliver';
   payloadJson: string;
   status: 'pending' | 'failed' | 'synced';
   attempts: number;

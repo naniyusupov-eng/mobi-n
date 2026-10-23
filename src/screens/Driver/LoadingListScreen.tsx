@@ -3,11 +3,11 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { CheckCircle2, Circle, ClipboardList, CloudOff, Package, PackageCheck } from 'lucide-react-native';
 import { useLanguageStore } from '../../store/languageStore';
 import { getTodayDateString } from '../../store/dateStore';
-import { LoadingProduct, LoadingSheet, driverService } from '../../services/driverService';
+import { LoadingProduct, LoadingSheet, driverOffline } from '../../services/driverService';
 import { colors, space } from '../../theme/colors';
 import { AppText, Card, Divider, EmptyState, HeroCard, HeroPill, Row, Screen, SectionHeader } from '../../components/ui';
-import { COMMON, Tri, UNIT_LABELS, useL } from '../../i18n/tri';
-import { formatDayLong, formatMoney, formatNumber } from '../../utils/format';
+import { COMMON, Tri, UNIT_LABELS, offlineCopyNote, useL } from '../../i18n/tri';
+import { formatDayLong, formatMoney, formatNumber, formatTime } from '../../utils/format';
 import { PackagingUnit } from '../../types';
 
 export const LOADING_TITLE: Tri = { uz: 'Yuk roʻyxati', uz_cyrl: 'Юк рўйхати', ru: 'Список загрузки' };
@@ -41,14 +41,19 @@ export const LoadingListScreen = ({ route }: { route: any }) => {
   // Ticks live only on this screen, per day
   const [ticked, setTicked] = useState<Record<string, boolean>>({});
 
+  const [copyAt, setCopyAt] = useState<string | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await driverService.getLoading(date);
-      setSheet(res.sheets[0] || null);
-      setOffline(false);
+      // Falls back to the copy saved on the phone when the server does not answer
+      const res = await driverOffline.loadLoading(date);
+      setSheet(res.data.sheets[0] || null);
+      setOffline(res.offline);
+      setCopyAt(res.offline ? res.savedAt : null);
     } catch {
       setOffline(true);
+      setCopyAt(null);
     } finally {
       setLoading(false);
     }
@@ -85,13 +90,13 @@ export const LoadingListScreen = ({ route }: { route: any }) => {
           <Row gap={space.md}>
             <CloudOff size={20} color={colors.warning} />
             <AppText variant="small" color={colors.warning} lines={3} style={styles.flex}>
-              {L(T.offline)}
+              {copyAt ? L(offlineCopyNote(formatTime(copyAt))) : L(T.offline)}
             </AppText>
           </Row>
         </Card>
       ) : null}
 
-      {!loading && !offline && products.length === 0 ? (
+      {!loading && (!offline || !!copyAt) && products.length === 0 ? (
         <Card>
           <EmptyState icon={PackageCheck} title={L(T.none)} />
         </Card>

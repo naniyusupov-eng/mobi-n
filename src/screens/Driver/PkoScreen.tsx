@@ -8,12 +8,12 @@ import { useSyncStore } from '../../store/syncStore';
 import { getTodayDateString } from '../../store/dateStore';
 import { shopRepository } from '../../database/shopRepository';
 import { lineService } from '../../services/lineService';
-import { CashLine, PaymentRecord, driverService } from '../../services/driverService';
+import { CashLine, PaymentRecord, driverOffline, driverService } from '../../services/driverService';
 import { colors, space } from '../../theme/colors';
 import { AppText, Card, Divider, EmptyState, HeroCard, HeroPill, IconCircle, KeyValue, ListItem, Money, Row, Screen, SearchBar, SectionHeader } from '../../components/ui';
 import { PaymentSheet } from '../../components/shared';
 import { shopRouteCode } from '../../components/shopHelpers';
-import { COMMON, Tri, useL } from '../../i18n/tri';
+import { COMMON, Tri, offlineCopyNote, useL } from '../../i18n/tri';
 import { formatMoney, formatNumber, formatShopNum, formatTime } from '../../utils/format';
 import { Shop } from '../../types';
 
@@ -53,6 +53,7 @@ export const PkoScreen = () => {
   const [payShop, setPayShop] = useState<Shop | null>(null);
   const [cash, setCash] = useState<CashLine | null>(null);
   const [cashOffline, setCashOffline] = useState(false);
+  const [cashAt, setCashAt] = useState<string | null>(null);
 
   const loadLocal = useCallback(() => {
     setShops(shopRepository.getAll().filter((s) => s.debtBalance > 0));
@@ -70,11 +71,13 @@ export const PkoScreen = () => {
   // Cash in hand: the server knows deliveries, PKO and what the office cashier received
   const loadCash = useCallback(async () => {
     try {
-      const res = await driverService.getCash(getTodayDateString());
-      setCash(res.lines.find((l) => l.line === lineCode) || res.lines[0] || null);
-      setCashOffline(false);
+      // Falls back to the copy saved on the phone when the server does not answer
+      const res = await driverOffline.loadCash(getTodayDateString());
+      setCash(res.data.lines.find((l) => l.line === lineCode) || res.data.lines[0] || null);
+      setCashOffline(res.offline);
+      setCashAt(res.savedAt);
     } catch {
-      // offline: keep the last values
+      // offline and no copy yet: keep the last values
       setCashOffline(true);
     }
   }, [lineCode]);
@@ -157,7 +160,7 @@ export const PkoScreen = () => {
           <Row gap={6}>
             <CloudOff size={14} color={colors.warning} />
             <AppText variant="caption" color={colors.warning} lines={2} style={styles.flex}>
-              {L(T.cashOffline)}
+              {cashAt ? L(offlineCopyNote(formatTime(cashAt))) : L(T.cashOffline)}
             </AppText>
           </Row>
         ) : null}

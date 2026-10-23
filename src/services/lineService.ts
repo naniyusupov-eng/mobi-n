@@ -1,6 +1,7 @@
 import { apiClient } from './apiClient';
 import { shopRepository } from '../database/shopRepository';
 import { productRepository } from '../database/productRepository';
+import { pricingService } from './pricingService';
 import { Product, Shop, UserRole } from '../types';
 
 // Route day number (1-6) -> visit day label used across the app
@@ -38,6 +39,7 @@ interface ServerClient {
   overdue?: boolean;
   creditBlocked?: boolean;
   creditLeft?: number | null;
+  priceListId?: string | null;
 }
 
 /**
@@ -102,6 +104,11 @@ export const lineService = {
     return products.length;
   },
 
+  /** Downloads the price lists and today's promotions (GET /pricing) and stores them on the phone. */
+  downloadPricing: async (): Promise<void> => {
+    await pricingService.download();
+  },
+
   /** Downloads all shops of the line (every week day) and stores them on the phone. */
   downloadShops: async (lineCode: string): Promise<number> => {
     // The server forces the signed-in line; the param is kept for clarity
@@ -131,6 +138,7 @@ export const lineService = {
       overdue: Boolean(c.overdue),
       creditBlocked: Boolean(c.creditBlocked),
       creditLeft: c.creditLeft == null ? null : Number(c.creditLeft),
+      priceListId: c.priceListId ? String(c.priceListId) : null,
     }));
     shopRepository.replaceLineShops(lineCode, shops);
     return shops.length;
