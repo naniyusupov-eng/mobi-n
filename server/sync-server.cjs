@@ -695,9 +695,11 @@ const server = http.createServer(async (req, res) => {
           const removed = Math.min(shop.debtBalance || 0, owed);
           shop.debtBalance = (shop.debtBalance || 0) - removed;
           order.cancelDebtApplied = removed;
+          order.cancelledAt = new Date().toISOString();
         } else if (shop) {
           shop.debtBalance = (shop.debtBalance || 0) + (order.cancelDebtApplied || 0);
           delete order.cancelDebtApplied;
+          delete order.cancelledAt;
         }
       }
       order.status = status;
@@ -1106,6 +1108,159 @@ const server = http.createServer(async (req, res) => {
       const limit = Math.min(1000, Number(url.searchParams.get('limit')) || 200);
       const moves = (db.stockMoves || []).filter((m) => !productId || m.productId === productId).slice(0, limit);
       return jsonResponse(res, 200, { success: true, moves });
+    }
+
+    // GET /api/v1/statement?shopId=&from=YYYY-MM-DD&to=YYYY-MM-DD — reconciliation statement (akt sverka)
+    // Sales are debit; payments at delivery, PKO and returns are credit; the balance is the shop's debt.
+    // Balances are worked back from today's debt, so the statement always ends at the real figure.
+    if (req.method === 'GET' && pathname === '/api/v1/statement') {
+      const db = loadDatabase();
+      const shopId = url.searchParams.get('shopId');
+      const shop = findShop(db, shopId);
+      if (!shop) return jsonResponse(res, 404, { error: 'Shop not found' });
+      const today = localDate(Date.now());
+      const from = url.searchParams.get('from') || `${today.slice(0, 7)}-01`;
+      const to = url.searchParams.get('to') || today;
+
+      const all = [];
+      const add = (at, type, doc, debit, credit, note = '') => {
+        if (debit || credit) all.push({ at, date: localDate(at), type, doc, debit, credit, note });
+      };
+      for (const o of db.orders.filter((x) => x.shopId === shopId)) {
+        const charge = orderCharge(o);
+        if (o.status === 'cancelled') {
+          // Older cancellations have no date: they never show (their debt came and went)
+          if (!o.cancelledAt) continue;
+          add(o.createdAt, 'sale', o.id, charge, 0, o.paymentMethod);
+          if (isCredit(o)) add(o.cancelledAt, 'cancel', o.id, 0, o.cancelDebtApplied || 0);
+          else add(o.createdAt, 'paid', o.id, 0, charge, o.paymentMethod);
+          continue;
+        }
+        add(o.createdAt, 'sale', o.id, charge, 0, o.paymentMethod);
+        // Cash and transfer orders are paid with the delivery, so they leave no debt
+        if (!isCredit(o)) add(o.createdAt, 'paid', o.id, 0, Math.max(0, charge - (o.returnedAmount || 0)), o.paymentMethod);
+      }
+      for (const r of db.returns.filter((x) => x.shopId === shopId)) {
+        const order = db.orders.find((o) => o.id === r.orderId);
+        // On credit orders the return lowers the debt; on cash orders the sale line above is already net
+        const amount = order && isCredit(order) ? r.debtApplied ?? r.total : r.total;
+        add(r.createdAt, 'return', r.id, 0, amount, r.reason);
+      }
+      for (const p of (db.payments || []).filter((x) => x.shopId === shopId)) {
+        add(p.createdAt, 'payment', p.id, 0, p.amount, p.by);
+      }
+      all.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
+
+      const move = (e) => e.debit - e.credit;
+      const after = (day) => all.filter((e) => e.date > day).reduce((s, e) => s + move(e), 0);
+      const current = shop.debtBalance || 0;
+      const closing = current - after(to);
+      const entries = all.filter((e) => e.date >= from && e.date <= to);
+      const opening = closing - entries.reduce((s, e) => s + move(e), 0);
+      let balance = opening;
+      const rows = entries.map((e) => ({ ...e, balance: (balance += move(e)) }));
+      return jsonResponse(res, 200, {
+        success: true,
+        shop: { id: shop.id, name: shop.name, ownerName: shop.ownerName || '', phone: shop.phone || '', address: shop.address || '', lineCode: shop.lineCode || null, day: shop.day || null, num: shop.num ?? null },
+        from,
+        to,
+        opening,
+        closing,
+        totals: { debit: rows.reduce((s, e) => s + e.debit, 0), credit: rows.reduce((s, e) => s + e.credit, 0) },
+        entries: rows,
+      });
+    }
+
+    // POST /api/v1/workday — { action: 'start'|'end', lat?, lng? } phone starts or ends its work day
+    if (req.method === 'POST' && pathname === '/api/v1/workday') {
+      const { action, lat, lng } = await parseBody(req);
+      if (!['start', 'end'].includes(action)) return jsonResponse(res, 400, { error: 'action must be start or end' });
+      const db = loadDatabase();
+      if (!Array.isArray(db.workdays)) db.workdays = [];
+      const date = localDate(Date.now());
+      let day = db.workdays.find((w) => w.line === session.line && w.role === session.role && w.date === date);
+      if (!day) {
+        day = { id: `wd_${Date.now()}`, line: session.line, role: session.role, date };
+        db.workdays.unshift(day);
+      }
+      const now = new Date().toISOString();
+      const where = Number.isFinite(Number(lat)) && Number.isFinite(Number(lng)) ? { lat: Number(lat), lng: Number(lng) } : null;
+      if (action === 'start') {
+        // A second "start" keeps the first time (a phone restart must not move the start)
+        if (!day.startAt) Object.assign(day, { startAt: now, startLoc: where });
+        delete day.endAt;
+        delete day.endLoc;
+      } else {
+        if (!day.startAt) Object.assign(day, { startAt: now, startLoc: where });
+        Object.assign(day, { endAt: now, endLoc: where });
+      }
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, workday: day });
+    }
+
+    // GET /api/v1/workday/me — the phone's own work day today
+    if (req.method === 'GET' && pathname === '/api/v1/workday/me') {
+      const db = loadDatabase();
+      const date = localDate(Date.now());
+      const day = (db.workdays || []).find((w) => w.line === session.line && w.role === session.role && w.date === date) || null;
+      return jsonResponse(res, 200, { success: true, workday: day });
+    }
+
+    // GET /api/v1/workdays?date=YYYY-MM-DD — per line: agent and driver day, orders, deliveries, cash, month plan
+    if (req.method === 'GET' && pathname === '/api/v1/workdays') {
+      const db = loadDatabase();
+      const date = url.searchParams.get('date') || localDate(Date.now());
+      const month = date.slice(0, 7);
+      const lineOf = new Map(db.clients.map((c) => [c.id, c.lineCode]));
+      const plans = db.plans || {};
+      const rows = db.lines.map((line) => {
+        const code = line.code;
+        const lineOrders = db.orders.filter((o) => lineOf.get(o.shopId) === code && o.status !== 'cancelled');
+        const taken = lineOrders.filter((o) => localDate(o.createdAt) === date);
+        const toDeliver = lineOrders.filter((o) => deliveryDay(o) === date);
+        const delivered = toDeliver.filter((o) => o.status === 'delivered');
+        const monthSales = lineOrders
+          .filter((o) => localDate(o.createdAt).startsWith(month))
+          .reduce((s, o) => s + Math.max(0, orderCharge(o) - (o.returnedAmount || 0)), 0);
+        const plan = plans[`${code}|${month}`] || 0;
+        const wd = (role) => (db.workdays || []).find((w) => w.line === code && w.role === role && w.date === date) || null;
+        return {
+          line: code,
+          agent: { workday: wd('agent'), orders: taken.length, sales: taken.reduce((s, o) => s + orderCharge(o), 0) },
+          driver: {
+            workday: wd('driver'),
+            toDeliver: toDeliver.length,
+            delivered: delivered.length,
+            cash: delivered.filter((o) => o.deliveredBy === `driver:${code}`).reduce((s, o) => s + (o.collected || 0), 0),
+          },
+          month: { sales: monthSales, plan, percent: plan > 0 ? Math.round((monthSales / plan) * 100) : null },
+        };
+      });
+      return jsonResponse(res, 200, { success: true, date, month, lines: rows });
+    }
+
+    // GET /api/v1/plans?month=YYYY-MM -> { plans: { '4-3': amount } }
+    // POST /api/v1/plans { month, line, amount } — monthly sales plan of a line (0 removes it)
+    if (pathname === '/api/v1/plans' && (req.method === 'GET' || req.method === 'POST')) {
+      const db = loadDatabase();
+      if (!db.plans) db.plans = {};
+      if (req.method === 'POST') {
+        const { month, line, amount } = await parseBody(req);
+        if (!/^\d{4}-\d{2}$/.test(String(month || ''))) return jsonResponse(res, 400, { error: 'month must be YYYY-MM' });
+        if (!db.lines.some((l) => l.code === line)) return jsonResponse(res, 400, { error: 'Unknown line' });
+        const value = Math.round(Number(amount));
+        if (!(value >= 0)) return jsonResponse(res, 400, { error: 'amount must be ≥ 0' });
+        if (value === 0) delete db.plans[`${line}|${month}`];
+        else db.plans[`${line}|${month}`] = value;
+        saveDatabase(db);
+      }
+      const month = url.searchParams.get('month') || localDate(Date.now()).slice(0, 7);
+      const plans = Object.fromEntries(
+        Object.entries(db.plans)
+          .filter(([k]) => k.endsWith(`|${month}`))
+          .map(([k, v]) => [k.split('|')[0], v])
+      );
+      return jsonResponse(res, 200, { success: true, month, plans });
     }
 
     // GET /api/v1/lines
