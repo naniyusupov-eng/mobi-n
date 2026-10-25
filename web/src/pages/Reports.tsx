@@ -78,7 +78,7 @@ export const Reports: React.FC<ReportsProps> = ({ orders, company, onViewOrder }
           onLineChange={setLineCode}
           onViewOrder={onViewOrder}
         />}
-      {tab === 'loading' && loadingPeriod.kind === 'day' && <LoadingSheet day={loadingPeriod.day} />}
+      {tab === 'loading' && loadingPeriod.kind === 'day' && <LoadingSheet day={loadingPeriod.day} orders={orders} company={company} />}
       {tab === 'cash' && cashPeriod.kind === 'day' && <CashTab day={cashPeriod.day} />}
       {tab === 'workday' && workdayPeriod.kind === 'day' && <WorkdayTab day={workdayPeriod.day} />}
       {tab === 'returns' && <ReturnsTab period={returnsPeriod} refreshKey={refreshKey} />}

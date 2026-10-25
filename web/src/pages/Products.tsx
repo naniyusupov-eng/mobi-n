@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { Product, Category, Receipt, StockMove, StockMoveType } from '../types';
 import {
@@ -9,6 +9,7 @@ import {
   Boxes,
   AlertTriangle,
   Pencil,
+  SquarePen,
   Minus,
   History,
   PackagePlus,
@@ -41,14 +42,16 @@ import { COMMON, Tri, UNIT_LABELS, fmt, useL } from '../i18n/tri';
 import { useLanguage } from '../context/LanguageContext';
 import { currentMonth, formatDateTime, formatMonth, shiftMonth } from '../utils/format';
 import { API, apiFetch } from '../api';
+import { adminPasswordHeader, throwIfAdminPasswordError, useAdminPassword } from '../components/AdminPasswordModal';
 import { PriceListsView } from './products/PriceListsView';
 import { PromosView } from './products/PromosView';
 
 interface ProductsProps {
   products: Product[];
   categories: Category[];
-  onAddProduct: (product: Product) => Promise<void> | void;
-  onUpdateStock: (productId: string, newStock: number) => Promise<void> | void;
+  /** Product changes need the admin password again (sent as X-Admin-Password) */
+  onAddProduct: (product: Product, adminPassword: string) => Promise<void>;
+  onUpdateStock: (productId: string, newStock: number, adminPassword: string) => Promise<void>;
   /** Fresh product list from the server (after a receipt, its undo or a min-stock change) */
   onProductsChanged: (products: Product[]) => void;
 }
@@ -230,6 +233,40 @@ const T = {
   noMoves: { uz: 'Hali harakat yoʻq', uz_cyrl: 'Ҳали ҳаракат йўқ', ru: 'Движений пока нет' },
   type: { uz: 'Turi', uz_cyrl: 'Тури', ru: 'Тип' },
   stockAfter: { uz: 'Qoldiq', uz_cyrl: 'Қолдиқ', ru: 'Остаток' },
+  edit: { uz: 'Tahrirlash', uz_cyrl: 'Таҳрирлаш', ru: 'Редактировать' },
+  editProduct: { uz: 'Tovarni tahrirlash', uz_cyrl: 'Товарни таҳрирлаш', ru: 'Редактирование товара' },
+  editSubtitle: {
+    uz: 'Qoldiq bu yerda oʻzgarmaydi: uni qoldiq oynasida tuzating',
+    uz_cyrl: 'Қолдиқ бу ерда ўзгармайди: уни қолдиқ ойнасида тузатинг',
+    ru: 'Остаток здесь не меняется: правьте его в окне остатка',
+  },
+  delete: { uz: 'Oʻchirish', uz_cyrl: 'Ўчириш', ru: 'Удалить' },
+  deleteConfirm: {
+    uz: '"{name}" tovari katalogdan oʻchirilsinmi?\n\nUning narx roʻyxatlaridagi narxlari va aksiyalari ham oʻchiriladi. Oʻtgan buyurtmalarda tovar nomi saqlanadi.',
+    uz_cyrl: '"{name}" товари каталогдан ўчирилсинми?\n\nУнинг нарх рўйхатларидаги нархлари ва аксиялари ҳам ўчирилади. Ўтган буюртмаларда товар номи сақланади.',
+    ru: 'Удалить товар «{name}» из каталога?\n\nЕго цены в прайс-листах и акции тоже будут удалены. В прошлых заказах название сохранится.',
+  },
+  deleteError: { uz: 'Tovarni oʻchirib boʻlmadi', uz_cyrl: 'Товарни ўчириб бўлмади', ru: 'Не удалось удалить товар' },
+  pwAdd: {
+    uz: 'Yangi tovar qoʻshish uchun admin parolini kiriting.',
+    uz_cyrl: 'Янги товар қўшиш учун админ паролини киритинг.',
+    ru: 'Чтобы добавить товар, введите пароль администратора.',
+  },
+  pwEdit: {
+    uz: '"{name}" tovarini oʻzgartirish uchun admin parolini kiriting.',
+    uz_cyrl: '"{name}" товарини ўзгартириш учун админ паролини киритинг.',
+    ru: 'Чтобы изменить товар «{name}», введите пароль администратора.',
+  },
+  pwStock: {
+    uz: '"{name}" qoldigʻini oʻzgartirish uchun admin parolini kiriting.',
+    uz_cyrl: '"{name}" қолдиғини ўзгартириш учун админ паролини киритинг.',
+    ru: 'Чтобы изменить остаток «{name}», введите пароль администратора.',
+  },
+  pwDelete: {
+    uz: '"{name}" tovarini oʻchirish uchun admin parolini kiriting.',
+    uz_cyrl: '"{name}" товарини ўчириш учун админ паролини киритинг.',
+    ru: 'Чтобы удалить товар «{name}», введите пароль администратора.',
+  },
 } satisfies Record<string, Tri>;
 
 const MOVE_LABELS: Record<StockMoveType, { label: Tri; tone: Tone }> = {
@@ -252,13 +289,17 @@ const RECEIPT_UNITS: ReceiptUnit[] = ['dona', 'blok', 'korobka'];
 const isLow = (p: Product) =>
   p.minStock != null ? p.stockDona <= p.minStock : p.stockDona <= (p.itemsPerBox || 0) || p.stockDona < 100;
 
-/** POST/DELETE with JSON; throws the server's error text */
-const send = async (path: string, method: 'POST' | 'DELETE', body?: unknown) => {
+/** POST/DELETE with JSON; throws the server's error text (AdminPasswordError for a refused password) */
+const send = async (path: string, method: 'POST' | 'DELETE', body?: unknown, adminPassword?: string) => {
+  const headers: Record<string, string> = adminPassword !== undefined ? adminPasswordHeader(adminPassword) : {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
   const res = await apiFetch(`${API}${path}`, {
     method,
-    ...(body !== undefined ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
+    headers,
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
   });
   const data = await res.json().catch(() => ({}));
+  throwIfAdminPasswordError(res, data);
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 };
@@ -289,6 +330,26 @@ export const Products: React.FC<ProductsProps> = ({ products, categories, onAddP
   const [receiptsVersion, setReceiptsVersion] = useState(0); // bumps to reload the receipts list
   const [stockProduct, setStockProduct] = useState<Product | null>(null);
   const [historyProduct, setHistoryProduct] = useState<Product | null>(null);
+  const [editProduct, setEditProduct] = useState<Product | null>(null);
+  const [deletingId, setDeletingId] = useState('');
+  const { withPassword, passwordModal } = useAdminPassword();
+
+  // Confirm, then the admin password, then DELETE; the reply is the new catalogue
+  const deleteProduct = async (p: Product) => {
+    if (deletingId) return;
+    if (!window.confirm(fmt(L(T.deleteConfirm), { name: p.name }))) return;
+    setDeletingId(p.id);
+    try {
+      await withPassword(async (pw) => {
+        const data = await send(`/products/${encodeURIComponent(p.id)}`, 'DELETE', undefined, pw);
+        if (Array.isArray(data.products)) onProductsChanged(data.products);
+      }, fmt(L(T.pwDelete), { name: p.name }));
+    } catch (err) {
+      window.alert(errText(err, L(T.deleteError)));
+    } finally {
+      setDeletingId('');
+    }
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -510,6 +571,23 @@ export const Products: React.FC<ProductsProps> = ({ products, categories, onAddP
                             title={L(T.history)}
                             className="!px-2.5"
                           />
+                          <Button
+                            variant="white"
+                            size="sm"
+                            icon={SquarePen}
+                            onClick={() => setEditProduct(p)}
+                            title={L(T.edit)}
+                            className="!px-2.5 border border-ink-200 !shadow-none"
+                          />
+                          <Button
+                            variant="danger"
+                            size="sm"
+                            icon={Trash2}
+                            onClick={() => deleteProduct(p)}
+                            disabled={!!deletingId}
+                            title={L(T.delete)}
+                            className="!px-2.5"
+                          />
                         </div>
                       </Td>
                     </tr>
@@ -526,18 +604,30 @@ export const Products: React.FC<ProductsProps> = ({ products, categories, onAddP
         </>
       )}
 
-      <AddProductModal
+      <ProductFormModal
         open={addOpen}
         onClose={() => setAddOpen(false)}
         categories={categories}
         products={products}
-        onAddProduct={onAddProduct}
+        withPassword={withPassword}
+        onSave={(product, pw) => onAddProduct(product as Product, pw)}
+      />
+      <ProductFormModal
+        key={editProduct?.id || 'edit'}
+        open={!!editProduct}
+        editing={editProduct}
+        onClose={() => setEditProduct(null)}
+        categories={categories}
+        products={products}
+        withPassword={withPassword}
+        onSave={async (patch, pw) => onProductsChanged((await send('/products', 'POST', patch, pw)).products)}
       />
       <StockModal
         product={liveStockProduct}
         onClose={() => setStockProduct(null)}
         onUpdateStock={onUpdateStock}
         onProductsChanged={onProductsChanged}
+        withPassword={withPassword}
       />
       <ReceiptModal
         open={receiptOpen}
@@ -549,6 +639,8 @@ export const Products: React.FC<ProductsProps> = ({ products, categories, onAddP
         }}
       />
       <HistoryModal product={historyProduct} onClose={() => setHistoryProduct(null)} />
+      {/* Last, so it sits above the product modals */}
+      {passwordModal}
     </div>
   );
 };
@@ -572,15 +664,44 @@ const EMPTY_FORM = {
 
 type FormState = typeof EMPTY_FORM;
 
-const AddProductModal: React.FC<{
+/** The form filled with an existing product (stock is not edited here) */
+const formFromProduct = (p: Product): FormState => ({
+  name: p.name || '',
+  code: p.code || '',
+  description: p.description || '',
+  categoryId: p.categoryId || '',
+  priceDona: String(p.priceDona ?? ''),
+  priceBlok: String(p.priceBlok ?? ''),
+  priceKorobka: String(p.priceKorobka ?? ''),
+  priceKg: String(p.priceKg ?? ''),
+  itemsPerBlock: String(p.itemsPerBlock ?? ''),
+  itemsPerBox: String(p.itemsPerBox ?? ''),
+  stockDona: String(p.stockDona ?? 0),
+  minStock: p.minStock != null ? String(p.minStock) : '',
+});
+
+type WithPassword = ReturnType<typeof useAdminPassword>['withPassword'];
+
+/** Partial update the server merges into the stored product; minStock null clears the threshold */
+type ProductPatch = Omit<Partial<Product>, 'minStock'> & { id: string; name: string; minStock?: number | null };
+
+/**
+ * Add a product, or edit one when `editing` is given. Saving asks for the admin password;
+ * an edit sends only the form's fields (never stockDona), so it cannot overwrite a fresher stock.
+ */
+const ProductFormModal: React.FC<{
   open: boolean;
   onClose: () => void;
   categories: Category[];
   products: Product[];
-  onAddProduct: ProductsProps['onAddProduct'];
-}> = ({ open, onClose, categories, products, onAddProduct }) => {
+  editing?: Product | null;
+  withPassword: WithPassword;
+  /** Add: the whole product; edit: a partial { id, name, ...fields } the server merges */
+  onSave: (product: Product | ProductPatch, adminPassword: string) => Promise<void>;
+}> = ({ open, onClose, categories, products, editing, withPassword, onSave }) => {
   const L = useL();
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  const emptyForm = editing ? formFromProduct(editing) : EMPTY_FORM;
+  const [form, setForm] = useState<FormState>(emptyForm);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -589,7 +710,7 @@ const AddProductModal: React.FC<{
 
   const close = () => {
     if (saving) return;
-    setForm(EMPTY_FORM);
+    setForm(emptyForm);
     setError('');
     onClose();
   };
@@ -619,13 +740,14 @@ const AddProductModal: React.FC<{
     if (itemsPerBox < itemsPerBlock) return setError(L(T.errBoxLessBlock));
 
     const stockDona = num(form.stockDona);
-    if (!Number.isInteger(stockDona) || stockDona < 0) return setError(L(T.errInitialStock));
+    if (!editing && (!Number.isInteger(stockDona) || stockDona < 0)) return setError(L(T.errInitialStock));
     const minStock = form.minStock.trim() === '' ? undefined : num(form.minStock);
     if (minStock !== undefined && (!Number.isInteger(minStock) || minStock < 0)) return setError(L(T.errMinStock));
 
     let code = form.code.trim();
-    if (code && products.some((p) => p.code.toLowerCase() === code.toLowerCase()))
+    if (code && products.some((p) => p.id !== editing?.id && p.code.toLowerCase() === code.toLowerCase()))
       return setError(fmt(L(T.errCodeExists), { code }));
+    if (!code && editing?.code) code = editing.code;
     if (!code) {
       const used = new Set(products.map((p) => p.code));
       do code = `QND-${Math.floor(100 + Math.random() * 900)}`;
@@ -633,25 +755,46 @@ const AddProductModal: React.FC<{
     }
 
     const cat = categories.find((c) => c.id === categoryId);
-    const product: Product = {
-      id: `prod_${Date.now()}`,
-      code,
-      name,
-      categoryId,
-      categoryName: cat?.name || 'Qandolat',
-      ...(form.description.trim() ? { description: form.description.trim() } : {}),
-      ...prices,
-      itemsPerBlock,
-      itemsPerBox,
-      stockDona,
-      ...(minStock !== undefined ? { minStock } : {}),
-    };
+    const categoryName = cat?.name || (editing && editing.categoryId === categoryId ? editing.categoryName : '') || 'Qandolat';
+    const description = form.description.trim();
+    // An edit is a partial update: no stockDona, and cleared fields are sent empty so the merge clears them
+    const product: Product | ProductPatch =
+      editing
+        ? {
+            id: editing.id,
+            code,
+            name,
+            categoryId,
+            categoryName,
+            description,
+            ...prices,
+            itemsPerBlock,
+            itemsPerBox,
+            minStock: minStock ?? null,
+          }
+        : {
+            id: `prod_${Date.now()}`,
+            code,
+            name,
+            categoryId,
+            categoryName,
+            ...(description ? { description } : {}),
+            ...prices,
+            itemsPerBlock,
+            itemsPerBox,
+            stockDona,
+            ...(minStock !== undefined ? { minStock } : {}),
+          };
 
     setSaving(true);
     try {
-      await onAddProduct(product);
+      const ran = await withPassword(
+        (pw) => onSave(product, pw),
+        editing ? fmt(L(T.pwEdit), { name: editing.name }) : L(T.pwAdd)
+      );
       setSaving(false);
-      setForm(EMPTY_FORM);
+      if (!ran) return; // password cancelled: keep the form as typed
+      setForm(emptyForm);
       onClose();
     } catch (err) {
       setSaving(false);
@@ -669,8 +812,8 @@ const AddProductModal: React.FC<{
       open={open}
       onClose={close}
       width="lg"
-      title={L(T.newProduct)}
-      subtitle={L(T.addSubtitle)}
+      title={editing ? L(T.editProduct) : L(T.newProduct)}
+      subtitle={editing ? <span className="block truncate">{editing.name} • {L(T.editSubtitle)}</span> : L(T.addSubtitle)}
       footer={
         <>
           <Button variant="ghost" onClick={close} disabled={saving}>
@@ -687,9 +830,19 @@ const AddProductModal: React.FC<{
           <div className="sm:col-span-2">
             <Field label={L(T.productName)} placeholder={L(T.namePlaceholder)} value={form.name} onChange={set('name')} autoFocus />
           </div>
-          <Field label={L(T.code)} placeholder={L(T.auto)} value={form.code} onChange={set('code')} hint={L(T.codeHint)} />
+          <Field
+            label={L(T.code)}
+            placeholder={editing ? editing.code : L(T.auto)}
+            value={form.code}
+            onChange={set('code')}
+            hint={editing ? undefined : L(T.codeHint)}
+          />
           <Select label={L(T.categoryReq)} value={categoryId} onChange={set('categoryId')}>
-            {categories.length === 0 ? <option value="">{L(T.noCategory)}</option> : null}
+            {categories.length === 0 && !editing?.categoryId ? <option value="">{L(T.noCategory)}</option> : null}
+            {/* An edited product may sit in a category this list does not have */}
+            {editing?.categoryId && !categories.some((c) => c.id === editing.categoryId) ? (
+              <option value={editing.categoryId}>{editing.categoryName || editing.categoryId}</option>
+            ) : null}
             {categories.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -716,7 +869,9 @@ const AddProductModal: React.FC<{
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Field label={L(T.inBlock)} type="number" min={1} suffix={dona} value={form.itemsPerBlock} onChange={set('itemsPerBlock')} />
             <Field label={L(T.inBox)} type="number" min={1} suffix={dona} value={form.itemsPerBox} onChange={set('itemsPerBox')} />
-            <Field label={L(T.initialStock)} type="number" min={0} suffix={dona} value={form.stockDona} onChange={set('stockDona')} />
+            {editing ? null : (
+              <Field label={L(T.initialStock)} type="number" min={0} suffix={dona} value={form.stockDona} onChange={set('stockDona')} />
+            )}
             <Field label={L(T.minStock)} type="number" min={0} suffix={dona} placeholder="—" value={form.minStock} onChange={set('minStock')} />
           </div>
           {Number.isFinite(perBlock) && Number.isFinite(perBox) && perBlock > 0 && perBox > 0 ? (
@@ -747,8 +902,12 @@ const StockModal: React.FC<{
   onClose: () => void;
   onUpdateStock: ProductsProps['onUpdateStock'];
   onProductsChanged: ProductsProps['onProductsChanged'];
-}> = ({ product, onClose, onUpdateStock, onProductsChanged }) => {
+  withPassword: WithPassword;
+}> = ({ product, onClose, onUpdateStock, onProductsChanged, withPassword }) => {
   const L = useL();
+  // Latest product while the password is being typed (a phone sale may change the stock meanwhile)
+  const liveRef = useRef(product);
+  liveRef.current = product;
   const [value, setValue] = useState('');
   const [minValue, setMinValue] = useState('');
   const [error, setError] = useState('');
@@ -796,11 +955,16 @@ const StockModal: React.FC<{
     setSaving(true);
     setError('');
     try {
-      // Only the threshold is sent, so the upsert cannot overwrite a fresher stock figure
-      if (minChanged) onProductsChanged((await send('/products', 'POST', { id: product.id, name: product.name, minStock: min })).products);
-      if (n !== product.stockDona) await onUpdateStock(product.id, n);
+      const ran = await withPassword(async (pw) => {
+        const live = liveRef.current || product;
+        // Only the threshold is sent, so the upsert cannot overwrite a fresher stock figure
+        if (min !== (live.minStock ?? null))
+          onProductsChanged((await send('/products', 'POST', { id: live.id, name: live.name, minStock: min }, pw)).products);
+        const next = Math.max(0, live.stockDona + (typed - openedStock));
+        if (next !== live.stockDona) await onUpdateStock(live.id, next, pw);
+      }, fmt(L(T.pwStock), { name: product.name }));
       setSaving(false);
-      onClose();
+      if (ran) onClose();
     } catch (err) {
       setSaving(false);
       setError(errText(err, L(T.saveError)));

@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
-import { Inbox, Receipt, Search, SearchX } from 'lucide-react';
-import { Order, OrderStatus, PaymentMethod } from '../types';
+import { Inbox, Printer, Receipt, Search, SearchX } from 'lucide-react';
+import { CompanySettings, Order, OrderStatus, PaymentMethod } from '../types';
+import { useWaybillPrint } from '../components/WaybillBatchPrint';
 import { useLanguage } from '../context/LanguageContext';
 import { dayKey, formatDate, formatDateTime, routeLabel } from '../utils/format';
 import { PeriodPicker, inPeriod, usePeriod } from '../components/PeriodPicker';
@@ -9,6 +10,7 @@ import { COMMON, PAYMENT_LABELS, STATUS_LABELS, Tri, useL } from '../i18n/tri';
 
 interface OrdersProps {
   orders: Order[];
+  company: CompanySettings;
   onViewOrder: (order: Order) => void;
 }
 
@@ -28,6 +30,9 @@ const PAYMENT_META: Record<PaymentMethod, { label: Tri; tone: Tone }> = {
 };
 
 const T = {
+  printSelected: { uz: 'Yuk xatlarini chop etish', uz_cyrl: 'Юк хатларини чоп этиш', ru: 'Печать накладных' },
+  selectAll: { uz: 'Hammasini tanlash', uz_cyrl: 'Ҳаммасини танлаш', ru: 'Выбрать все' },
+  clearSel: { uz: 'Bekor qilish', uz_cyrl: 'Бекор қилиш', ru: 'Снять выбор' },
   searchPlaceholder: { uz: 'ID yoki doʻkon nomi', uz_cyrl: 'ID ёки дўкон номи', ru: 'ID или название магазина' },
   allTab: { uz: 'Barchasi', uz_cyrl: 'Барчаси', ru: 'Все' },
   noOrders: { uz: 'Hali buyurtmalar yoʻq', uz_cyrl: 'Ҳали буюртмалар йўқ', ru: 'Заказов пока нет' },
@@ -46,7 +51,17 @@ const T = {
   returnWord: { uz: 'vozvrat', uz_cyrl: 'возврат', ru: 'возврат' },
 } satisfies Record<string, Tri>;
 
-export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
+export const Orders: React.FC<OrdersProps> = ({ orders, company, onViewOrder }) => {
+  // Orders ticked for printing their waybills together (one A4 page each)
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { printWaybills, node: printNode } = useWaybillPrint(company);
+  const toggle = (id: string) =>
+    setSelected((cur) => {
+      const next = new Set(cur);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   const { lang } = useLanguage();
   const L = useL();
   const [search, setSearch] = useState('');
@@ -63,6 +78,10 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
   }, [orders, search, statusFilter, period]);
 
   // Same meaning as the dashboard and reports: cancelled orders excluded, returns taken off
+  // Only orders still shown count, in the order they are listed
+  const selectedOrders = filteredOrders.filter((o) => selected.has(o.id));
+  const allSelected = filteredOrders.length > 0 && selectedOrders.length === filteredOrders.length;
+
   const totalSum = filteredOrders
     .filter((o) => o.status !== 'cancelled')
     .reduce((sum, o) => sum + o.finalAmount - (o.returnedAmount || 0), 0);
@@ -87,6 +106,7 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
 
   return (
     <div className="space-y-5">
+      {printNode}
       {/* Toolbar */}
       <div className="flex flex-wrap items-center gap-3">
         <SearchInput
@@ -108,6 +128,16 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
         />
         <PeriodPicker value={period} onChange={setPeriod} />
         <div className="flex items-center gap-2 ml-auto">
+          {selectedOrders.length > 0 && (
+            <>
+              <Button size="sm" icon={Printer} onClick={() => printWaybills(selectedOrders)}>
+                {L(T.printSelected)} ({selectedOrders.length})
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelected(new Set())}>
+                {L(T.clearSel)}
+              </Button>
+            </>
+          )}
           <Pill tone="gray" className="py-1.5 px-3 text-[13px]">
             <span className="tabular-nums">{filteredOrders.length}</span> {L(COMMON.pcs)}
           </Pill>
@@ -132,6 +162,16 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
           <Table>
             <thead>
               <tr>
+                <Th className="w-10">
+                  <input
+                    type="checkbox"
+                    aria-label={L(T.selectAll)}
+                    title={L(T.selectAll)}
+                    checked={allSelected}
+                    onChange={() => setSelected(allSelected ? new Set() : new Set(filteredOrders.map((o) => o.id)))}
+                    className="w-4 h-4 accent-brand-500 cursor-pointer"
+                  />
+                </Th>
                 <Th>№</Th>
                 <Th>{L(COMMON.date)}</Th>
                 <Th>{L(COMMON.shop)}</Th>
@@ -150,8 +190,18 @@ export const Orders: React.FC<OrdersProps> = ({ orders, onViewOrder }) => {
                   <tr
                     key={order.id}
                     onClick={() => onViewOrder(order)}
-                    className="cursor-pointer transition hover:bg-brand-50/40"
+                    className={`cursor-pointer transition hover:bg-brand-50/40 ${selected.has(order.id) ? 'bg-brand-50/60' : ''}`}
                   >
+                    <Td>
+                      <input
+                        type="checkbox"
+                        aria-label={`#${order.id.slice(-6).toUpperCase()}`}
+                        checked={selected.has(order.id)}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={() => toggle(order.id)}
+                        className="w-4 h-4 accent-brand-500 cursor-pointer"
+                      />
+                    </Td>
                     <Td className="whitespace-nowrap">
                       <span className="font-mono text-[13px] font-semibold text-brand-500">
                         #{order.id.slice(-6).toUpperCase()}

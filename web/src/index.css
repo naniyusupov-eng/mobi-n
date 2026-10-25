@@ -39,7 +39,51 @@
 }
 
 /* Print Specific Rules */
+/* Waybill paper copy lives outside the app (see InvoiceModal); only shown while printing it */
+.waybill-print {
+  display: none;
+}
+
+@page {
+  size: A4;
+  margin: 12mm;
+}
+
 @media print {
+  body.printing-waybill #root {
+    display: none !important;
+  }
+  body.printing-waybill .waybill-print {
+    display: block !important;
+  }
+  body.printing-waybill .waybill-print,
+  body.printing-waybill .waybill-print * {
+    visibility: visible !important;
+  }
+  .waybill tr,
+  .waybill .break-inside-avoid {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .waybill thead {
+    display: table-header-group; /* column titles repeat on every page */
+  }
+  /* Several waybills printed together: stacked one under another, a dashed cut line between,
+     a waybill is never split across two pages */
+  .waybill-batch > .waybill {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .waybill-batch > .waybill + .waybill {
+    margin-top: 4mm;
+    padding-top: 4mm;
+    border-top: 1px dashed #000;
+  }
+  .waybill {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
   body * {
     visibility: hidden;
   }

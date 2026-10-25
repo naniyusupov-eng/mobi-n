@@ -88,6 +88,7 @@ export interface Order {
   lineCode?: string;
   routeDay?: number;
   shopNum?: number;
+  shopPhone?: string; // contact of the shop, printed on the waybill
   returnedAmount?: number; // value of goods brought back (vozvrat)
 }
 

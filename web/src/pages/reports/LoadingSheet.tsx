@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { flushSync } from 'react-dom';
 import clsx from 'clsx';
-import { PackageOpen, Printer, RefreshCw } from 'lucide-react';
-import { PaymentMethod } from '../../types';
+import { FileStack, PackageOpen, Printer, RefreshCw } from 'lucide-react';
+import { CompanySettings, Order, PaymentMethod } from '../../types';
+import { useWaybillPrint } from '../../components/WaybillBatchPrint';
 import { useLanguage } from '../../context/LanguageContext';
 import { formatDay } from '../../utils/format';
 import { Button, Card, EmptyState, Money, Pill, Table, Td, Th, Tone } from '../../components/ui';
@@ -41,6 +42,12 @@ const T = {
   title: { uz: 'Yuk varaqasi', uz_cyrl: 'Юк варақаси', ru: 'Погрузочный лист' },
   delivery: { uz: 'Yetkazish kuni', uz_cyrl: 'Етказиш куни', ru: 'День доставки' },
   nOrders: { uz: '{n} ta buyurtma', uz_cyrl: '{n} та буюртма', ru: '{n} заказов' },
+  waybills: { uz: 'Yuk xatlari', uz_cyrl: 'Юк хатлари', ru: 'Накладные' },
+  waybillsHint: {
+    uz: 'Shu liniyaning hamma yuk xatlarini chop etish (har biri alohida betda)',
+    uz_cyrl: 'Шу линиянинг ҳамма юк хатларини чоп этиш (ҳар бири алоҳида бетда)',
+    ru: 'Печать всех накладных этой линии (каждая на отдельной странице)',
+  },
   products: { uz: 'Tovarlar', uz_cyrl: 'Товарлар', ru: 'Товары' },
   stops: { uz: 'Doʻkonlar ketma-ketligi', uz_cyrl: 'Дўконлар кетма-кетлиги', ru: 'Порядок магазинов' },
   code: { uz: 'Kod', uz_cyrl: 'Код', ru: 'Код' },
@@ -87,12 +94,20 @@ const Chip: React.FC<{ active: boolean; onClick: () => void; children: React.Rea
 
 interface LoadingSheetProps {
   day: string; // delivery day, YYYY-MM-DD
+  orders: Order[];
+  company: CompanySettings;
 }
 
 // What each line's truck takes on a delivery day: goods to load and shops in route order; printable
-export const LoadingSheet: React.FC<LoadingSheetProps> = ({ day }) => {
+export const LoadingSheet: React.FC<LoadingSheetProps> = ({ day, orders, company }) => {
   const { lang } = useLanguage();
   const L = useL();
+  const { printWaybills, node: waybillPrint } = useWaybillPrint(company);
+  // The line's orders in route order, as the driver will visit them
+  const lineOrders = (sheet: Sheet) => {
+    const byId = new Map(orders.map((o) => [o.id, o]));
+    return sheet.stops.map((st) => byId.get(st.orderId)).filter((o): o is Order => Boolean(o));
+  };
   const [sheets, setSheets] = useState<Sheet[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -151,6 +166,7 @@ export const LoadingSheet: React.FC<LoadingSheetProps> = ({ day }) => {
 
   return (
     <div className="space-y-5">
+      {waybillPrint}
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
         <div className="flex flex-wrap gap-2 min-w-0">
           <Chip active={activeLine === ''} onClick={() => setLineFilter('')}>
@@ -197,7 +213,20 @@ export const LoadingSheet: React.FC<LoadingSheetProps> = ({ day }) => {
                       {fmt(L(T.nOrders), { n: s.orders })}
                     </p>
                   </div>
-                  <Money value={s.total} className="text-[19px] font-bold text-ink-900" />
+                  <div className="flex items-center gap-3">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      icon={FileStack}
+                      className="no-print"
+                      title={L(T.waybillsHint)}
+                      disabled={lineOrders(s).length === 0}
+                      onClick={() => printWaybills(lineOrders(s))}
+                    >
+                      {L(T.waybills)} ({lineOrders(s).length})
+                    </Button>
+                    <Money value={s.total} className="text-[19px] font-bold text-ink-900" />
+                  </div>
                 </div>
 
                 <h4 className="text-sm font-semibold text-ink-900 mb-2">{L(T.products)}</h4>

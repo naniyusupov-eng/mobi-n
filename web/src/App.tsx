@@ -14,6 +14,7 @@ import { CompanySettings, Order, OrderStatus, Product } from './types';
 import { COMMON, useL } from './i18n/tri';
 import { Login } from './pages/Login';
 import { API, apiFetch, getToken, onSignedOut } from './api';
+import { adminPasswordHeader, throwIfAdminPasswordError } from './components/AdminPasswordModal';
 
 /** Current page plus optional parameters (e.g. the route to open on the Clients page) */
 export interface AppRoute {
@@ -77,13 +78,15 @@ function AdminApp() {
       .catch(() => {});
   }, []);
 
-  const postJson = async (path: string, body: unknown) => {
+  /** `adminPassword` is only for the product calls the server protects with X-Admin-Password */
+  const postJson = async (path: string, body: unknown, adminPassword?: string) => {
     const res = await apiFetch(`${API}${path}`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...(adminPassword !== undefined ? adminPasswordHeader(adminPassword) : {}) },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    throwIfAdminPasswordError(res, data);
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     return data;
   };
@@ -110,13 +113,13 @@ function AdminApp() {
     setInvoiceOrder((cur) => (cur && cur.id === order.id ? { ...cur, ...order } : cur));
   };
 
-  const handleAddProduct = async (newProd: Product) => {
-    const data = await postJson('/products', newProd);
+  const handleAddProduct = async (newProd: Product, adminPassword: string) => {
+    const data = await postJson('/products', newProd, adminPassword);
     setProducts(data.products);
   };
 
-  const handleUpdateStock = async (productId: string, newStock: number) => {
-    const data = await postJson(`/products/${productId}/stock`, { stockDona: newStock });
+  const handleUpdateStock = async (productId: string, newStock: number, adminPassword: string) => {
+    const data = await postJson(`/products/${productId}/stock`, { stockDona: newStock }, adminPassword);
     setProducts(data.products);
   };
 
@@ -151,7 +154,7 @@ function AdminApp() {
               <Dashboard orders={orders} totalDebt={debt.total} debtorsCount={debt.count} />
               <section id="orders" className="space-y-3 scroll-mt-4">
                 <h2 className="px-1 text-[19px] font-bold tracking-tight text-ink-900">{L(COMMON.orders)}</h2>
-                <Orders orders={orders} onViewOrder={setInvoiceOrder} />
+                <Orders orders={orders} company={company} onViewOrder={setInvoiceOrder} />
               </section>
             </div>
           )}
