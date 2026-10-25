@@ -1,5 +1,5 @@
 /**
- * Mobi_R Sync Bridge Server
+ * RCandy Sync Bridge Server
  * Endpoints for live synchronization between Mobile APK and Web Admin.
  */
 const http = require('http');
@@ -17,7 +17,7 @@ const BACKUP_DIR = path.join(DATA_DIR, 'backups');
 const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
 // Built website (npm run build in web/); when present the server shows it on the same address
 const WEB_DIST = process.env.WEB_DIST ? path.resolve(process.env.WEB_DIST) : path.join(__dirname, '..', 'web', 'dist');
-const SEED_PRODUCTS = require('./seed-products.cjs');
+// A new installation starts with an empty catalogue (the client adds the real products on the website)
 
 const INITIAL_DATA = {
   orders: [],
@@ -29,7 +29,7 @@ const INITIAL_DATA = {
   // Shops added from the mobile app that are not on a route yet
   shops: [],
   // Warehouse: { id, code, name, ..., stockDona }
-  products: SEED_PRODUCTS,
+  products: [],
   // Returned goods: { id, orderId, lineCode, routeDay, salesDate, reason, items[], total, createdAt }
   returns: [],
 };
@@ -69,7 +69,7 @@ function loadDatabase() {
   if (!Array.isArray(db.clients)) db.clients = [];
   if (!Array.isArray(db.shops)) db.shops = [];
   if (!Array.isArray(db.returns)) db.returns = [];
-  if (!Array.isArray(db.products)) db.products = JSON.parse(JSON.stringify(SEED_PRODUCTS));
+  if (!Array.isArray(db.products)) db.products = [];
   if (!db.auth) db.auth = { admin: null, sessions: [] };
   if (!Array.isArray(db.auth.sessions)) db.auth.sessions = [];
   cache = db;
@@ -161,6 +161,50 @@ function productPasswordError(req, db, ip) {
 }
 
 /** Line (code) an order's shop belongs to */
+// The caller's address. Behind nginx on the same machine every request comes from 127.0.0.1,
+// so the address nginx passes in X-Forwarded-For is used then (only trusted from loopback).
+function clientIp(req) {
+  const direct = req.socket.remoteAddress || '';
+  const fwd = String(req.headers['x-forwarded-for'] || '').split(',').pop().trim();
+  return fwd && /^(127\.|::1$|::ffff:127\.)/.test(direct) ? fwd : direct;
+}
+
+/**
+ * Checks a new order from a phone and normalises its numbers in place.
+ * Returns { status, error } when it must be refused, otherwise null.
+ * 409 = the shop is not on the server yet (its upload may still be on the way): the phone retries.
+ */
+function orderProblem(db, order, session) {
+  const num = (v) => (v === '' || v == null ? NaN : Number(v));
+  const nonNeg = (v) => Number.isFinite(v) && v >= 0;
+  if (!Array.isArray(order.items) || order.items.length === 0) return { status: 400, error: 'Order has no items' };
+  for (const item of order.items) {
+    item.quantity = num(item.quantity);
+    item.unitPrice = num(item.unitPrice);
+    if (!item.productId || !(Number.isFinite(item.quantity) && item.quantity > 0) || !nonNeg(item.unitPrice)) {
+      return { status: 400, error: 'Bad item quantity or price' };
+    }
+    if (item.totalPrice != null) item.totalPrice = num(item.totalPrice);
+  }
+  for (const key of ['totalAmount', 'discountAmount', 'finalAmount']) {
+    if (order[key] == null) continue;
+    order[key] = num(order[key]);
+    if (!nonNeg(order[key])) return { status: 400, error: `${key} must be a non-negative number` };
+  }
+  if (order.finalAmount != null && order.totalAmount != null && order.finalAmount > order.totalAmount) {
+    return { status: 400, error: 'finalAmount is more than totalAmount' };
+  }
+  // A new order starts open: "cancelled" or "delivered" here would skip stock and debt rules
+  if (!['new', 'confirmed', 'pending'].includes(order.status)) order.status = 'confirmed';
+  if (!order.shopId) return null;
+  const shop = findShop(db, order.shopId);
+  if (!shop) return { status: 409, error: 'Shop not on the server yet' };
+  if (session.role !== 'admin' && shop.lineCode && shop.lineCode !== session.line) {
+    return { status: 403, error: 'Shop is not on your line' };
+  }
+  return null;
+}
+
 function orderLine(db, orderId) {
   const order = db.orders.find((o) => o.id === orderId);
   const client = order ? db.clients.find((c) => c.id === order.shopId) : null;
@@ -175,11 +219,20 @@ function localDate(value) {
   return dayFormat.format(new Date(value));
 }
 
+// Route days 1-6 (Monday-Saturday), as the phone names them
+const ROUTE_DAY_NAMES = ['Dushanba', 'Seshanba', 'Chorshanba', 'Payshanba', 'Juma', 'Shanba'];
+/** Today's route day in Tashkent; Sunday counts as Monday */
+function todayRouteDay() {
+  const wd = new Date(`${localDate(Date.now())}T12:00:00Z`).getUTCDay();
+  return wd === 0 ? 1 : wd;
+}
+
 // Orders the shop pays for later (the phone has sent both spellings)
 const isCredit = (order) => order.paymentMethod === 'nasiya' || order.paymentMethod === 'debt';
 
 // What the shop was charged for the order
-const orderCharge = (order) => order.finalAmount || order.totalAmount || 0;
+// (?? not ||: an order fully covered by promotions has finalAmount 0 and costs nothing)
+const orderCharge = (order) => order.finalAmount ?? order.totalAmount ?? 0;
 
 // Share of the list price actually charged (orders can carry a discount)
 const chargeRatio = (order) => (order.totalAmount > 0 ? orderCharge(order) / order.totalAmount : 1);
@@ -333,7 +386,7 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/health' || pathname === '/api/v1/health' || pathname === '') {
       return jsonResponse(res, 200, {
         status: 'ok',
-        app: 'Mobi_R Sync Server',
+        app: 'RCandy Sync Server',
         time: new Date().toISOString(),
       });
     }
@@ -343,7 +396,7 @@ const server = http.createServer(async (req, res) => {
       if (serveWeb(res, pathname)) return;
     }
 
-    const ip = req.socket.remoteAddress || '';
+    const ip = clientIp(req);
 
     // GET /api/v1/auth/status — does the admin still need to choose a password?
     if (req.method === 'GET' && pathname === '/api/v1/auth/status') {
@@ -369,11 +422,13 @@ const server = http.createServer(async (req, res) => {
 
     // POST /api/v1/auth/login — { username, password } website admin
     if (req.method === 'POST' && pathname === '/api/v1/auth/login') {
-      if (auth.tooManyAttempts(ip)) return jsonResponse(res, 429, { error: 'Too many attempts, wait 10 minutes' });
+      // Only wrong attempts count, so many people signing in from one office are not blocked
+      if (auth.isBlocked(`login:${ip}`)) return jsonResponse(res, 429, { error: 'Too many attempts, wait 10 minutes' });
       const { username, password } = await parseBody(req);
       const db = loadDatabase();
       const admin = db.auth.admin;
       if (!admin || String(username || '').trim() !== admin.username || !auth.verifyPassword(password, admin)) {
+        auth.noteFailure(`login:${ip}`);
         return jsonResponse(res, 401, { error: 'Wrong username or password' });
       }
       const token = auth.newToken();
@@ -386,11 +441,14 @@ const server = http.createServer(async (req, res) => {
 
     // POST /api/v1/auth/line — { key } from a line QR code (or typed) -> phone session
     if (req.method === 'POST' && pathname === '/api/v1/auth/line') {
-      if (auth.tooManyAttempts(ip)) return jsonResponse(res, 429, { error: 'Too many attempts, wait 10 minutes' });
+      if (auth.isBlocked(`line:${ip}`)) return jsonResponse(res, 429, { error: 'Too many attempts, wait 10 minutes' });
       const { key } = await parseBody(req);
       const db = loadDatabase();
       const found = auth.findLineKey(db, key);
-      if (!found) return jsonResponse(res, 401, { error: 'Unknown line key' });
+      if (!found) {
+        auth.noteFailure(`line:${ip}`);
+        return jsonResponse(res, 401, { error: 'Unknown line key' });
+      }
       const token = auth.newToken();
       db.auth.sessions.push({
         token,
@@ -625,15 +683,19 @@ const server = http.createServer(async (req, res) => {
 
     // POST /api/v1/cash/handover — { line, date, amount, note } the cashier took cash from a driver
     if (req.method === 'POST' && pathname === '/api/v1/cash/handover') {
-      const { line, date, amount, note } = await parseBody(req);
+      const { id, line, date, amount, note } = await parseBody(req);
       const db = loadDatabase();
+      // The website sends its own id; the same id again (double click, retry) is not saved twice
+      const clientId = typeof id === 'string' && /^[\w-]{6,80}$/.test(id) ? id : null;
+      const known = clientId && (db.handovers || []).find((h) => h.id === clientId);
+      if (known) return jsonResponse(res, 200, { success: true, handover: known, duplicate: true });
       const value = Math.round(Number(amount));
       if (!db.lines.some((l) => l.code === line)) return jsonResponse(res, 400, { error: 'Unknown line' });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return jsonResponse(res, 400, { error: 'date must be YYYY-MM-DD' });
       if (!(value > 0)) return jsonResponse(res, 400, { error: 'amount must be positive' });
       if (!Array.isArray(db.handovers)) db.handovers = [];
       const handover = {
-        id: `hand_${Date.now()}`,
+        id: clientId || `hand_${Date.now()}`,
         line,
         date,
         amount: value,
@@ -790,6 +852,7 @@ const server = http.createServer(async (req, res) => {
       const db = loadDatabase();
       const order = db.orders.find((o) => o.id === body.orderId);
       if (!order) return jsonResponse(res, 404, { error: 'Order not found' });
+      if (session.role !== 'admin' && orderLine(db, order.id) !== session.line) return jsonResponse(res, 403, { error: 'Not your line' });
       // Phones send their own id; the same id again means a retried upload
       const clientId = typeof body.id === 'string' && /^[\w-]{6,80}$/.test(body.id) ? body.id : null;
       if (clientId) {
@@ -979,6 +1042,13 @@ const server = http.createServer(async (req, res) => {
       const db = loadDatabase();
       const itemsToSync = Array.isArray(payload) ? payload : [payload];
 
+      // A new order is checked before anything is applied: bad numbers would corrupt stock and debt
+      for (const order of itemsToSync) {
+        if (!order || !order.id || db.orders.some((o) => o.id === order.id)) continue;
+        const problem = orderProblem(db, order, session);
+        if (problem) return jsonResponse(res, problem.status, { error: problem.error, orderId: order.id });
+      }
+
       let addedCount = 0;
       for (const order of itemsToSync) {
         if (!order || !order.id) continue;
@@ -1015,8 +1085,8 @@ const server = http.createServer(async (req, res) => {
             const shop = findShop(db, order.shopId);
             if (shop && creditInfo(db, shop).creditBlocked) order.creditWarning = true;
             if (shop) {
-              shop.debtBalance = (shop.debtBalance || 0) + (order.finalAmount || order.totalAmount || 0);
-              shop.lastOrderDate = new Date().toISOString().split('T')[0];
+              shop.debtBalance = (shop.debtBalance || 0) + orderCharge(order);
+              shop.lastOrderDate = localDate(Date.now());
             }
           }
         }
@@ -1033,18 +1103,45 @@ const server = http.createServer(async (req, res) => {
 
     // POST /api/v1/shops/sync
     if (req.method === 'POST' && pathname === '/api/v1/shops/sync') {
-      const newShop = await parseBody(req);
+      const body = await parseBody(req);
       const db = loadDatabase();
-      if (newShop && newShop.id) {
-        const index = db.shops.findIndex((s) => s.id === newShop.id);
-        if (index >= 0) {
-          db.shops[index] = { ...db.shops[index], ...newShop };
+      if (body && body.id) {
+        // Debt, credit limit and price list are kept by the server only: a phone always sends
+        // debtBalance 0, and a retried upload must not wipe the debt its orders added meanwhile
+        const { debtBalance: _d, creditLimit: _c, priceListId: _p, ...newShop } = body;
+        // What the phone may set; line, day and number are decided here
+        const pick = (s) => {
+          const out = {};
+          for (const k of ['name', 'ownerName', 'phone', 'address', 'latitude', 'longitude']) if (s[k] !== undefined) out[k] = s[k];
+          return out;
+        };
+        const client = db.clients.find((c) => c.id === newShop.id);
+        const legacy = db.shops.findIndex((s) => s.id === newShop.id);
+        if (client) {
+          Object.assign(client, pick(newShop)); // a resend: details only
+        } else if (legacy >= 0) {
+          db.shops[legacy] = { ...db.shops[legacy], ...newShop };
         } else {
-          db.shops.push(newShop);
+          // A shop added on the phone joins the agent's line as a route shop, so its orders reach
+          // the driver, the loading sheet and the website like any other shop of the line
+          const lineCode = session.role === 'admin' ? String(newShop.lineCode || '') : session.line;
+          const named = ROUTE_DAY_NAMES.indexOf(newShop.visitDay) + 1;
+          const day = named > 0 ? named : Math.min(6, Math.max(1, Number(newShop.routeDay) || todayRouteDay()));
+          const nums = db.clients.filter((c) => c.lineCode === lineCode && Number(c.day) === day).map((c) => Number(c.num) || 0);
+          db.clients.push({
+            id: newShop.id,
+            ...pick(newShop),
+            lineCode,
+            day,
+            num: (nums.length ? Math.max(...nums) : 0) + 1,
+            notes: 'Telefondan qoʻshilgan',
+            debtBalance: 0,
+            createdAt: newShop.createdAt || new Date().toISOString(),
+          });
         }
         saveDatabase(db);
       }
-      return jsonResponse(res, 200, { success: true, shops: db.shops });
+      return jsonResponse(res, 200, { success: true });
     }
 
     // POST /api/v1/payments/sync (PKO)
@@ -1073,7 +1170,11 @@ const server = http.createServer(async (req, res) => {
               shopName: shop.name,
               amount: applied,
               by: String(payment.by || ''),
-              createdAt: payment.createdAt || new Date().toISOString(),
+              // A broken or future phone time would break the daily cash report
+              createdAt:
+                Number.isFinite(Date.parse(payment.createdAt)) && Date.parse(payment.createdAt) <= Date.now() + 5 * 60 * 1000
+                  ? payment.createdAt
+                  : new Date().toISOString(),
             });
           }
           saveDatabase(db);
@@ -1456,6 +1557,7 @@ const server = http.createServer(async (req, res) => {
         db.lines.push({ ...line, id: line.id || `line_${Date.now()}`, code });
       }
       db.lines.sort((a, b) => a.code.localeCompare(b.code, undefined, { numeric: true }));
+      auth.ensureLineKeys(db); // a new line gets its agent and driver keys right away
       saveDatabase(db);
       return jsonResponse(res, 200, { success: true, lines: db.lines });
     }
@@ -1560,6 +1662,6 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, HOST, () => {
-  console.log(`Mobi_R server on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}  (data: ${DATA_DIR})`);
+  console.log(`RCandy server on http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}  (data: ${DATA_DIR})`);
   if (fs.existsSync(path.join(WEB_DIST, 'index.html'))) console.log(`Website served from ${WEB_DIST}`);
 });
