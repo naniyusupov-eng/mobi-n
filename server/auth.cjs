@@ -109,7 +109,18 @@ function tooManyAttempts(ip) {
   return a.count > 10;
 }
 
+// Same brake, but counting only failures: isBlocked() checks without counting, noteFailure() counts one
+function isBlocked(key) {
+  const a = attempts.get(key);
+  return !!a && Date.now() <= a.reset && a.count >= 10;
+}
+function noteFailure(key) {
+  tooManyAttempts(key);
+}
+
 module.exports = {
+  isBlocked,
+  noteFailure,
   hashPassword,
   verifyPassword,
   newToken,

@@ -139,6 +139,27 @@ function serveWeb(res, pathname) {
   return true;
 }
 
+/**
+ * Changing the product catalogue asks for the admin password again (sent in X-Admin-Password),
+ * so an open admin session alone cannot add, edit or delete products. Returns an error reply or null.
+ */
+function productPasswordError(req, db, ip) {
+  // The website sends it URI-encoded (headers cannot carry Cyrillic as is)
+  let given = req.headers['x-admin-password'];
+  try {
+    given = given ? decodeURIComponent(given) : given;
+  } catch {
+    // not encoded: use as is
+  }
+  if (!given) return { status: 403, body: { error: 'Admin password required', code: 'ADMIN_PASSWORD' } };
+  // Only wrong passwords count toward the brake (normal editing is never blocked),
+  // but once blocked every try is refused, so guessing stops
+  if (auth.isBlocked(`pw:${ip}`)) return { status: 429, body: { error: 'Too many attempts, wait 10 minutes' } };
+  if (auth.verifyPassword(String(given), db.auth.admin)) return null;
+  auth.noteFailure(`pw:${ip}`);
+  return { status: 403, body: { error: 'Wrong admin password', code: 'ADMIN_PASSWORD_WRONG' } };
+}
+
 /** Line (code) an order's shop belongs to */
 function orderLine(db, orderId) {
   const order = db.orders.find((o) => o.id === orderId);
@@ -262,7 +283,7 @@ function creditInfo(db, shop) {
 function setCorsHeaders(res) {
   res.setHeader('Access-Control-Allow-Origin', CORS_ORIGIN);
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-Admin-Password');
   res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition'); // backup download keeps its file name
 }
 
@@ -473,7 +494,8 @@ const server = http.createServer(async (req, res) => {
       const clientsById = new Map(db.clients.map((c) => [c.id, c]));
       const orders = db.orders.map((o) => {
         const c = clientsById.get(o.shopId);
-        return c ? { ...o, lineCode: c.lineCode, routeDay: c.day, shopNum: c.num } : o;
+        // Route and contact of the shop travel with the order (printed on the waybill)
+        return c ? { ...o, lineCode: c.lineCode, routeDay: c.day, shopNum: c.num, shopPhone: c.phone || '', shopAddress: o.shopAddress || c.address || '' } : o;
       });
       return jsonResponse(res, 200, {
         success: true,
@@ -720,9 +742,27 @@ const server = http.createServer(async (req, res) => {
       const product = await parseBody(req);
       if (!product || !product.id || !product.name) return jsonResponse(res, 400, { error: 'id and name are required' });
       const db = loadDatabase();
+      const pwError = productPasswordError(req, db, ip);
+      if (pwError) return jsonResponse(res, pwError.status, pwError.body);
       const index = db.products.findIndex((p) => p.id === product.id);
       if (index >= 0) db.products[index] = { ...db.products[index], ...product };
       else db.products.unshift(product);
+      saveDatabase(db);
+      return jsonResponse(res, 200, { success: true, products: db.products });
+    }
+
+    // DELETE /api/v1/products/:id — remove a product from the catalogue (past orders keep its name)
+    const productDelMatch = pathname.match(/^\/api\/v1\/products\/([^/]+)$/);
+    if (req.method === 'DELETE' && productDelMatch) {
+      const db = loadDatabase();
+      const pwError = productPasswordError(req, db, ip);
+      if (pwError) return jsonResponse(res, pwError.status, pwError.body);
+      const product = db.products.find((x) => x.id === productDelMatch[1]);
+      if (!product) return jsonResponse(res, 404, { error: 'Product not found' });
+      db.products = db.products.filter((x) => x.id !== product.id);
+      for (const list of db.priceLists || []) delete list.prices[product.id];
+      db.promos = (db.promos || []).filter((x) => x.productId !== product.id);
+      logStockMove(db, { ...product, stockDona: 0 }, -(product.stockDona || 0), { type: 'adjust', note: 'Tovar oʻchirildi' });
       saveDatabase(db);
       return jsonResponse(res, 200, { success: true, products: db.products });
     }
@@ -732,6 +772,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && stockMatch) {
       const { stockDona } = await parseBody(req);
       const db = loadDatabase();
+      const pwError = productPasswordError(req, db, ip);
+      if (pwError) return jsonResponse(res, pwError.status, pwError.body);
       const product = db.products.find((p) => p.id === stockMatch[1]);
       if (!product || !(stockDona >= 0)) return jsonResponse(res, 400, { error: 'Unknown product or bad stock' });
       const before = product.stockDona || 0;
@@ -1016,23 +1058,35 @@ const server = http.createServer(async (req, res) => {
         if (!Array.isArray(db.paymentIds)) db.paymentIds = [];
         const alreadyApplied = payment.id && db.paymentIds.includes(payment.id);
         if (!shop) return jsonResponse(res, 404, { error: 'Shop not found' });
+        let applied = 0;
         if (!alreadyApplied) {
-          shop.debtBalance = Math.max(0, (shop.debtBalance || 0) - payment.amount);
+          // A payment can only pay off debt that exists: the cash book records what was actually taken off
+          // (a shop without debt pays nothing here — its order money is taken on delivery, not as PKO)
+          applied = Math.min(Math.round(payment.amount), Math.max(0, shop.debtBalance || 0));
           if (payment.id) db.paymentIds.push(payment.id);
-          if (!Array.isArray(db.payments)) db.payments = [];
-          db.payments.unshift({
-            id: payment.id || `pay_${Date.now()}`,
-            shopId: payment.shopId,
-            shopName: shop.name,
-            amount: Math.round(payment.amount),
-            by: String(payment.by || ''),
-            createdAt: payment.createdAt || new Date().toISOString(),
-          });
+          if (applied > 0) {
+            shop.debtBalance = (shop.debtBalance || 0) - applied;
+            if (!Array.isArray(db.payments)) db.payments = [];
+            db.payments.unshift({
+              id: payment.id || `pay_${Date.now()}`,
+              shopId: payment.shopId,
+              shopName: shop.name,
+              amount: applied,
+              by: String(payment.by || ''),
+              createdAt: payment.createdAt || new Date().toISOString(),
+            });
+          }
           saveDatabase(db);
         }
+        // Credit state (limit, debt age) comes back too, so the website row updates right away
+        return jsonResponse(res, 200, {
+          success: true,
+          applied,
+          rejected: alreadyApplied ? 0 : Math.round(payment.amount) - applied, // more than the debt: not taken
+          shop: { ...shop, ...creditInfo(db, shop) },
+        });
       }
-      // Credit state (limit, debt age) comes back too, so the website row updates right away
-      return jsonResponse(res, 200, { success: true, shop: shop ? { ...shop, ...creditInfo(db, shop) } : shop });
+      return jsonResponse(res, 400, { error: 'shopId and a positive amount are required' });
     }
 
     // GET /api/v1/debts — shops that owe money, biggest debt first
