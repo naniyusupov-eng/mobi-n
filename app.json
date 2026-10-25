@@ -42,7 +42,8 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Do'konlarga tashrif buyurilganini va lokatsiyasini aniqlash uchun ruxsat bering."
         }
-      ]
+      ],
+      "expo-status-bar"
     ]
   }
 }

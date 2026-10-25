@@ -220,7 +220,7 @@ export const ShopsListScreen = ({ navigation }: { navigation: any }) => {
                 </AppText>
               </Row>
             </Card>
-          ) : null
+          ) : undefined
         }
         ListEmptyComponent={<EmptyState icon={Store} title={emptyTitle} hint={L(TX.emptyHint)} />}
       />
