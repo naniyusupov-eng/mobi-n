@@ -85,11 +85,13 @@ export const PaymentSheet: React.FC<{ shop: Shop | null; onClose: () => void; on
     setAmount(shop && shop.debtBalance > 0 ? String(shop.debtBalance) : '');
   }, [shop]);
 
-  const value = Number(amount.replace(/\D/g, '')) || 0;
-  const quick = [100_000, 500_000, 1_000_000];
+  const debt = shop ? Math.max(0, shop.debtBalance) : 0;
+  // PKO pays off old debt only; it can never be more than the debt
+  const value = Math.min(Number(amount.replace(/\D/g, '')) || 0, debt);
+  const quick = [100_000, 500_000, 1_000_000].filter((q) => q < debt);
 
   const handleConfirm = () => {
-    if (!shop || value <= 0) return;
+    if (!shop || value <= 0 || debt <= 0) return;
     shopRepository.collectPayment(shop.id, value, `${session?.role || 'agent'}:${session?.lineCode || ''}`);
     onClose();
     onDone?.();
@@ -107,10 +109,22 @@ export const PaymentSheet: React.FC<{ shop: Shop | null; onClose: () => void; on
       footer={
         <>
           <Button title={L(COMMON.cancel)} variant="outline" onPress={onClose} style={styles.flex} />
-          <Button title={L(COMMON.confirm)} onPress={handleConfirm} disabled={value <= 0} style={styles.flex} />
+          <Button title={L(COMMON.confirm)} onPress={handleConfirm} disabled={value <= 0 || debt <= 0} style={styles.flex} />
         </>
       }
     >
+      <AppText variant="caption" lines={3}>
+        {L({
+          uz: 'PKO — faqat eski qarz toʻlovi. Bugun yetkazilgan naqd buyurtma puli bu yerga kiritilmaydi, u yetkazishda olinadi.',
+          uz_cyrl: 'ПКО — фақат эски қарз тўлови. Бугун етказилган нақд буюртма пули бу ерга киритилмайди, у етказишда олинади.',
+          ru: 'ПКО — только оплата старого долга. Деньги за доставленный сегодня заказ за наличные сюда не вносятся, их берут при доставке.',
+        })}
+      </AppText>
+      {shop && shop.debtBalance <= 0 ? (
+        <AppText variant="strong" color={colors.success}>
+          {L(COMMON.noDebt)}
+        </AppText>
+      ) : null}
       {shop && shop.debtBalance > 0 ? (
         <View style={styles.debtBox}>
           <AppText variant="small" color={colors.danger}>

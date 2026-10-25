@@ -227,7 +227,7 @@ export const DeliveryDetailScreen = ({ route, navigation }: { route: any; naviga
               </AppText>
             )}
           </View>
-          <Button title={L(PKO_LABEL)} icon={Wallet} size="sm" variant={d.shopDebt > 0 ? 'danger' : 'outline'} onPress={openPko} />
+          {d.shopDebt > 0 ? <Button title={L(PKO_LABEL)} icon={Wallet} size="sm" variant="danger" onPress={openPko} /> : null}
         </Row>
       </Card>
 

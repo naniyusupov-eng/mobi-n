@@ -3,11 +3,12 @@ import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator, NativeStackHeaderProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Truck, User, Wallet } from 'lucide-react-native';
+import { Truck, User, Users, Wallet } from 'lucide-react-native';
 import { DeliveriesScreen } from '../screens/Driver/DeliveriesScreen';
 import { DeliveryDetailScreen } from '../screens/Driver/DeliveryDetailScreen';
 import { LOADING_TITLE, LoadingListScreen } from '../screens/Driver/LoadingListScreen';
 import { PkoScreen } from '../screens/Driver/PkoScreen';
+import { DebtorsScreen } from '../screens/Driver/DebtorsScreen';
 import { ProfileScreen } from '../screens/Profile/ProfileScreen';
 import { AppHeader } from '../components/AppHeader';
 import { Tri, useL } from '../i18n/tri';
@@ -20,6 +21,7 @@ const TITLES = {
   deliveries: { uz: 'Yetkazish', uz_cyrl: 'Етказиш', ru: 'Доставка' },
   delivery: { uz: 'Buyurtma', uz_cyrl: 'Буюртма', ru: 'Заказ' },
   pko: { uz: 'PKO', uz_cyrl: 'ПКО', ru: 'ПКО' },
+  debtors: { uz: 'Qarzdorlar', uz_cyrl: 'Қарздорлар', ru: 'Должники' },
   profile: { uz: 'Profil', uz_cyrl: 'Профил', ru: 'Профиль' },
 } satisfies Record<string, Tri>;
 
@@ -90,6 +92,7 @@ export const DriverTabNavigator = () => {
         component={DeliveryStackNavigator}
         options={{ headerShown: false, title: L(TITLES.deliveries), tabBarIcon: tabIcon(Truck) }}
       />
+      <Tab.Screen name="DebtorsTab" component={DebtorsScreen} options={{ title: L(TITLES.debtors), tabBarIcon: tabIcon(Users) }} />
       <Tab.Screen name="PkoTab" component={PkoScreen} options={{ title: L(TITLES.pko), tabBarIcon: tabIcon(Wallet) }} />
       <Tab.Screen name="ProfileTab" component={ProfileScreen} options={{ title: L(TITLES.profile), tabBarIcon: tabIcon(User) }} />
     </Tab.Navigator>

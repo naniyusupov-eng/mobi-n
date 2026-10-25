@@ -1,29 +1,26 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { Banknote, CheckCircle2, CloudOff, Landmark, Store, Wallet } from 'lucide-react-native';
+import { Banknote, CheckCircle2, CloudOff, Landmark, Wallet } from 'lucide-react-native';
 import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { useSyncStore } from '../../store/syncStore';
 import { getTodayDateString } from '../../store/dateStore';
-import { shopRepository } from '../../database/shopRepository';
-import { lineService } from '../../services/lineService';
 import { CashLine, PaymentRecord, driverOffline, driverService } from '../../services/driverService';
 import { colors, space } from '../../theme/colors';
-import { AppText, Card, Divider, EmptyState, HeroCard, HeroPill, IconCircle, KeyValue, ListItem, Money, Row, Screen, SearchBar, SectionHeader } from '../../components/ui';
-import { PaymentSheet } from '../../components/shared';
-import { shopRouteCode } from '../../components/shopHelpers';
-import { COMMON, Tri, offlineCopyNote, useL } from '../../i18n/tri';
-import { formatMoney, formatNumber, formatShopNum, formatTime } from '../../utils/format';
-import { Shop } from '../../types';
+import { AppText, Card, Divider, EmptyState, HeroCard, HeroPill, IconCircle, KeyValue, ListItem, Money, Row, Screen, SectionHeader } from '../../components/ui';
+import { Tri, offlineCopyNote, useL } from '../../i18n/tri';
+import { formatMoney, formatNumber, formatTime } from '../../utils/format';
 
 const T = {
   todayPko: { uz: 'Bugungi PKO', uz_cyrl: 'Бугунги ПКО', ru: 'ПКО сегодня' },
   payments: { uz: 'ta toʻlov', uz_cyrl: 'та тўлов', ru: 'платежей' },
-  totalDebt: { uz: 'Liniya qarzi', uz_cyrl: 'Линия қарзи', ru: 'Долг линии' },
-  debtors: { uz: 'Qarzdor doʻkonlar', uz_cyrl: 'Қарздор дўконлар', ru: 'Магазины с долгом' },
-  searchPh: { uz: 'Doʻkon nomi, raqami yoki telefon', uz_cyrl: 'Дўкон номи, рақами ёки телефон', ru: 'Название, номер или телефон' },
   accepted: { uz: 'Bugun qabul qilingan', uz_cyrl: 'Бугун қабул қилинган', ru: 'Принято сегодня' },
+  noneToday: {
+    uz: 'Bugun PKO yoʻq. Qarz toʻlovi uchun "Qarzdorlar" boʻlimidan doʻkonni tanlang',
+    uz_cyrl: 'Бугун ПКО йўқ. Қарз тўлови учун "Қарздорлар" бўлимидан дўконни танланг',
+    ru: 'Сегодня ПКО нет. Для оплаты долга выберите магазин в разделе «Должники»',
+  },
   pending: { uz: 'yuborilmoqda', uz_cyrl: 'юборилмоқда', ru: 'отправляется' },
   cash: { uz: 'Kassa', uz_cyrl: 'Касса', ru: 'Касса' },
   inHand: { uz: 'Bugun qoʻlingizdagi naqd', uz_cyrl: 'Бугун қўлингиздаги нақд', ru: 'Наличные на руках сегодня' },
@@ -36,7 +33,7 @@ const T = {
   cashUnknown: { uz: 'Kassa maʼlumoti yuklanmadi', uz_cyrl: 'Касса маълумоти юкланмади', ru: 'Данные кассы не загружены' },
 } satisfies Record<string, Tri>;
 
-// PKO: the driver collects debt payments from the line's shops
+// PKO: today's debt payments and the cash the driver holds (debtors are in their own tab)
 export const PkoScreen = () => {
   const L = useL();
   const lang = useLanguageStore((s) => s.lang);
@@ -46,19 +43,11 @@ export const PkoScreen = () => {
   const lineCode = session?.lineCode || '';
   const by = `driver:${lineCode}`;
 
-  const [shops, setShops] = useState<Shop[]>([]);
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
-  const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [payShop, setPayShop] = useState<Shop | null>(null);
   const [cash, setCash] = useState<CashLine | null>(null);
   const [cashOffline, setCashOffline] = useState(false);
   const [cashAt, setCashAt] = useState<string | null>(null);
-
-  const loadLocal = useCallback(() => {
-    setShops(shopRepository.getAll().filter((s) => s.debtBalance > 0));
-    refreshPendingCount();
-  }, [refreshPendingCount]);
 
   const loadPayments = useCallback(async () => {
     try {
@@ -82,61 +71,36 @@ export const PkoScreen = () => {
     }
   }, [lineCode]);
 
-  useEffect(() => {
-    loadLocal();
+  const loadAll = useCallback(() => {
+    refreshPendingCount();
     loadPayments();
     loadCash();
-  }, [loadLocal, loadPayments, loadCash]);
+  }, [refreshPendingCount, loadPayments, loadCash]);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
   useFocusEffect(
     useCallback(() => {
-      loadLocal();
-      loadPayments();
-      loadCash();
-    }, [loadLocal, loadPayments, loadCash])
+      loadAll();
+    }, [loadAll])
   );
 
-  // Pull to refresh also brings fresh debts from the server
   const onRefresh = async () => {
     setRefreshing(true);
-    try {
-      if (lineCode) await lineService.downloadShops(lineCode);
-    } catch {
-      // offline: phone data stays
-    }
-    loadLocal();
+    refreshPendingCount();
     await Promise.all([loadPayments(), loadCash()]);
     setRefreshing(false);
   };
 
-  const q = search.trim().toLowerCase();
-  const shown = useMemo(
-    () =>
-      shops
-        .filter(
-          (s) =>
-            !q ||
-            s.name.toLowerCase().includes(q) ||
-            (s.phone || '').replace(/\D/g, '').includes(q.replace(/\D/g, '') || '§') ||
-            (s.num != null && formatShopNum(s.num) === q)
-        )
-        .sort((a, b) => b.debtBalance - a.debtBalance),
-    [shops, q]
-  );
   const todaySum = payments.reduce((s, p) => s + p.amount, 0);
-  const lineDebt = shops.reduce((s, x) => s + x.debtBalance, 0);
   const inHand = cash ? cash.expected - cash.received : 0;
 
   return (
     <Screen refreshing={refreshing} onRefresh={onRefresh}>
-      <HeroCard
-        icon={Wallet}
-        label={L(T.todayPko)}
-        value={formatMoney(todaySum, lang)}
-        badge={<HeroPill label={lineCode} />}
-      >
+      <HeroCard icon={Wallet} label={L(T.todayPko)} value={formatMoney(todaySum, lang)} badge={<HeroPill label={lineCode} />}>
         <HeroPill solid icon={CheckCircle2} label={`${formatNumber(payments.length)} ${L(T.payments)}`} />
         {pendingCount > 0 ? <HeroPill label={`${formatNumber(pendingCount)} ${L(T.pending)}`} /> : null}
-        <HeroPill label={`${L(T.totalDebt)}: ${formatMoney(lineDebt, lang)}`} />
       </HeroCard>
 
       {/* Kassa: cash the driver still holds today */}
@@ -201,27 +165,24 @@ export const PkoScreen = () => {
         ) : null}
       </Card>
 
-      <SearchBar value={search} onChangeText={setSearch} placeholder={L(T.searchPh)} />
-
-      <SectionHeader title={`${L(T.debtors)} · ${formatNumber(shown.length)}`} />
-      {shown.length === 0 ? (
+      <SectionHeader title={L(T.accepted)} />
+      {payments.length === 0 ? (
         <Card>
-          <EmptyState icon={Store} title={L(COMMON.noDebt)} />
+          <EmptyState icon={Wallet} title={L(T.noneToday)} />
         </Card>
       ) : (
         <Card style={styles.listCard}>
-          {shown.map((s, i) => (
-            <View key={s.id}>
+          {payments.map((p, i) => (
+            <View key={p.id}>
               {i > 0 ? <Divider /> : null}
               <ListItem
-                title={`${s.num != null ? `№${formatShopNum(s.num)} · ` : ''}${s.name}`}
-                subtitle={[shopRouteCode(s), s.address].filter(Boolean).join(' · ') || undefined}
-                icon={Store}
-                iconTone="danger"
-                onPress={() => setPayShop(s)}
+                title={p.shopName}
+                subtitle={formatTime(p.createdAt)}
+                icon={CheckCircle2}
+                iconTone="success"
                 right={
                   <View style={styles.amount}>
-                    <Money amount={s.debtBalance} color={colors.danger} />
+                    <Money amount={p.amount} color={colors.success} />
                   </View>
                 }
               />
@@ -229,40 +190,6 @@ export const PkoScreen = () => {
           ))}
         </Card>
       )}
-
-      {payments.length > 0 ? (
-        <>
-          <SectionHeader title={L(T.accepted)} />
-          <Card style={styles.listCard}>
-            {payments.map((p, i) => (
-              <View key={p.id}>
-                {i > 0 ? <Divider /> : null}
-                <ListItem
-                  title={p.shopName}
-                  subtitle={formatTime(p.createdAt)}
-                  icon={CheckCircle2}
-                  iconTone="success"
-                  right={
-                    <View style={styles.amount}>
-                      <Money amount={p.amount} color={colors.success} />
-                    </View>
-                  }
-                />
-              </View>
-            ))}
-          </Card>
-        </>
-      ) : null}
-
-      <PaymentSheet
-        shop={payShop}
-        onClose={() => setPayShop(null)}
-        onDone={() => {
-          loadLocal();
-          loadPayments();
-          loadCash();
-        }}
-      />
     </Screen>
   );
 };
