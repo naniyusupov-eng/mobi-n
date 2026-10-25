@@ -123,10 +123,10 @@ export const Login: React.FC<{ onSignedIn: (token: string) => void }> = ({ onSig
         <div className="flex items-center justify-between gap-3 mb-6 px-1">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-11 h-11 rounded-xl overflow-hidden bg-brand-500 shrink-0">
-              <img src="/logo.jpg" alt="Mobi_R" className="w-full h-full object-cover" />
+              <img src="/logo.jpg" alt="RCandy" className="w-full h-full object-cover" />
             </div>
             <div className="min-w-0">
-              <div className="text-[20px] font-bold tracking-tight leading-tight">Mobi_R</div>
+              <div className="text-[20px] font-bold tracking-tight leading-tight">RCandy</div>
               <div className="text-xs text-ink-400 truncate">{L(T.subtitle)}</div>
             </div>
           </div>

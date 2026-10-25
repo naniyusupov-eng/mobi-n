@@ -20,7 +20,7 @@ const LANGUAGES: { id: Language; label: string; sample: string }[] = [
 ];
 
 const COMPANY_FIELDS: { key: keyof CompanySettings; label: Tri; placeholder: string; wide?: boolean }[] = [
-  { key: 'companyName', label: { uz: 'Kompaniya nomi', uz_cyrl: 'Компания номи', ru: 'Название компании' }, placeholder: 'Mobi_R Qandolat', wide: true },
+  { key: 'companyName', label: { uz: 'Kompaniya nomi', uz_cyrl: 'Компания номи', ru: 'Название компании' }, placeholder: 'RCandy', wide: true },
   { key: 'address', label: { uz: 'Manzil', uz_cyrl: 'Манзил', ru: 'Адрес' }, placeholder: 'Fargʻona viloyati, Qoʻqon sh., ...', wide: true },
   { key: 'phone', label: COMMON.phone, placeholder: '+998 90 000 00 00' },
   { key: 'inn', label: { uz: 'STIR (INN)', uz_cyrl: 'СТИР (ИНН)', ru: 'ИНН' }, placeholder: '123456789' },
@@ -319,7 +319,8 @@ export const Settings: React.FC<SettingsProps> = ({ company, onSaveCompany }) =>
     e.preventDefault();
     setStatus('saving');
     try {
-      await onSaveCompany(form);
+      // Only the company fields: the credit and bonus cards save their own values
+      await onSaveCompany({ ...company, ...Object.fromEntries(COMPANY_FIELDS.map((f) => [f.key, form[f.key]])) });
       setStatus('saved');
     } catch {
       setStatus('error');

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import clsx from 'clsx';
 import { AlertTriangle, CheckCircle2, HandCoins, ReceiptText, RefreshCw, Trash2, Wallet } from 'lucide-react';
 import { useLanguage } from '../../context/LanguageContext';
@@ -91,6 +91,9 @@ export const CashTab: React.FC<CashTabProps> = ({ day }) => {
   const [amount, setAmount] = useState('');
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
+  // Blocks a second save while one is running (Enter twice) and gives the server an id to de-duplicate
+  const savingRef = useRef(false);
+  const handoverId = useRef('');
   const [formError, setFormError] = useState('');
 
   useEffect(() => {
@@ -115,6 +118,7 @@ export const CashTab: React.FC<CashTabProps> = ({ day }) => {
 
   const openAccept = (l: CashLine) => {
     setTarget(l);
+    handoverId.current = `hand_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     setAmount(String(Math.max(0, l.expected - l.received)));
     setNote('');
     setFormError('');
@@ -123,15 +127,16 @@ export const CashTab: React.FC<CashTabProps> = ({ day }) => {
   const closeModal = () => setTarget(null);
 
   const handleSave = async () => {
-    if (!target) return;
+    if (!target || savingRef.current) return;
     const value = Math.round(Number(amount.replace(/\s/g, '').replace(',', '.')));
     if (!(value > 0)) return setFormError(L(T.badAmount));
+    savingRef.current = true;
     setSaving(true);
     try {
       const res = await apiFetch(`${API}/cash/handover`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ line: target.line, date: day, amount: value, note: note.trim() }),
+        body: JSON.stringify({ id: handoverId.current, line: target.line, date: day, amount: value, note: note.trim() }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -143,6 +148,7 @@ export const CashTab: React.FC<CashTabProps> = ({ day }) => {
     } catch {
       setFormError(L(T.saveError));
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };

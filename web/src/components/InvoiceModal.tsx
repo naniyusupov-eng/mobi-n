@@ -5,7 +5,7 @@ import { X, Printer, RotateCcw } from 'lucide-react';
 import { CompanySettings, Order, OrderStatus } from '../types';
 import { ReturnModal } from './ReturnModal';
 import { useLanguage } from '../context/LanguageContext';
-import { formatDate, formatDateTime, routeLabel } from '../utils/format';
+import { dayKey, formatDate, formatDateTime, routeLabel } from '../utils/format';
 import { Button, TONE, Tone, formatSum } from './ui';
 import { COMMON, PAYMENT_LABELS, Tri, UNIT_LABELS, useL } from '../i18n/tri';
 
@@ -64,10 +64,10 @@ export const Waybill: React.FC<{ order: Order; company: CompanySettings; compact
       <div className="flex items-end justify-between gap-6 border-b-2 border-black pb-2">
         <div>
           <div className={clsx('font-bold tracking-wide', compact ? 'text-[15px]' : 'text-[20px]')}>{L(T.title)}</div>
-          <div className="font-mono text-[13px]">№ {order.id.slice(-8).toUpperCase()}</div>
+          <div className="font-mono text-[13px]">№ {order.id.slice(-6).toUpperCase()}</div>
         </div>
         <div className="text-right text-[13px]">
-          <div>{formatDateTime(order.createdAt, lang)} {new Date(order.createdAt).getFullYear()}</div>
+          <div>{formatDateTime(order.createdAt, lang)} {dayKey(order.createdAt).slice(0, 4)}</div>
           {order.deliveryDate ? (
             <div>
               {L(T.delivery)}: {formatDate(order.deliveryDate, lang)}
@@ -80,7 +80,7 @@ export const Waybill: React.FC<{ order: Order; company: CompanySettings; compact
       <div className={clsx('grid grid-cols-2 gap-6', compact ? 'py-1.5' : 'py-3')}>
         <div>
           <div className="text-[11px] uppercase tracking-wide">{L(T.supplier)}</div>
-          <div className="font-semibold">{company.companyName || 'Mobi_R'}</div>
+          <div className="font-semibold">{company.companyName || 'RCandy'}</div>
           {company.phone ? (
             <div>
               {L(T.phone)}: {company.phone}

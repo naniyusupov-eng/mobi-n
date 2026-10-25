@@ -30,9 +30,9 @@ const T = {
     ru: '{n} магазинов • маршрут на 6 дней',
   },
   scanHint: {
-    uz: 'Mobi_R ilovasida skanerlang va liniyaga ulaning',
-    uz_cyrl: 'Mobi_R иловасида сканерланг ва линияга уланинг',
-    ru: 'Отсканируйте в приложении Mobi_R и подключитесь к линии',
+    uz: 'RCandy ilovasida skanerlang va liniyaga ulaning',
+    uz_cyrl: 'RCandy иловасида сканерланг ва линияга уланинг',
+    ru: 'Отсканируйте в приложении RCandy и подключитесь к линии',
   },
   keyLabel: { uz: 'Kirish kaliti', uz_cyrl: 'Кириш калити', ru: 'Ключ входа' },
   keyFailed: { uz: 'Kalitni yuklab boʻlmadi', uz_cyrl: 'Калитни юклаб бўлмади', ru: 'Не удалось загрузить ключ' },
@@ -104,6 +104,10 @@ export const LineQRModal: React.FC<LineQRModalProps> = ({ line, clientsCount, on
     }
   };
 
+  // Server address for the phone app; left out on a local test machine (a phone cannot use localhost)
+  const apiUrl = new URL(API, window.location.href);
+  const serverApi = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(apiUrl.hostname) ? undefined : apiUrl.href.replace(/\/+$/, '');
+
   // Payload is compatible with the mobile QRScannerScreen (needs id + name); key signs the phone in
   const qrPayload = JSON.stringify({
     type: 'line',
@@ -114,6 +118,7 @@ export const LineQRModal: React.FC<LineQRModalProps> = ({ line, clientsCount, on
     line: line.code,
     role,
     key,
+    api: serverApi,
   });
 
   return (
@@ -151,7 +156,7 @@ export const LineQRModal: React.FC<LineQRModalProps> = ({ line, clientsCount, on
               {isDriver ? <Truck className="w-[18px] h-[18px]" strokeWidth={2} /> : <Route className="w-[18px] h-[18px]" strokeWidth={2} />}
             </div>
             <div className="text-left min-w-0">
-              <div className="text-[15px] font-bold leading-tight truncate">Mobi_R</div>
+              <div className="text-[15px] font-bold leading-tight truncate">RCandy</div>
               <div className="text-[11px] font-medium text-white/80 uppercase tracking-wide">{L(isDriver ? T.driverQr : T.agentQr)}</div>
             </div>
           </div>

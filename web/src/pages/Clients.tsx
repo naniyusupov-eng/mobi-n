@@ -43,6 +43,16 @@ const T = {
     uz_cyrl: 'Тўловни сақлаб бўлмади. Қайтадан уриниб кўринг.',
     ru: 'Не удалось сохранить оплату. Попробуйте ещё раз.',
   },
+  overDebt: {
+    uz: 'Toʻlov qarzdan katta boʻlishi mumkin emas',
+    uz_cyrl: 'Тўлов қарздан катта бўлиши мумкин эмас',
+    ru: 'Оплата не может быть больше долга',
+  },
+  partlyApplied: {
+    uz: 'Qarz {applied} soʻm edi, shuncha qabul qilindi. Ortiqcha {rejected} soʻm qabul qilinmadi — uni doʻkonga qaytaring.',
+    uz_cyrl: 'Қарз {applied} сўм эди, шунча қабул қилинди. Ортиқча {rejected} сўм қабул қилинмади — уни дўконга қайтаринг.',
+    ru: 'Долг был {applied} сум, принято столько. Лишние {rejected} сум не приняты — верните их магазину.',
+  },
   pickLineOption: { uz: 'Liniyani tanlang', uz_cyrl: 'Линияни танланг', ru: 'Выберите линию' },
   lineName: { uz: '{code} liniya', uz_cyrl: '{code} линия', ru: 'Линия {code}' },
   searchPlaceholder: {
@@ -166,6 +176,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
 
   const [paymentShop, setPaymentShop] = useState<Client | null>(null);
   const [payAmount, setPayAmount] = useState('');
+  const [payError, setPayError] = useState<Tri | null>(null);
   const [paying, setPaying] = useState(false);
 
   const [blockedOnly, setBlockedOnly] = useState(false);
@@ -275,11 +286,13 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
   const openPayment = (c: Client) => {
     setPaymentShop(c);
     setPayAmount(String(c.debtBalance || ''));
+    setPayError(null);
   };
 
   const closePayment = () => {
     setPaymentShop(null);
     setPayAmount('');
+    setPayError(null);
   };
 
   const handleConfirmPayment = async (e?: React.FormEvent) => {
@@ -287,7 +300,10 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
     const amount = Number(payAmount);
     // A second Enter while saving must not take the payment off twice
     if (paying || !paymentShop || !(amount > 0)) return;
+    // The server takes no more than the debt; the rest would be lost silently
+    if (amount > (paymentShop.debtBalance || 0)) return setPayError(T.overDebt);
     setPaying(true);
+    setPayError(null);
     try {
       const res = await apiFetch(`${API}/payments/sync`, {
         method: 'POST',
@@ -301,8 +317,12 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
       if (res.shop) setShops((prev) => prev.map((c) => (c.id === res.shop.id ? { ...c, ...res.shop } : c)));
       setError(null);
       closePayment();
+      // The debt shown was out of date (paid meanwhile from a phone): say what was really taken
+      if (res.rejected > 0) {
+        window.alert(fmt(L(T.partlyApplied), { applied: formatSum(res.applied || 0), rejected: formatSum(res.rejected) }));
+      }
     } catch {
-      setError(T.paymentSaveError);
+      setPayError(T.paymentSaveError); // shown inside the modal, the page banner is behind it
     } finally {
       setPaying(false);
     }
@@ -720,7 +740,7 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
             <Button variant="ghost" onClick={closePayment}>
               {L(COMMON.cancel)}
             </Button>
-            <Button icon={Wallet} onClick={() => handleConfirmPayment()} disabled={paying || amountNum <= 0}>
+            <Button icon={Wallet} onClick={() => handleConfirmPayment()} disabled={paying || amountNum <= 0 || amountNum > currentDebt}>
               {L(T.savePayment)}
             </Button>
           </>
@@ -735,14 +755,20 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
             label={L(T.paymentAmount)}
             type="number"
             min={1}
+            max={currentDebt}
             inputMode="numeric"
             suffix={L(COMMON.som)}
             value={payAmount}
-            onChange={(e) => setPayAmount(e.target.value)}
+            onChange={(e) => {
+              setPayAmount(e.target.value);
+              setPayError(null);
+            }}
             className="tabular-nums font-semibold"
             hint={
               amountNum > 0 && currentDebt > 0
-                ? amountNum >= currentDebt
+                ? amountNum > currentDebt
+                  ? L(T.overDebt)
+                  : amountNum === currentDebt
                   ? L(T.debtClosed)
                   : fmt(L(T.remainingDebt), { sum: formatSum(currentDebt - amountNum) })
                 : undefined
@@ -768,6 +794,9 @@ export const Clients: React.FC<ClientsProps> = ({ initialRoute, highlightShopId 
               </QuickAmount>
             ))}
           </div>
+          {payError && (
+            <div className="px-4 py-3 rounded-xl2 bg-rose-50 text-rose-600 text-sm font-medium break-words">{L(payError)}</div>
+          )}
           {/* Enter in the amount field submits */}
           <button type="submit" className="hidden" aria-hidden tabIndex={-1} />
         </form>

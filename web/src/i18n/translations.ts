@@ -208,13 +208,13 @@ export const translations: Record<Language, Translations> = {
     nav_section: 'Asosiy Boʻlimlar',
     system_status: 'Server holati:',
     server_active: 'Faol (NestJS)',
-    version: 'Versiya 1.0.0 (Mobi_R Web)',
+    version: 'Versiya 1.0.0 (RCandy Web)',
 
     // Header
     today_sales: 'Bugungi savdo:',
     active_agents: 'Agentlar:',
     admin_role: 'Bosh Administrator',
-    office_name: 'Mobi_R Ofisi',
+    office_name: 'RCandy Ofisi',
 
     // Dashboard
     dash_title: 'Bosh Boshqaruv Paneli',
@@ -404,7 +404,7 @@ export const translations: Record<Language, Translations> = {
     today_sales: 'Продажи сегодня:',
     active_agents: 'Агенты:',
     admin_role: 'Главный Администратор',
-    office_name: 'Офис Mobi_R',
+    office_name: 'Офис RCandy',
 
     // Dashboard
     dash_title: 'Панель Управления Моби-С',
@@ -588,13 +588,13 @@ export const translations: Record<Language, Translations> = {
     nav_section: 'Асосий Бўлимлар',
     system_status: 'Сервер ҳолати:',
     server_active: 'Фаол (NestJS)',
-    version: 'Версия 1.0.0 (Mobi_R Web)',
+    version: 'Версия 1.0.0 (RCandy Web)',
 
     // Header
     today_sales: 'Бугунги савдо:',
     active_agents: 'Агентлар:',
     admin_role: 'Бош Администратор',
-    office_name: 'Mobi_R Офиси',
+    office_name: 'RCandy Офиси',
 
     // Dashboard
     dash_title: 'Бош Бошқарув Панели',

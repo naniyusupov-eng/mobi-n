@@ -100,6 +100,11 @@
   .fixed:has(#print-section) {
     position: static !important;
   }
+  /* Hidden page parts would still take up room (a long route table under the statement or QR
+     modal printed several blank pages): everything that neither holds nor is the printed part goes */
+  body:has(#print-section) #root *:not(:has(#print-section)):not(#print-section):not(#print-section *) {
+    display: none !important;
+  }
   #print-section {
     position: absolute;
     left: 0;
