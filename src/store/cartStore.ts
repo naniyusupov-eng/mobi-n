@@ -4,7 +4,7 @@ import { orderRepository } from '../database/orderRepository';
 import { productRepository } from '../database/productRepository';
 import { shopRepository } from '../database/shopRepository';
 import { PromoLine, pricingService } from '../services/pricingService';
-import { useDateStore } from './dateStore';
+import { getTodayDateString } from './dateStore';
 import { useLanguageStore } from './languageStore';
 import { pick } from '../i18n/tri';
 import { Alert } from 'react-native';
@@ -75,6 +75,8 @@ interface CartState {
   setDeliveryDate: (date: string) => void;
   setNotes: (notes: string) => void;
   clearCart: () => void;
+  /** Empties the cart and forgets the shop (sign-in to another line) */
+  resetCart: () => void;
 
   // Calculators
   getTotalAmount: () => number;
@@ -91,7 +93,8 @@ interface CartState {
   submitOrder: (agentId: string, agentName: string, coords?: { latitude?: number; longitude?: number }) => Order | null;
 }
 
-const getWorkingDate = () => useDateStore.getState().workingDate;
+// Delivery defaults to today (the first quick date in checkout), never to the day browsed on Home/History
+const defaultDeliveryDate = () => getTodayDateString();
 
 /** The shop's price list as stored on the phone (refreshed with the shops), else what the cart holds */
 const priceListOf = (shop: Shop | null): string | null =>
@@ -114,7 +117,7 @@ export const useCartStore = create<CartState>((set, get) => ({
   items: [],
   paymentMethod: 'naqd',
   discountPercent: 0,
-  deliveryDate: getWorkingDate(),
+  deliveryDate: defaultDeliveryDate(),
   notes: '',
 
   setDeliveryDate: (deliveryDate: string) => set({ deliveryDate }),
@@ -123,7 +126,7 @@ export const useCartStore = create<CartState>((set, get) => ({
     // If selecting a different shop, reset cart items
     const current = get().shop;
     if (current && shop && current.id !== shop.id) {
-      set({ shop, items: [], discountPercent: 0, notes: '', paymentMethod: 'naqd', deliveryDate: getWorkingDate() });
+      set({ shop, items: [], discountPercent: 0, notes: '', paymentMethod: 'naqd', deliveryDate: defaultDeliveryDate() });
     } else {
       // Same shop again (fresh data) or the first shop for a cart: prices follow its price list
       set({ shop, items: repriceItems(get().items, shop) });
@@ -242,8 +245,13 @@ export const useCartStore = create<CartState>((set, get) => ({
       discountPercent: 0,
       notes: '',
       paymentMethod: 'naqd',
-      deliveryDate: getWorkingDate(),
+      deliveryDate: defaultDeliveryDate(),
     }),
+
+  resetCart: () => {
+    get().clearCart();
+    set({ shop: null });
+  },
 
   getTotalAmount: () => {
     return get().items.reduce((sum, item) => sum + item.totalPrice, 0);

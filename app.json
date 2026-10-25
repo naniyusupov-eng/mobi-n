@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Mobi_R",
-    "slug": "Mobi_R",
+    "name": "RCandy",
+    "slug": "rcandy",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -10,7 +10,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "uz.mobir.agent",
+      "package": "uz.rcandy.agent",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",

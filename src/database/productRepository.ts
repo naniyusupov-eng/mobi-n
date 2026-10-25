@@ -26,6 +26,11 @@ export const productRepository = {
     return db.getAllSync<Product>(query, params);
   },
 
+  count: (): number => {
+    const db = getDatabase();
+    return db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM products')?.count || 0;
+  },
+
   getById: (id: string): Product | null => {
     const db = getDatabase();
     return db.getFirstSync<Product>('SELECT * FROM products WHERE id = $id', { $id: id }) || null;

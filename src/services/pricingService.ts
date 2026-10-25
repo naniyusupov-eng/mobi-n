@@ -75,6 +75,11 @@ export const pricingService = {
     return pricing;
   },
 
+  /** Forgets the in-memory copy (sign-in to another line); the next get() reads the phone again */
+  reset: () => {
+    memo = null;
+  },
+
   get: (): Pricing => {
     if (!memo) memo = cacheRepository.get<Pricing>(PRICING_KEY)?.data || { priceLists: [], promos: [] };
     return memo;

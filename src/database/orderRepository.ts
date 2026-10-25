@@ -10,7 +10,11 @@ const mapOrder = (o: any): Order => {
     promos = [];
   }
   const { promosJson, ...rest } = o;
-  return { ...rest, isSynced: Boolean(o.isSynced), promos };
+  // Older orders kept the delivery day only in notes ("Yetkazish: 2026-09-13" or "text (Yetkazish: ...)")
+  const legacy = /\s*\(?Yetkazish: (\d{4}-\d{2}-\d{2})\)?/;
+  const notes: string = typeof o.notes === 'string' ? o.notes : '';
+  const deliveryDate: string | undefined = o.deliveryDate || notes.match(legacy)?.[1] || undefined;
+  return { ...rest, notes: notes.replace(legacy, '').trim(), deliveryDate, isSynced: Boolean(o.isSynced), promos };
 };
 import { shopRepository } from './shopRepository';
 import { productRepository } from './productRepository';
@@ -48,11 +52,8 @@ export const orderRepository = {
     const createdAt = new Date().toISOString();
     const status: OrderStatus = 'confirmed';
 
-    // Format notes with delivery date if present
-    let finalNotes = data.notes || '';
-    if (data.deliveryDate) {
-      finalNotes = finalNotes ? `${finalNotes} (Yetkazish: ${data.deliveryDate})` : `Yetkazish: ${data.deliveryDate}`;
-    }
+    // The delivery day has its own column; notes keep only the agent's text
+    const finalNotes = data.notes || '';
 
     // Insert Order inside transaction
     db.runSync(
@@ -60,12 +61,12 @@ export const orderRepository = {
         id, shopId, shopName, agentId, agentName,
         totalAmount, discountAmount, finalAmount,
         paymentMethod, status, latitude, longitude,
-        notes, createdAt, isSynced, promosJson
+        notes, createdAt, isSynced, promosJson, deliveryDate
       ) VALUES (
         $id, $shopId, $shopName, $agentId, $agentName,
         $totalAmount, $discountAmount, $finalAmount,
         $paymentMethod, $status, $latitude, $longitude,
-        $notes, $createdAt, 0, $promosJson
+        $notes, $createdAt, 0, $promosJson, $deliveryDate
       )`,
       {
         $id: orderId,
@@ -83,6 +84,7 @@ export const orderRepository = {
         $notes: finalNotes,
         $createdAt: createdAt,
         $promosJson: JSON.stringify(data.promos || []),
+        $deliveryDate: data.deliveryDate || null,
       }
     );
 
@@ -200,7 +202,10 @@ export const orderRepository = {
 
   getTodayStats: (agentId?: string): { totalSales: number; orderCount: number; cashCollected: number } => {
     const db = getDatabase();
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    // Today on the phone's calendar, as a UTC range (createdAt is UTC ISO, so 00:00-05:00 Tashkent counts as today)
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
     let query = `
       SELECT 
@@ -208,9 +213,9 @@ export const orderRepository = {
         COUNT(*) as orderCount,
         COALESCE(SUM(CASE WHEN paymentMethod = 'naqd' THEN finalAmount ELSE 0 END), 0) as cashCollected
       FROM orders 
-      WHERE createdAt LIKE $todayPrefix
+      WHERE createdAt >= $start AND createdAt < $end
     `;
-    const params: Record<string, any> = { $todayPrefix: `${today}%` };
+    const params: Record<string, any> = { $start: start.toISOString(), $end: end.toISOString() };
 
     if (agentId) {
       query += ' AND agentId = $agentId';

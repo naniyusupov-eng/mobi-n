@@ -1,5 +1,5 @@
 /**
- * Mobi_R mobile UI kit. Every screen is built from these pieces, so spacing, type and colours
+ * RCandy mobile UI kit. Every screen is built from these pieces, so spacing, type and colours
  * stay consistent. All text shrinks/truncates instead of overflowing its box.
  */
 import React from 'react';

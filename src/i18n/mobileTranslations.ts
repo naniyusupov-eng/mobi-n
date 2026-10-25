@@ -230,7 +230,7 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     nav_orders_journal: 'Hujjatlar jurnali',
 
     // Auth
-    auth_brand: 'Mobi_R Qandolat',
+    auth_brand: 'RCandy',
     auth_subtitle: 'Liniyaga ulanish',
     auth_scan_hint: 'Liniya QR kodini kameraga koʻrsating yoki QR ostidagi kalitni kiriting',
     auth_camera_permission: 'Kamera ruxsati zarur',
@@ -622,7 +622,7 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     nav_orders_journal: 'Ҳужжатлар журнали',
 
     // Auth
-    auth_brand: 'Mobi_R Қандолат',
+    auth_brand: 'RCandy',
     auth_subtitle: 'Линияга уланиш',
     auth_scan_hint: 'Линия QR кодини камерага кўрсатинг ёки QR остидаги калитни киритинг',
     auth_camera_permission: 'Камера рухсати зарур',

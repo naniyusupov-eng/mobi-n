@@ -6,6 +6,7 @@ import { useAuthStore } from '../../store/authStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { shopRepository } from '../../database/shopRepository';
 import { lineService } from '../../services/lineService';
+import { syncRepository } from '../../database/syncRepository';
 import { colors } from '../../theme/colors';
 import { Card, Divider, EmptyState, HeroCard, HeroPill, ListItem, Money, Screen, SearchBar, SectionHeader } from '../../components/ui';
 import { PaymentSheet } from '../../components/shared';
@@ -43,7 +44,9 @@ export const DebtorsScreen = () => {
   const onRefresh = async () => {
     setRefreshing(true);
     try {
-      if (lineCode) await lineService.downloadShops(lineCode);
+      // A payment still waiting to be sent already lowered the debt on the phone; the server's
+      // figure would bring the old debt back until it arrives
+      if (lineCode && syncRepository.getPendingOfTypes(['payment']).length === 0) await lineService.downloadShops(lineCode);
     } catch {
       // offline: phone data stays
     }

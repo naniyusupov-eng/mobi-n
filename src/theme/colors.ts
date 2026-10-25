@@ -1,4 +1,4 @@
-// Mobi_R mobile design tokens: the same Click-style theme as the web admin
+// RCandy mobile design tokens: the same Click-style theme as the web admin
 // (bright brand blue, soft blue-grey canvas, white rounded cards).
 export const colors = {
   primary: '#0B6BFF', // brand-500

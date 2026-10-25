@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet } from 'react-native';
 import * as Location from 'expo-location';
 import { Check, CheckCircle2, Navigation } from 'lucide-react-native';
@@ -10,6 +10,7 @@ import { ROUTE_DAYS } from '../../services/lineService';
 import { routeDayName } from '../../utils/format';
 import { colors, radius, space } from '../../theme/colors';
 import { EVERY_DAY } from '../../components/shopHelpers';
+import { readFix } from '../../services/workdayService';
 
 // Stored values stay the Latin day names used in the database ("Dushanba" ... "Barchasi")
 const ALL_DAYS = 'Barchasi';
@@ -70,6 +71,7 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
   const [visitDay, setVisitDay] = useState(ROUTE_DAYS[0]);
   const [coords, setCoords] = useState<{ latitude?: number; longitude?: number }>({});
   const [gettingLocation, setGettingLocation] = useState(false);
+  const savingRef = useRef(false);
 
   const handleGetLocation = async () => {
     try {
@@ -79,12 +81,14 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
         Alert.alert(L(TX.location), L(TX.gpsDenied));
         return;
       }
-      const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-      setCoords({ latitude: loc.coords.latitude, longitude: loc.coords.longitude });
-      Alert.alert(
-        L(TX.gpsSaved),
-        `${L(TX.lat)}: ${loc.coords.latitude.toFixed(4)}\n${L(TX.lng)}: ${loc.coords.longitude.toFixed(4)}`
-      );
+      // At most ~8s for a fix, then a recent last-known position
+      const pos = await readFix();
+      if (!pos) {
+        Alert.alert(L(COMMON.error), L(TX.gpsError));
+        return;
+      }
+      setCoords({ latitude: pos.lat, longitude: pos.lng });
+      Alert.alert(L(TX.gpsSaved), `${L(TX.lat)}: ${pos.lat.toFixed(4)}\n${L(TX.lng)}: ${pos.lng.toFixed(4)}`);
     } catch {
       Alert.alert(L(COMMON.error), L(TX.gpsError));
     } finally {
@@ -93,6 +97,8 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
   };
 
   const handleSave = () => {
+    // A double tap must not create the shop twice
+    if (savingRef.current) return;
     if (!name.trim()) {
       Alert.alert(L(COMMON.error), L(TX.needName));
       return;
@@ -106,20 +112,32 @@ export const AddShopModal = ({ navigation }: { navigation: any }) => {
       return;
     }
 
-    const createdShop = addNewShop({
-      name: name.trim(),
-      ownerName: ownerName.trim(),
-      phone: phone.trim(),
-      address: address.trim(),
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      visitDay,
-      debtBalance: 0,
-    });
+    savingRef.current = true;
+    let createdShop;
+    try {
+      createdShop = addNewShop({
+        name: name.trim(),
+        ownerName: ownerName.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        visitDay,
+        debtBalance: 0,
+      });
+    } catch (e: any) {
+      savingRef.current = false;
+      Alert.alert(L(COMMON.error), e?.message || L(COMMON.error));
+      return;
+    }
 
-    Alert.alert(L(TX.saved), `«${createdShop.name}» ${L(TX.savedText)}`, [
-      { text: 'OK', onPress: () => navigation.goBack() },
-    ]);
+    // The guard stays on: the screen closes after OK
+    Alert.alert(
+      L(TX.saved),
+      `«${createdShop.name}» ${L(TX.savedText)}`,
+      [{ text: 'OK', onPress: () => navigation.goBack() }],
+      { cancelable: false }
+    );
   };
 
   const hasCoords = coords.latitude != null && coords.longitude != null;

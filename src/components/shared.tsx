@@ -2,7 +2,7 @@
  * Feature pieces used on several screens: printing a receipt, an order card and the
  * debt payment (PKO) sheet. One implementation instead of a copy per screen.
  */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Alert, Pressable, StyleSheet, View } from 'react-native';
 import { CloudOff, Printer } from 'lucide-react-native';
 import { AppText, Badge, Button, Field, IconButton, Money, Row, Sheet, Tone } from './ui';
@@ -90,8 +90,15 @@ export const PaymentSheet: React.FC<{ shop: Shop | null; onClose: () => void; on
   const value = Math.min(Number(amount.replace(/\D/g, '')) || 0, debt);
   const quick = [100_000, 500_000, 1_000_000].filter((q) => q < debt);
 
+  // A second tap before the sheet closes must not take the payment twice
+  const takenFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!shop) takenFor.current = null;
+  }, [shop]);
+
   const handleConfirm = () => {
-    if (!shop || value <= 0 || debt <= 0) return;
+    if (!shop || value <= 0 || debt <= 0 || takenFor.current === shop.id) return;
+    takenFor.current = shop.id;
     shopRepository.collectPayment(shop.id, value, `${session?.role || 'agent'}:${session?.lineCode || ''}`);
     onClose();
     onDone?.();

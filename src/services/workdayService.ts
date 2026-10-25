@@ -13,9 +13,10 @@ export interface Workday {
   endLoc?: { lat: number; lng: number };
 }
 
-const LOCATION_TIMEOUT_MS = 8000;
+export const LOCATION_TIMEOUT_MS = 8000;
 
-const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | null> =>
+/** Resolves with the promise's value, or null on error or after ms */
+export const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | null> =>
   new Promise((resolve) => {
     const timer = setTimeout(() => resolve(null), ms);
     promise.then(
@@ -38,14 +39,19 @@ const readPosition = async (): Promise<{ lat: number; lng: number } | null> => {
   try {
     const { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') return null;
-    const loc =
-      (await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), LOCATION_TIMEOUT_MS)) ||
-      (await withTimeout(Location.getLastKnownPositionAsync({ maxAge: 5 * 60 * 1000 }), 1000));
-    return loc ? { lat: loc.coords.latitude, lng: loc.coords.longitude } : null;
+    return await readFix();
   } catch {
     // Location is optional; the workday is saved without it
     return null;
   }
+};
+
+/** Fresh fix within ~8s, else a last-known position up to 5 min old, else null. Permission must be granted already. */
+export const readFix = async (): Promise<{ lat: number; lng: number } | null> => {
+  const loc =
+    (await withTimeout(Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced }), LOCATION_TIMEOUT_MS)) ||
+    (await withTimeout(Location.getLastKnownPositionAsync({ maxAge: 5 * 60 * 1000 }), 1000));
+  return loc ? { lat: loc.coords.latitude, lng: loc.coords.longitude } : null;
 };
 
 const send = async (action: 'start' | 'end'): Promise<Workday> => {

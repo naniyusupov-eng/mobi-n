@@ -9,7 +9,7 @@ import { AppText, Button, Card, Divider, EmptyState, IconButton, KeyValue, Money
 import { OrderCard } from '../../components/shared';
 import { orderRepository } from '../../database/orderRepository';
 import { useLanguageStore } from '../../store/languageStore';
-import { getTodayDateString, useDateStore } from '../../store/dateStore';
+import { getTodayDateString, localDayOf, useDateStore } from '../../store/dateStore';
 import { COMMON, PAYMENT_LABELS, useL } from '../../i18n/tri';
 import { formatDayLong } from '../../utils/format';
 import { Order } from '../../types';
@@ -23,7 +23,8 @@ const TEXT = {
   showAll: { uz: 'Barcha buyurtmalarni koʻrish', uz_cyrl: 'Барча буюртмаларни кўриш', ru: 'Показать все заказы' },
 };
 
-const orderDay = (o: Order) => o.deliveryDate || (o.createdAt ? o.createdAt.split('T')[0] : '');
+// An order belongs to the local calendar day it was taken (the delivery day is shown separately)
+const orderDay = (o: Order) => localDayOf(o.createdAt);
 
 export const OrdersHistoryScreen = ({ navigation }: { navigation: any }) => {
   const L = useL();

@@ -64,6 +64,21 @@ export const parseLineKey = (raw: string): string | null => {
   return /^[A-Za-z0-9][A-Za-z0-9\s-]*$/.test(text) ? text : null;
 };
 
+/**
+ * Server address from a line QR code: { ..., api: 'https://rcandy.uz/api/v1' }.
+ * QR codes printed from the hosted website carry it, so an installed APK finds the server itself.
+ */
+export const parseServerUrl = (raw: string): string | null => {
+  const text = raw.trim();
+  if (!text.startsWith('{')) return null;
+  try {
+    const api = JSON.parse(text)?.api;
+    return typeof api === 'string' && /^https?:\/\/[^\s]+$/.test(api.trim()) ? api.trim().replace(/\/+$/, '') : null;
+  } catch {
+    return null;
+  }
+};
+
 export const lineService = {
   /** Exchanges a line key for a session token: POST /auth/line */
   signIn: async (key: string): Promise<LineSignIn> => {

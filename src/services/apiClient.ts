@@ -29,6 +29,11 @@ export const setCustomApiUrl = async (url: string) => {
   apiClient.defaults.baseURL = clean;
 };
 
+/** Points requests at the saved server address (from the last line QR code), if there is one */
+export const loadSavedApiUrl = async () => {
+  apiClient.defaults.baseURL = await getApiUrl();
+};
+
 export const getApiUrl = async (): Promise<string> => {
   try {
     const saved = await AsyncStorage.getItem(API_URL_KEY);

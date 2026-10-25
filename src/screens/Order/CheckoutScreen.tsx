@@ -14,6 +14,7 @@ import { nasiyaBlockReason } from '../../utils/credit';
 import { shopRepository } from '../../database/shopRepository';
 import { colors, radius, space } from '../../theme/colors';
 import { EqualSegments } from '../../components/orderControls';
+import { readFix } from '../../services/workdayService';
 
 const pad = (n: number) => String(n).padStart(2, '0');
 
@@ -74,6 +75,13 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
     if (nasiyaBlocked && paymentMethod === 'nasiya') setPaymentMethod('naqd');
   }, [nasiyaBlocked, paymentMethod, setPaymentMethod]);
 
+  // A cart left from an earlier day: move its delivery date to today
+  useEffect(() => {
+    const today = getTodayDateString();
+    if (isValidDate(deliveryDate) && deliveryDate < today) setDeliveryDate(today);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const quickDates = [
     { key: datePlusDays(0), label: L(COMMON.today) },
     { key: datePlusDays(1), label: L({ uz: 'Ertaga', uz_cyrl: 'Эртага', ru: 'Завтра' }) },
@@ -100,6 +108,17 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
       );
       return;
     }
+    if (deliveryDate < getTodayDateString()) {
+      Alert.alert(
+        L(COMMON.warning),
+        L({
+          uz: 'Yetkazish sanasi oʻtgan kun boʻlishi mumkin emas',
+          uz_cyrl: 'Етказиш санаси ўтган кун бўлиши мумкин эмас',
+          ru: 'Дата доставки не может быть в прошлом',
+        })
+      );
+      return;
+    }
 
     try {
       setSubmitting(true);
@@ -108,8 +127,9 @@ export const CheckoutScreen = ({ navigation }: { navigation: any }) => {
       try {
         const { status } = await Location.getForegroundPermissionsAsync();
         if (status === 'granted') {
-          const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          coords = { latitude: loc.coords.latitude, longitude: loc.coords.longitude };
+          // At most ~8s for a fix (then a recent last-known one); no fix = order without coordinates
+          const pos = await readFix();
+          if (pos) coords = { latitude: pos.lat, longitude: pos.lng };
         }
       } catch {
         // Location is optional; the order is saved without it

@@ -20,7 +20,7 @@ import { useSyncStore } from '../../store/syncStore';
 import { useLanguageStore } from '../../store/languageStore';
 import { useCartStore } from '../../store/cartStore';
 import { useShopStore } from '../../store/shopStore';
-import { getTodayDateString, useDateStore } from '../../store/dateStore';
+import { getTodayDateString, localDayOf, useDateStore } from '../../store/dateStore';
 import { orderRepository } from '../../database/orderRepository';
 import { Order } from '../../types';
 import { colors, radius, shadow, space } from '../../theme/colors';
@@ -48,7 +48,8 @@ import { formatDayLong, formatMoney, formatMoneyShort, formatNumber } from '../.
 
 type Stats = { totalSales: number; orderCount: number; cashCollected: number };
 
-const orderDay = (o: Order) => o.deliveryDate || (o.createdAt ? o.createdAt.split('T')[0] : '');
+// An order belongs to the local calendar day it was taken (the delivery day is shown separately)
+const orderDay = (o: Order) => localDayOf(o.createdAt);
 
 export const HomeScreen = ({ navigation }: { navigation: any }) => {
   const L = useL();

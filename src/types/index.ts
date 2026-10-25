@@ -150,7 +150,7 @@ export interface SyncQueueItem {
   entityId: string; // for 'delivery' and 'return': the order id
   action: 'create' | 'update' | 'deliver' | 'undeliver';
   payloadJson: string;
-  status: 'pending' | 'failed' | 'synced';
+  status: 'pending' | 'failed' | 'synced' | 'rejected'; // rejected: the server refused it for good
   attempts: number;
   createdAt: string;
   lastAttemptAt?: string;

@@ -3,9 +3,15 @@ import { Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Agent } from '../types';
 import { getDatabase } from '../database/db';
-import { lineService, parseLineKey } from '../services/lineService';
-import { setAuthToken, setUnauthorizedHandler } from '../services/apiClient';
+import { lineService, parseLineKey, parseServerUrl } from '../services/lineService';
+import { apiClient, loadSavedApiUrl, setAuthToken, setCustomApiUrl, setUnauthorizedHandler } from '../services/apiClient';
 import { useLanguageStore } from './languageStore';
+import { useSyncStore } from './syncStore';
+import { useCartStore } from './cartStore';
+import { syncRepository } from '../database/syncRepository';
+import { cacheRepository } from '../database/cacheRepository';
+import { productRepository } from '../database/productRepository';
+import { pricingService } from '../services/pricingService';
 import { Tri, pick } from '../i18n/tri';
 
 // Sign-in errors in the current app language
@@ -38,7 +44,16 @@ const ERR = {
     ru: 'Ключ линии изменён или сеанс завершён. Отсканируйте новый QR-код',
   },
   sessionTitle: { uz: 'Qayta kiring', uz_cyrl: 'Қайта киринг', ru: 'Войдите снова' },
+  unsentTitle: { uz: 'Yuborilmagan maʼlumotlar', uz_cyrl: 'Юборилмаган маълумотлар', ru: 'Неотправленные данные' },
+  stay: { uz: 'Qolish', uz_cyrl: 'Қолиш', ru: 'Остаться' },
+  signOutAnyway: { uz: 'Baribir chiqish', uz_cyrl: 'Барибир чиқиш', ru: 'Всё равно выйти' },
 } satisfies Record<string, Tri>;
+
+const unsentText = (n: number): Tri => ({
+  uz: `${n} ta amal (buyurtma, toʻlov) serverga yuborilmadi. Boshqa liniyaga kirsangiz, ular yoʻqoladi. Baribir chiqasizmi?`,
+  uz_cyrl: `${n} та амал (буюртма, тўлов) серверга юборилмади. Бошқа линияга кирсангиз, улар йўқолади. Барибир чиқасизми?`,
+  ru: `${n} действ. (заказы, оплаты) не отправлены на сервер. При входе в другую линию они будут потеряны. Всё равно выйти?`,
+});
 
 interface AuthState {
   agent: Agent | null;
@@ -47,10 +62,36 @@ interface AuthState {
   error: string | null;
   loadStoredSession: () => Promise<void>;
   loginWithQR: (qrData: string) => Promise<{ success: boolean; error?: string }>;
-  logout: () => Promise<void>;
+  /** Signs out; with unsent items it syncs first and asks before dropping them. False = the user stayed. */
+  logout: (opts?: { force?: boolean }) => Promise<boolean>;
 }
 
 const STORAGE_KEY = '@mobi_r_agent_session';
+// "lineCode|role" of the last successful sign-in; kept after logout to spot a line switch
+const LAST_LINE_KEY = '@mobi_r_last_line';
+
+/** Line-specific data on the phone (shops and products are replaced by the sign-in downloads) */
+const clearLineData = () => {
+  useCartStore.getState().resetCart();
+  cacheRepository.clear(); // driver day lists, price lists
+  pricingService.reset();
+  syncRepository.clearAll(); // leftovers of the old session must not be sent with the new line's token
+  useSyncStore.getState().refreshPendingCount();
+};
+
+/** Asks whether to sign out although items are still unsent */
+const confirmLoseUnsent = (count: number): Promise<boolean> =>
+  new Promise((resolve) => {
+    Alert.alert(
+      msg(ERR.unsentTitle),
+      msg(unsentText(count)),
+      [
+        { text: msg(ERR.stay), style: 'cancel', onPress: () => resolve(false) },
+        { text: msg(ERR.signOutAnyway), style: 'destructive', onPress: () => resolve(true) },
+      ],
+      { cancelable: true, onDismiss: () => resolve(false) }
+    );
+  });
 
 /** Server session tokens are 64 hex chars; old app versions stored fake "line_<id>" tokens */
 const isRealToken = (token: unknown): token is string => typeof token === 'string' && /^[0-9a-f]{32,}$/i.test(token);
@@ -64,7 +105,7 @@ const signInError = (err: any): string => {
   return err.response?.data?.error || err.message || msg(ERR.generic);
 };
 
-export const useAuthStore = create<AuthState>((set) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   agent: null,
   isLoading: true,
   isLoggingIn: false,
@@ -73,6 +114,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   loadStoredSession: async () => {
     try {
       set({ isLoading: true });
+      await loadSavedApiUrl();
       const stored = await AsyncStorage.getItem(STORAGE_KEY);
       const agent: Agent | null = stored ? JSON.parse(stored) : null;
       // Old sessions (personal agent QR, or line sessions without a server token): ask to rescan
@@ -92,8 +134,10 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   // Signs in to a line with its key (from the line QR code, or typed from under the QR)
   loginWithQR: async (qrData: string) => {
+    const previousUrl = apiClient.defaults.baseURL;
     const fail = (error: string) => {
       setAuthToken(null);
+      apiClient.defaults.baseURL = previousUrl; // a failed sign-in keeps the old server
       set({ isLoggingIn: false, error });
       return { success: false, error };
     };
@@ -105,6 +149,10 @@ export const useAuthStore = create<AuthState>((set) => ({
       if (!key) {
         return fail(msg(ERR.noKey));
       }
+
+      // The QR code names the server; it is kept only when the sign-in works
+      const serverUrl = parseServerUrl(qrData);
+      if (serverUrl) apiClient.defaults.baseURL = serverUrl;
 
       let signIn;
       try {
@@ -122,11 +170,17 @@ export const useAuthStore = create<AuthState>((set) => ({
       } catch (err: any) {
         return fail(signInError(err));
       }
+      // Another line or role than last time: drop the old session's local data before the new downloads
+      const sessionKey = `${lineCode}|${role}`;
+      const previousKey = await AsyncStorage.getItem(LAST_LINE_KEY);
+      if (previousKey && previousKey !== sessionKey) clearLineData();
+
       try {
         await lineService.downloadProducts();
       } catch (err) {
-        // The catalogue already on the phone stays; the next sync retries
+        // The catalogue already on the phone stays; the next sync retries. Without any catalogue no orders can be taken.
         console.warn('[Auth] Products download failed', err);
+        if (productRepository.count() === 0) return fail(msg(ERR.offline));
       }
       if (role !== 'driver') {
         try {
@@ -164,7 +218,9 @@ export const useAuthStore = create<AuthState>((set) => ({
         }
       );
 
+      if (serverUrl) await setCustomApiUrl(serverUrl);
       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(session));
+      await AsyncStorage.setItem(LAST_LINE_KEY, sessionKey);
       set({ agent: session, isLoggingIn: false, error: null });
       return { success: true };
     } catch (err: any) {
@@ -172,10 +228,19 @@ export const useAuthStore = create<AuthState>((set) => ({
     }
   },
 
-  logout: async () => {
+  logout: async (opts) => {
+    if (!opts?.force && syncRepository.getPendingCount() > 0) {
+      // Last chance to send what is still on the phone
+      await useSyncStore.getState().triggerSync();
+      // A 401 during that sync already signed out
+      if (!get().agent) return true;
+      const left = syncRepository.getPendingCount();
+      if (left > 0 && !(await confirmLoseUnsent(left))) return false;
+    }
     setAuthToken(null);
     await AsyncStorage.removeItem(STORAGE_KEY);
     set({ agent: null });
+    return true;
   },
 }));
 
@@ -184,6 +249,6 @@ setUnauthorizedHandler(() => {
   const { agent, isLoggingIn, logout } = useAuthStore.getState();
   // During sign-in the sign-in flow reports its own error
   if (!agent || isLoggingIn) return;
-  void logout();
+  void logout({ force: true });
   Alert.alert(msg(ERR.sessionTitle), msg(ERR.sessionEnded));
 });

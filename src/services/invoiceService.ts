@@ -92,7 +92,7 @@ export const invoiceService = {
 </head>
 <body>
   <div class="header">
-    <p class="brand">Mobi_R</p>
+    <p class="brand">RCandy</p>
     <p class="sub">${L(T.title)} • #${order.id.slice(-8).toUpperCase()}</p>
   </div>
 

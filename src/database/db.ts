@@ -113,49 +113,24 @@ export const initDatabase = (db: SQLite.SQLiteDatabase) => {
     );
   `);
 
-  // Seed default categories if empty
-  const catCount = db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM categories');
-  if (!catCount || catCount.count === 0) {
-    const insertCat = db.prepareSync('INSERT INTO categories (id, name, iconName) VALUES ($id, $name, $iconName)');
-    SEED_CATEGORIES.forEach((cat) => {
-      insertCat.executeSync({ $id: cat.id, $name: cat.name, $iconName: cat.iconName || null });
+  // No demo catalogue: products and categories come only from the server (sign-in and every sync).
+  // Older installs: once, drop the demo rows that are still exactly as seeded (a server download replaces them anyway).
+  const version = db.getFirstSync<{ user_version: number }>('PRAGMA user_version')?.user_version ?? 0;
+  if (version < 1) {
+    db.withTransactionSync(() => {
+      for (const p of SEED_PRODUCTS) {
+        db.runSync(
+          'DELETE FROM products WHERE id = $id AND code = $code AND name = $name AND priceDona = $priceDona AND stockDona = $stockDona',
+          { $id: p.id, $code: p.code, $name: p.name, $priceDona: p.priceDona, $stockDona: p.stockDona }
+        );
+      }
+      // Demo categories with no product left
+      for (const c of SEED_CATEGORIES) {
+        if (c.id === 'cat_all') continue;
+        db.runSync('DELETE FROM categories WHERE id = $id AND id NOT IN (SELECT DISTINCT categoryId FROM products)', { $id: c.id });
+      }
     });
-    insertCat.finalizeSync();
-  }
-
-  // Seed default products if empty
-  const prodCount = db.getFirstSync<{ count: number }>('SELECT COUNT(*) as count FROM products');
-  if (!prodCount || prodCount.count === 0) {
-    const insertProd = db.prepareSync(`
-      INSERT INTO products (
-        id, code, name, categoryId, categoryName, description,
-        priceDona, priceBlok, priceKorobka, priceKg,
-        itemsPerBlock, itemsPerBox, stockDona, imageUrl
-      ) VALUES (
-        $id, $code, $name, $categoryId, $categoryName, $description,
-        $priceDona, $priceBlok, $priceKorobka, $priceKg,
-        $itemsPerBlock, $itemsPerBox, $stockDona, $imageUrl
-      )
-    `);
-    SEED_PRODUCTS.forEach((prod) => {
-      insertProd.executeSync({
-        $id: prod.id,
-        $code: prod.code,
-        $name: prod.name,
-        $categoryId: prod.categoryId,
-        $categoryName: prod.categoryName || '',
-        $description: prod.description || '',
-        $priceDona: prod.priceDona,
-        $priceBlok: prod.priceBlok,
-        $priceKorobka: prod.priceKorobka,
-        $priceKg: prod.priceKg,
-        $itemsPerBlock: prod.itemsPerBlock,
-        $itemsPerBox: prod.itemsPerBox,
-        $stockDona: prod.stockDona,
-        $imageUrl: prod.imageUrl || null,
-      });
-    });
-    insertProd.finalizeSync();
+    db.execSync('PRAGMA user_version = 1;');
   }
 
   // Older installs: add route columns to shops (CREATE TABLE IF NOT EXISTS keeps the old schema)
@@ -188,6 +163,7 @@ export const initDatabase = (db: SQLite.SQLiteDatabase) => {
   for (const [table, column] of [
     ['shops', 'priceListId TEXT'],
     ['orders', 'promosJson TEXT'],
+    ['orders', 'deliveryDate TEXT'], // YYYY-MM-DD chosen at checkout (older orders: only in notes)
   ]) {
     try {
       db.execSync(`ALTER TABLE ${table} ADD COLUMN ${column};`);

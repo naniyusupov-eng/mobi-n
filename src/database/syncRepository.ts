@@ -63,6 +63,20 @@ export const syncRepository = {
     );
   },
 
+  /** The server refused the item for good (4xx): it is not retried and no longer counts as pending */
+  markRejected: (id: string, error: string) => {
+    const db = getDatabase();
+    db.runSync(
+      'UPDATE sync_queue SET status = "rejected", attempts = attempts + 1, errorMessage = $error, lastAttemptAt = $time WHERE id = $id',
+      { $id: id, $error: error, $time: new Date().toISOString() }
+    );
+  },
+
+  /** Drops the whole queue (rows of the previous line's session after signing in to another line) */
+  clearAll: () => {
+    getDatabase().runSync('DELETE FROM sync_queue');
+  },
+
   clearSynced: () => {
     const db = getDatabase();
     db.runSync('DELETE FROM sync_queue WHERE status = "synced"');

@@ -25,6 +25,11 @@ export const cacheRepository = {
     });
   },
 
+  /** Removes every saved answer (driver day lists, price lists) - sign-in to another line */
+  clear: () => {
+    getDatabase().runSync('DELETE FROM local_cache');
+  },
+
   /** Keys starting with the prefix, e.g. "deliveries:" */
   keys: (prefix: string): string[] => {
     const db = getDatabase();

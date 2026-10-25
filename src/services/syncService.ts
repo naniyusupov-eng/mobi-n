@@ -14,6 +14,7 @@ export interface SyncResult {
   syncedPayments?: number;
   syncedDeliveries?: number; // driver: deliver / undeliver / return actions
   errors: string[];
+  rejected?: string[]; // server refusals in this run (not retried); shown to the user once
 }
 
 const SESSION_KEY = '@mobi_r_agent_session';
@@ -31,6 +32,10 @@ const getSession = async (): Promise<{ lineCode: string | null; role: string | n
 /** No answer from the server (offline, timeout): the rest of the queue would fail the same way */
 const isNetworkError = (err: any) => Boolean(err?.isAxiosError) && !err.response;
 
+/** The server refused the item itself (cancelled order, other line, bad data): retrying cannot help.
+ * 401 (session ended), 408 and 429 (try later) and 409 (the shop is not on the server yet) are not refusals. */
+const isRefusal = (status: number) => status >= 400 && status < 500 && ![401, 408, 409, 429].includes(status);
+
 const runSync = async (): Promise<SyncResult> => {
   const queue = syncRepository.getPending();
   const result: SyncResult = {
@@ -40,6 +45,7 @@ const runSync = async (): Promise<SyncResult> => {
     syncedPayments: 0,
     syncedDeliveries: 0,
     errors: [],
+    rejected: [],
   };
   // Driver actions of one order must reach the server in the order they were made: once one of an
   // order's actions could not be sent (server error), its later ones wait for the next sync.
@@ -78,18 +84,24 @@ const runSync = async (): Promise<SyncResult> => {
         result.syncedDeliveries = (result.syncedDeliveries || 0) + 1;
       }
     } catch (err: any) {
-      result.success = false;
       const msg = err.response?.data?.error || err.response?.data?.message || err.message || 'Sinxronizatsiya xatosi';
       console.warn(`[SyncService] Failed item ${item.id}:`, msg);
-      // Failed items stay in the queue (counted as pending) and are retried on the next sync.
-      // A refusal from the server (4xx) does not hold anything else back.
+      const status = Number(err.response?.status) || 0;
+      if (!isNetworkError(err) && isRefusal(status)) {
+        // Refused for good: taken out of the queue so it no longer blocks syncing or covers
+        // fresh server data (e.g. "delivered" for an order the office cancelled meanwhile)
+        syncRepository.markRejected(item.id, msg);
+        result.rejected!.push(msg);
+        continue;
+      }
+      // Other failures stay in the queue (counted as pending) and are retried on the next sync
+      result.success = false;
       syncRepository.markFailed(item.id, msg);
       result.errors.push(`ID ${item.entityId}: ${msg}`);
       if (isNetworkError(err)) {
         offline = true;
         break; // offline: keep the rest queued, in order
       }
-      const status = Number(err.response?.status) || 0;
       if (isDriverItem && (status >= 500 || status === 408 || status === 429)) heldOrders.add(item.entityId);
     }
   }
@@ -108,9 +120,9 @@ const runSync = async (): Promise<SyncResult> => {
     }
   }
 
-  // Pull the line's shops (debts may have changed on the website). Only when everything
-  // was pushed, otherwise local debt changes that are still queued would be overwritten.
-  if (lineCode && result.success) {
+  // Pull the line's shops (debts may have changed on the website). Only when nothing is left
+  // in the queue, otherwise local debt changes that are still queued would be overwritten.
+  if (lineCode && !offline && syncRepository.getPendingCount() === 0) {
     try {
       await lineService.downloadShops(lineCode);
     } catch (err: any) {
