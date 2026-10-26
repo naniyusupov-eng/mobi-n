@@ -23,11 +23,23 @@
         "ACCESS_COARSE_LOCATION",
         "INTERNET",
         "android.permission.CAMERA",
-        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "INTERNET",
+        "android.permission.CAMERA",
         "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ],
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "runtimeVersion": {
+        "policy": "appVersion"
+      },
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -38,7 +50,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Savdo agenti QR kodini skanerlash uchun kameraga ruxsat bering."
+          "cameraPermission": "Savdo agenti QR kodini skanerlash uchun kameraga ruxsat bering.",
+          "recordAudioAndroid": false
         }
       ],
       [
@@ -61,6 +74,9 @@
       "eas": {
         "projectId": "50b2108f-4853-4ec8-86d5-7fe91dbf8ee7"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/50b2108f-4853-4ec8-86d5-7fe91dbf8ee7"
     }
   }
 }
