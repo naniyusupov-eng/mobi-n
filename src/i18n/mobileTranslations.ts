@@ -426,7 +426,7 @@ export const mobileTranslations: Record<MobileLanguage, MobileTranslations> = {
     nav_orders_journal: 'Журнал документов',
 
     // Auth
-    auth_brand: 'Моби-С Кондитер',
+    auth_brand: 'RCandy',
     auth_subtitle: 'Подключение к линии',
     auth_scan_hint: 'Наведите камеру на QR-код линии или введите ключ под ним',
     auth_camera_permission: 'Требуется доступ к камере',

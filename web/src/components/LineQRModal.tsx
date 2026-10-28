@@ -108,18 +108,9 @@ export const LineQRModal: React.FC<LineQRModalProps> = ({ line, clientsCount, on
   const apiUrl = new URL(API, window.location.href);
   const serverApi = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(apiUrl.hostname) ? undefined : apiUrl.href.replace(/\/+$/, '');
 
-  // Payload is compatible with the mobile QRScannerScreen (needs id + name); key signs the phone in
-  const qrPayload = JSON.stringify({
-    type: 'line',
-    id: line.id,
-    code: `LINE-${line.code}`,
-    name: `${line.code} liniya`,
-    territory: line.code,
-    line: line.code,
-    role,
-    key,
-    api: serverApi,
-  });
+  // As little as the phone needs (the key; the server address once hosted): a short payload gives a
+  // coarse QR code that cameras read quickly, also from a screen. The key itself tells line and role.
+  const qrPayload = JSON.stringify({ key, api: serverApi });
 
   return (
     <Modal

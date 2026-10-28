@@ -12,10 +12,9 @@
     "android": {
       "package": "uz.rcandy.agent",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#0B6BFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundImage": "./assets/android-icon-background.png"
       },
       "permissions": [
         "CAMERA",
@@ -65,7 +64,9 @@
         "expo-build-properties",
         {
           "android": {
-            "usesCleartextTraffic": true
+            "usesCleartextTraffic": true,
+            "enableMinifyInReleaseBuilds": false,
+            "extraProguardRules": "-keep class com.google.mlkit.** { *; }\n-keep class expo.modules.camera.** { *; }"
           }
         }
       ]

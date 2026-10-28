@@ -43,5 +43,14 @@
     "server": "node server/sync-server.cjs",
     "qr": "node server/show-qr.cjs"
   },
-  "private": true
+  "private": true,
+  "expo": {
+    "autolinking": {
+      "android": {
+        "buildFromSource": [
+          "expo-camera"
+        ]
+      }
+    }
+  }
 }

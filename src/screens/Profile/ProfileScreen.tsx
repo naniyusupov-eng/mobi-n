@@ -8,7 +8,8 @@ import { MobileLanguage } from '../../i18n/mobileTranslations';
 import { colors, radius, space } from '../../theme/colors';
 import { AppText, Badge, Button, Card, Divider, KeyValue, Row, Screen, SectionHeader } from '../../components/ui';
 import { COMMON, useL } from '../../i18n/tri';
-import { formatNumber } from '../../utils/format';
+import { formatDateTime, formatNumber } from '../../utils/format';
+import * as Updates from 'expo-updates';
 
 // Each language is named in its own script, so these labels never change with the UI language
 const LANGUAGES: { id: MobileLanguage; label: string }[] = [
@@ -134,6 +135,20 @@ export const ProfileScreen = () => {
           onPress={handleSync}
           loading={isSyncing}
           style={styles.topGap}
+        />
+      </Card>
+
+      {/* App version and the over-the-air update it runs (shows that an update arrived) */}
+      <SectionHeader title={L({ uz: 'Ilova', uz_cyrl: 'Илова', ru: 'Приложение' })} />
+      <Card>
+        <KeyValue label={L({ uz: 'Versiya', uz_cyrl: 'Версия', ru: 'Версия' })} value={Updates.runtimeVersion || '1.0.0'} />
+        <KeyValue
+          label={L({ uz: 'Yangilanish', uz_cyrl: 'Янгиланиш', ru: 'Обновление' })}
+          value={
+            Updates.isEmbeddedLaunch || !Updates.createdAt
+              ? L({ uz: 'APK ichidagi', uz_cyrl: 'APK ичидаги', ru: 'Из APK' })
+              : formatDateTime(Updates.createdAt, lang)
+          }
         />
       </Card>
 
