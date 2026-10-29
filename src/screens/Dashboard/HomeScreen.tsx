@@ -140,7 +140,8 @@ export const HomeScreen = ({ navigation }: { navigation: any }) => {
       label: L({ uz: 'Yangi doʻkon', uz_cyrl: 'Янги дўкон', ru: 'Новый магазин' }),
       icon: Plus,
       tone: 'warning',
-      onPress: () => navigation.navigate('ShopsTab', { screen: 'AddShopModal' }),
+      // initial: false keeps the shops list under the form (Cancel and Save return to it)
+      onPress: () => navigation.navigate('ShopsTab', { screen: 'AddShopModal', initial: false }),
     },
     {
       label: L({ uz: 'Hisobotlar', uz_cyrl: 'Ҳисоботлар', ru: 'Отчёты' }),
